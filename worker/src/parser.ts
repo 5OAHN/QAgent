@@ -78,7 +78,7 @@ export class DSLParser {
 
     switch (cmd) {
       case "goto":
-        await page.goto(this.dict.resolveUrl(args[0]), { waitUntil: "networkidle", timeout: 30000 });
+        await page.goto(this.dict.resolveUrl(args[0]), { waitUntil: "domcontentloaded", timeout: 30000 });
         break;
       case "click":
         await page.locator(this.dict.resolveSelector(args[0])).click({ timeout: 10000 });
@@ -97,6 +97,13 @@ export class DSLParser {
         try { expected = this.dict.resolveUrl(args[0]); } catch { expected = args[0]; }
         if (!page.url().includes(expected))
           throw new Error(`URL 불일치\n  기대: '${expected}'\n  실제: '${page.url()}'`);
+        break;
+      }
+      case "send": {
+        const inputLoc = page.locator(this.dict.resolveSelector(args[0]));
+        await inputLoc.fill(args[1] || "");
+        await page.waitForTimeout(300);
+        await inputLoc.press("Enter");
         break;
       }
       case "assert_text": {
