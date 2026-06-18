@@ -13,7 +13,9 @@ Rules:
 - If page is loading, use wait action
 - Scroll down if you need to find elements not visible
 - Mark done ONLY when the entire task is fully completed
-- Mark failed if the task is truly impossible or you are stuck in a loop`;
+- Mark failed if the task is truly impossible or you are stuck in a loop
+
+IMPORTANT: Always write the "thought" field in Korean (한국어). Describe what you see and why you chose this action in Korean.`;
 
 const ACTION_TOOL = {
   name: "execute_action",
