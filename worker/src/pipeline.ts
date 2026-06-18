@@ -10,6 +10,7 @@ import { runVisionAgent } from "./vision-agent";
 export interface RunResult {
   runId: string;
   status: "running" | "completed" | "failed";
+  paused?: boolean;
   total: number;
   passed: number;
   failed: number;
@@ -22,9 +23,34 @@ export interface RunResult {
 }
 
 const activeRuns = new Map<string, RunResult>();
+const cancelledRuns = new Set<string>();
+const pausedRuns = new Set<string>();
 
 export function getRunResult(runId: string): RunResult | undefined {
   return activeRuns.get(runId);
+}
+
+export function cancelRun(runId: string): boolean {
+  const run = activeRuns.get(runId);
+  if (!run || run.status !== "running") return false;
+  cancelledRuns.add(runId);
+  return true;
+}
+
+export function pauseRun(runId: string): boolean {
+  const run = activeRuns.get(runId);
+  if (!run || run.status !== "running") return false;
+  pausedRuns.add(runId);
+  run.paused = true;
+  return true;
+}
+
+export function resumeRun(runId: string): boolean {
+  const run = activeRuns.get(runId);
+  if (!run) return false;
+  pausedRuns.delete(runId);
+  run.paused = false;
+  return true;
 }
 
 // ── 공통: 테스트 케이스 실행 루프 ──────────────────────────────────────
@@ -122,8 +148,18 @@ export async function runNaturalLanguagePipeline(
 
   const BASE_URL = process.env.WORKER_BASE_URL || "http://localhost:8001";
 
+  const control = {
+    isCancelled: () => cancelledRuns.has(runId),
+    isPaused: () => pausedRuns.has(runId),
+  };
+
   // 케이스별 순차 실행
   for (let i = 0; i < scenarioList.length; i++) {
+    // 케이스 시작 전 중지 확인
+    if (control.isCancelled()) {
+      console.log(`\n🛑 [${runId}] 중지됨 — 남은 케이스 건너뜀`);
+      break;
+    }
     const naturalText = scenarioList[i];
     const testId = `V-${String(i + 1).padStart(3, "0")}`;
 
@@ -161,7 +197,7 @@ export async function runNaturalLanguagePipeline(
         liveStepLogs.push(`[Step ${step.stepNum}] ${step.action} ${step.details} — ${step.thought}`);
         result.consoleLogs = [...liveStepLogs];
         run.cases = run.cases.map((c) => c.testId === testId ? { ...result } : c);
-      });
+      }, control);
 
       result.consoleLogs = visionResult.steps.map(
         (s) => `[Step ${s.stepNum}] ${s.action} ${s.details} — ${s.thought}`
@@ -202,6 +238,9 @@ export async function runNaturalLanguagePipeline(
     }
   }
 
+  cancelledRuns.delete(runId);
+  pausedRuns.delete(runId);
+  run.paused = false;
   run.status = "completed";
   return run;
 }

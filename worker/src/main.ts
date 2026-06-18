@@ -3,7 +3,7 @@ import cors from "cors";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { runExcelPipeline, runNaturalLanguagePipeline, getRunResult } from "./pipeline";
+import { runExcelPipeline, runNaturalLanguagePipeline, getRunResult, cancelRun, pauseRun, resumeRun } from "./pipeline";
 
 const app = express();
 app.use(cors());
@@ -69,6 +69,22 @@ app.get("/status/:runId", (req: Request, res: Response) => {
   const result = getRunResult(req.params.runId);
   if (!result) return res.status(404).json({ error: "실행 정보를 찾을 수 없습니다." });
   res.json(result);
+});
+
+// ── 실행 제어 ─────────────────────────────────────────────────────────
+app.post("/run/:runId/cancel", (req: Request, res: Response) => {
+  const ok = cancelRun(req.params.runId);
+  res.json({ ok, action: "cancel" });
+});
+
+app.post("/run/:runId/pause", (req: Request, res: Response) => {
+  const ok = pauseRun(req.params.runId);
+  res.json({ ok, action: "pause" });
+});
+
+app.post("/run/:runId/resume", (req: Request, res: Response) => {
+  const ok = resumeRun(req.params.runId);
+  res.json({ ok, action: "resume" });
 });
 
 app.get("/health", (_: Request, res: Response) => res.json({ status: "ok" }));

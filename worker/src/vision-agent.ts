@@ -54,17 +54,36 @@ export interface VisionResult {
   summary?: string;
 }
 
+export interface RunControl {
+  isCancelled: () => boolean;
+  isPaused: () => boolean;
+}
+
 export async function runVisionAgent(
   page: Page,
   task: string,
   maxSteps = 25,
-  onStep?: (step: VisionStep) => void
+  onStep?: (step: VisionStep) => void,
+  control?: RunControl
 ): Promise<VisionResult> {
   const client = new Anthropic();
   const steps: VisionStep[] = [];
   const actionHistory: string[] = [];
 
   for (let i = 0; i < maxSteps; i++) {
+    // 중지 확인
+    if (control?.isCancelled()) {
+      return { success: false, steps, failReason: "사용자에 의해 중지되었습니다." };
+    }
+
+    // 일시정지 대기 (500ms 간격으로 폴링)
+    while (control?.isPaused()) {
+      await new Promise((r) => setTimeout(r, 500));
+      if (control.isCancelled()) {
+        return { success: false, steps, failReason: "사용자에 의해 중지되었습니다." };
+      }
+    }
+
     const screenshot = await page.screenshot({ type: "png" });
     const base64 = screenshot.toString("base64");
 

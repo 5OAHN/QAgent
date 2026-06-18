@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 type RunStatus = "running" | "completed" | "failed";
+type ControlAction = "cancel" | "pause" | "resume";
 type CaseStatus = "Pass" | "Fail" | "Pending";
 
 interface TestCase {
@@ -21,6 +22,7 @@ interface TestCase {
 interface RunResult {
   runId: string;
   status: RunStatus;
+  paused?: boolean;
   total: number;
   passed: number;
   failed: number;
@@ -37,7 +39,7 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function RunDashboard({ runId }: { runId: string }) {
   const router = useRouter();
-  const { data, error, isLoading } = useSWR<RunResult>(
+  const { data, error, isLoading, mutate } = useSWR<RunResult>(
     `/api/status?run_id=${runId}`,
     fetcher,
     {
@@ -46,6 +48,15 @@ export function RunDashboard({ runId }: { runId: string }) {
       refreshWhenHidden: false,
     }
   );
+
+  const sendControl = async (action: ControlAction) => {
+    await fetch(`/api/run/${runId}/control`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    await mutate();
+  };
 
   if (isLoading) return <Shell><Spinner /></Shell>;
   if (error || !data) return <Shell><ErrorBox msg={error?.message || "데이터를 불러올 수 없습니다."} /></Shell>;
@@ -70,7 +81,33 @@ export function RunDashboard({ runId }: { runId: string }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <StatusBadge status={data.status} />
+          <StatusBadge status={data.status} paused={data.paused} />
+          {/* 실행 중 컨트롤 버튼 */}
+          {!isTerminal && (
+            <>
+              {data.paused ? (
+                <button
+                  onClick={() => sendControl("resume")}
+                  className="rounded-full border border-[#0099ff]/40 bg-[#0099ff]/10 px-3 py-1 text-xs text-[#0099ff] transition-colors hover:bg-[#0099ff]/20"
+                >
+                  ▶ 재개
+                </button>
+              ) : (
+                <button
+                  onClick={() => sendControl("pause")}
+                  className="rounded-full border border-[#262626] bg-[#141414] px-3 py-1 text-xs text-[#999] transition-colors hover:border-[#ffaa00] hover:text-[#ffaa00]"
+                >
+                  ⏸ 일시정지
+                </button>
+              )}
+              <button
+                onClick={() => sendControl("cancel")}
+                className="rounded-full border border-[#262626] bg-[#141414] px-3 py-1 text-xs text-[#999] transition-colors hover:border-red-500 hover:text-red-400"
+              >
+                ■ 중지
+              </button>
+            </>
+          )}
           {data.mode === "natural" && data.targetUrl && data.scenarios && (
             <button
               onClick={() => {
@@ -125,8 +162,17 @@ export function RunDashboard({ runId }: { runId: string }) {
                   </div>
                 ))}
                 <div className="flex items-center gap-1.5 pt-1 text-xs text-[#555]">
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#0099ff]" />
-                  <span>다음 단계 분석 중…</span>
+                  {data.paused ? (
+                    <>
+                      <span className="h-1.5 w-1.5 rounded-full bg-yellow-400" />
+                      <span className="text-yellow-600">일시정지됨 — 재개 버튼을 눌러 계속하세요</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#0099ff]" />
+                      <span>다음 단계 분석 중…</span>
+                    </>
+                  )}
                 </div>
               </div>
             )}
@@ -215,7 +261,10 @@ function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function StatusBadge({ status }: { status: RunStatus }) {
+function StatusBadge({ status, paused }: { status: RunStatus; paused?: boolean }) {
+  if (status === "running" && paused) {
+    return <span className="rounded-full bg-yellow-900/40 px-3 py-1 text-xs font-medium text-yellow-300">일시정지</span>;
+  }
   const map: Record<RunStatus, { cls: string; label: string }> = {
     running:   { cls: "bg-blue-900/50 text-blue-300 animate-pulse", label: "실행 중" },
     completed: { cls: "bg-green-900/50 text-green-300", label: "완료" },
