@@ -55,3 +55,12 @@ elements:
   구글 검색 버튼:
     selector: "input[name='btnK']"
     type: button
+
+  # 챗봇 입력/전송
+  챗봇 입력창:
+    selector: "input[name='message']"
+    type: input
+
+  챗봇 전송 버튼:
+    selector: "button[aria-label='질문 전송']"
+    type: button

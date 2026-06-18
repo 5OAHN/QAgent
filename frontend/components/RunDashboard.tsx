@@ -15,6 +15,7 @@ interface TestCase {
   failReason: string;
   videoUrl: string;
   screenshotUrl: string;
+  consoleLogs?: string[];
 }
 
 interface RunResult {
@@ -102,20 +103,27 @@ export function RunDashboard({ runId }: { runId: string }) {
         </div>
       )}
 
-      {/* 진행률 */}
+      {/* 실행 중 — 실시간 스텝 */}
       {!isTerminal && (
-        <div className="mb-6 space-y-1.5">
-          <div className="flex justify-between text-xs text-[#999]">
-            <span>{done} / {data.total} 완료</span>
-            <span>{progress}%</span>
+        <div className="mb-6 space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 animate-ping rounded-full bg-[#0099ff]" />
+            <span className="text-sm text-[#999]">AI가 테스트를 진행 중이에요… 잠시만 기다려 주세요</span>
           </div>
-          <div className="h-1 w-full overflow-hidden rounded-full bg-[#1c1c1c]">
-            <div
-              className="h-full rounded-full bg-[#0099ff] transition-all duration-500"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <p className="text-xs text-[#666]">3초마다 자동 갱신 중…</p>
+          {data.cases?.[0]?.consoleLogs?.length > 0 && (
+            <div className="rounded-xl border border-[#1a1a1a] bg-[#0f0f0f] p-4 space-y-1.5 max-h-64 overflow-y-auto">
+              {data.cases[0].consoleLogs.map((log, i) => (
+                <div key={i} className="flex items-start gap-2 text-xs">
+                  <span className="mt-0.5 shrink-0 text-[#0099ff]">▷</span>
+                  <span className="text-[#999]">{log}</span>
+                </div>
+              ))}
+              <div className="flex items-center gap-1.5 pt-1 text-xs text-[#555]">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#0099ff]" />
+                <span>다음 단계 분석 중…</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

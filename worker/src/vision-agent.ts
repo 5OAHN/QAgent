@@ -55,7 +55,8 @@ export interface VisionResult {
 export async function runVisionAgent(
   page: Page,
   task: string,
-  maxSteps = 25
+  maxSteps = 25,
+  onStep?: (step: VisionStep) => void
 ): Promise<VisionResult> {
   const client = new Anthropic();
   const steps: VisionStep[] = [];
@@ -102,6 +103,7 @@ export async function runVisionAgent(
     const step: VisionStep = { stepNum: i + 1, thought: input.thought || "", action: input.action, details };
     steps.push(step);
     actionHistory.push(`${input.action}${details ? ` ${details}` : ""} — ${input.thought}`);
+    onStep?.(step);
 
     console.log(`  [Step ${i + 1}] ${input.action} ${details}`);
 

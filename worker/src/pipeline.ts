@@ -146,7 +146,15 @@ export async function runNaturalLanguagePipeline(
     console.log(`\n🤖 Vision 에이전트 시작 → ${targetUrl}`);
     await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
 
-    const visionResult = await runVisionAgent(page, naturalText);
+    // 스텝마다 실시간으로 프론트엔드에 반영
+    const liveStepLogs: string[] = [];
+    run.cases = [{ ...result }];
+
+    const visionResult = await runVisionAgent(page, naturalText, 25, (step) => {
+      liveStepLogs.push(`[Step ${step.stepNum}] ${step.action} ${step.details} — ${step.thought}`);
+      result.consoleLogs = [...liveStepLogs];
+      run.cases = [{ ...result }];
+    });
 
     result.consoleLogs = visionResult.steps.map(
       (s) => `[Step ${s.stepNum}] ${s.action} ${s.details} — ${s.thought}`
@@ -184,7 +192,7 @@ export async function runNaturalLanguagePipeline(
     await browser.close();
   }
 
-  run.cases.push(result);
+  run.cases = [result];
   run.status = "completed";
   return run;
 }
