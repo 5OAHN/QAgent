@@ -1,5 +1,5 @@
 # Node.js + Chromium 사전 탑재 공식 이미지
-FROM mcr.microsoft.com/playwright:v1.44.0-jammy
+FROM mcr.microsoft.com/playwright:v1.61.0-jammy
 
 WORKDIR /app
 
