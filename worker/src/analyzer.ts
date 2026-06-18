@@ -3,7 +3,7 @@ import fs from "fs";
 
 // 실패 분석은 빠른 Sonnet, DSL 변환은 정확한 Opus 사용
 const ANALYSIS_MODEL = "claude-sonnet-4-6";
-const CONVERSION_MODEL = "claude-opus-4-7";
+const CONVERSION_MODEL = "claude-sonnet-4-6";
 
 function getClient(): Anthropic {
   if (!process.env.ANTHROPIC_API_KEY) {
