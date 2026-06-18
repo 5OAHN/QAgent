@@ -70,25 +70,32 @@ export interface GeneratedTestCase {
 const SYSTEM_PROMPT = `You are a QA automation expert. Convert natural language test steps into our DSL format.
 
 DSL Commands (joined with " -> "):
-  goto(URL)                       — navigate to a URL
-  click(selector)                 — click an element
-  input(selector, 'value')        — type into an input field
-  wait(milliseconds)              — pause execution
-  send(selector, 'value')         — type into a chat/search input AND click the submit button (ALWAYS use this instead of input() for chatbot messages)
-  assert_visible(selector)        — verify element is visible
-  assert_url(URL or partial URL)  — verify current URL contains string
-  assert_text(selector, 'text')   — verify element contains text
 
-Selector priority:
-  1. ALWAYS use element names from the provided list — NEVER guess CSS selectors
-  2. Only use raw CSS selectors if the element name list is empty
+  [PREFERRED — Semantic locators, use these first]
+  click_text('visible text')                 — click element by its visible text
+  click_role('role', 'name')                 — click by ARIA role + name (roles: button, link, menuitem, tab, option, checkbox, radio)
+  input_placeholder('placeholder', 'value')  — fill input by placeholder text
+  input_label('label text', 'value')         — fill input by label text
+  send_placeholder('placeholder', 'value')   — fill chat/search input by placeholder + press Enter
+  assert_text_visible('text')                — verify text is visible on page
+  assert_url(URL or partial URL)             — verify current URL contains string
+  goto(URL)                                  — navigate to a URL
+  wait(milliseconds)                         — pause execution
+
+  [FALLBACK — only when semantic locators cannot work]
+  click(elementName)               — click by registered element name
+  input(elementName, 'value')      — fill by registered element name
+  send(elementName, 'value')       — fill + Enter by registered element name
 
 Rules:
+  - ALWAYS prefer semantic locators (click_text, click_role, input_placeholder, etc.)
+  - NEVER guess CSS selectors like .class, #id, [attr=val] — they break easily
+  - For chat/search inputs: use send_placeholder('placeholder text', 'message')
+  - For buttons/menus/links: use click_text('label') or click_role('button', 'label')
+  - For form inputs with placeholder: use input_placeholder('placeholder', 'value')
+  - For form inputs with label: use input_label('label text', 'value')
   - Split logically distinct flows into separate test cases (N-001, N-002, …)
-  - Each test case needs clear "actions" and an optional "expected" assertion
-  - Keep feature and scenario in Korean
-  - For chatbot/chat input: ALWAYS use send(elementName, 'text') — NEVER use input() + click() for chat messages
-  - NEVER use placeholder, class, or guessed selectors — only registered element names`;
+  - Keep feature and scenario in Korean`;
 
 export async function convertNaturalLanguageToDSL(
   targetUrl: string,

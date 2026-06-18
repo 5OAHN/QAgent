@@ -80,25 +80,13 @@ export class DSLParser {
       case "goto":
         await page.goto(this.dict.resolveUrl(args[0]), { waitUntil: "domcontentloaded", timeout: 30000 });
         break;
+      // ── CSS 셀렉터 기반 (레거시) ──────────────────────────────────
       case "click":
         await page.locator(this.dict.resolveSelector(args[0])).click({ timeout: 10000 });
         break;
       case "input":
         await page.locator(this.dict.resolveSelector(args[0])).fill(args[1] || "");
         break;
-      case "wait":
-        await page.waitForTimeout(parseInt(args[0]));
-        break;
-      case "assert_visible":
-        await page.locator(this.dict.resolveSelector(args[0])).waitFor({ state: "visible", timeout: 10000 });
-        break;
-      case "assert_url": {
-        let expected: string;
-        try { expected = this.dict.resolveUrl(args[0]); } catch { expected = args[0]; }
-        if (!page.url().includes(expected))
-          throw new Error(`URL 불일치\n  기대: '${expected}'\n  실제: '${page.url()}'`);
-        break;
-      }
       case "send": {
         const inputLoc = page.locator(this.dict.resolveSelector(args[0]));
         await inputLoc.fill(args[1] || "");
@@ -112,6 +100,53 @@ export class DSLParser {
           throw new Error(`텍스트 불일치\n  기대: '${args[1]}'\n  실제: '${actual}'`);
         break;
       }
+      case "assert_visible":
+        await page.locator(this.dict.resolveSelector(args[0])).waitFor({ state: "visible", timeout: 10000 });
+        break;
+
+      // ── 시맨틱 Locator (권장) ────────────────────────────────────
+      case "click_text":
+        // 화면에 보이는 텍스트로 클릭: click_text('상담분석')
+        await page.getByText(args[0], { exact: false }).first().click({ timeout: 10000 });
+        break;
+      case "click_role":
+        // 역할+이름으로 클릭: click_role('button', '삭제')
+        await page.getByRole(args[0] as any, { name: args[1] }).first().click({ timeout: 10000 });
+        break;
+      case "click_label":
+        // 라벨 텍스트로 클릭: click_label('로그인')
+        await page.getByLabel(args[0]).first().click({ timeout: 10000 });
+        break;
+      case "input_placeholder":
+        // placeholder로 입력: input_placeholder('병원코드를 입력하세요', 'dweax')
+        await page.getByPlaceholder(args[0]).fill(args[1] || "");
+        break;
+      case "input_label":
+        // 라벨로 입력: input_label('병원코드', 'dweax')
+        await page.getByLabel(args[0]).fill(args[1] || "");
+        break;
+      case "send_placeholder": {
+        // placeholder로 찾아 입력+Enter: send_placeholder('질문을 입력해 주세요', '예약 신청')
+        const loc = page.getByPlaceholder(args[0]);
+        await loc.fill(args[1] || "");
+        await page.waitForTimeout(300);
+        await loc.press("Enter");
+        break;
+      }
+      case "assert_text_visible":
+        // 텍스트가 화면에 보이는지 확인: assert_text_visible('예약이 완료')
+        await page.getByText(args[0], { exact: false }).first().waitFor({ state: "visible", timeout: 15000 });
+        break;
+      case "assert_url": {
+        let expected: string;
+        try { expected = this.dict.resolveUrl(args[0]); } catch { expected = args[0]; }
+        if (!page.url().includes(expected))
+          throw new Error(`URL 불일치\n  기대: '${expected}'\n  실제: '${page.url()}'`);
+        break;
+      }
+      case "wait":
+        await page.waitForTimeout(parseInt(args[0]));
+        break;
       default:
         throw new Error(`[DSL] 알 수 없는 명령: '${cmd}'`);
     }
