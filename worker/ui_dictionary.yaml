@@ -1,0 +1,57 @@
+# ──────────────────────────────────────────────────────────────────
+# QAgent UI Dictionary
+# 기획자가 유지보수하는 자연어 → 실제 URL/셀렉터 매핑표.
+# 셀렉터가 바뀌면 이 파일만 수정하면 됩니다.
+# ──────────────────────────────────────────────────────────────────
+
+pages:
+  # ▼ 실제 메이데스크 URL로 교체하세요
+  메이리뷰 로그인:
+    url: "https://your-service.com/login"
+  메인 대시보드:
+    url: "https://your-service.com/dashboard"
+  리뷰 목록:
+    url: "https://your-service.com/reviews"
+  설정:
+    url: "https://your-service.com/settings"
+
+  # 테스트용 샘플 (실제 동작 확인 가능)
+  구글:
+    url: "https://www.google.com"
+  네이버:
+    url: "https://www.naver.com"
+
+elements:
+  # ▼ 실제 메이데스크 셀렉터로 교체하세요
+  병원코드:
+    selector: "input[name='hospitalCode']"
+    type: input
+
+  비밀번호:
+    selector: "input[type='password']"
+    type: input
+
+  로그인 버튼:
+    selector: "#btn-login"
+    type: button
+
+  로그아웃 버튼:
+    selector: "[data-testid='btn-logout']"
+    type: button
+
+  대시보드 컨테이너:
+    selector: ".dashboard-container"
+    type: element
+
+  리뷰 작성 버튼:
+    selector: "[data-testid='btn-write-review']"
+    type: button
+
+  # 구글 검색창 (샘플 테스트용)
+  구글 검색창:
+    selector: "textarea[name='q']"
+    type: input
+
+  구글 검색 버튼:
+    selector: "input[name='btnK']"
+    type: button
