@@ -110,9 +110,9 @@ export function RunDashboard({ runId }: { runId: string }) {
             <span className="h-2 w-2 animate-ping rounded-full bg-[#0099ff]" />
             <span className="text-sm text-[#999]">AI가 테스트를 진행 중이에요… 잠시만 기다려 주세요</span>
           </div>
-          {data.cases?.[0]?.consoleLogs?.length > 0 && (
+          {(data.cases?.[0]?.consoleLogs?.length ?? 0) > 0 && (
             <div className="rounded-xl border border-[#1a1a1a] bg-[#0f0f0f] p-4 space-y-1.5 max-h-64 overflow-y-auto">
-              {data.cases[0].consoleLogs.map((log, i) => (
+              {data.cases[0].consoleLogs?.map((log, i) => (
                 <div key={i} className="flex items-start gap-2 text-xs">
                   <span className="mt-0.5 shrink-0 text-[#0099ff]">▷</span>
                   <span className="text-[#999]">{log}</span>
