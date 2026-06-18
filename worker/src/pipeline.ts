@@ -1,9 +1,11 @@
 import * as XLSX from "xlsx";
 import path from "path";
+import fs from "fs";
+import { chromium } from "playwright";
 import { UIDictionary } from "./parser";
 import { runTest, TestResult } from "./executor";
-import { analyzeFailure, convertNaturalLanguageToDSL } from "./analyzer";
-import { extractPageElements, formatElementsForPrompt } from "./dom-analyzer";
+import { analyzeFailure } from "./analyzer";
+import { runVisionAgent } from "./vision-agent";
 
 export interface RunResult {
   runId: string;
@@ -90,7 +92,7 @@ export async function runExcelPipeline(
   return run;
 }
 
-// ── 자연어 파이프라인 ─────────────────────────────────────────────────
+// ── 자연어 파이프라인 (Vision 에이전트) ──────────────────────────────
 export async function runNaturalLanguagePipeline(
   runId: string,
   targetUrl: string,
@@ -101,63 +103,88 @@ export async function runNaturalLanguagePipeline(
       runId, status: "failed", mode: "natural",
       total: 0, passed: 0, failed: 0, cases: [],
       createdAt: new Date().toISOString(),
-      error: "자연어 모드는 ANTHROPIC_API_KEY가 필요합니다. worker/.env 파일에 키를 추가해 주세요.",
+      error: "ANTHROPIC_API_KEY가 필요합니다.",
     };
     activeRuns.set(runId, run);
     return run;
   }
 
-  const dictionary = new UIDictionary(path.resolve("ui_dictionary.yaml"));
-  // 입력된 URL을 동적으로 등록
-  (dictionary as any).pages["대상URL"] = { url: targetUrl };
-  (dictionary as any).pages["대상 URL"] = { url: targetUrl };
-
   const run: RunResult = {
     runId, status: "running", mode: "natural",
-    total: 0, passed: 0, failed: 0, cases: [],
+    total: 1, passed: 0, failed: 0, cases: [],
     createdAt: new Date().toISOString(),
     targetUrl, scenarios: naturalText,
   };
   activeRuns.set(runId, run);
 
+  const recordingDir = path.resolve(`data/recordings/${runId}`);
+  const screenshotDir = path.resolve("data/screenshots");
+  fs.mkdirSync(recordingDir, { recursive: true });
+  fs.mkdirSync(screenshotDir, { recursive: true });
+
+  const BASE_URL = process.env.WORKER_BASE_URL || "http://localhost:8001";
+
+  const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext({
+    recordVideo: { dir: recordingDir, size: { width: 1280, height: 720 } },
+    viewport: { width: 1280, height: 720 },
+  });
+  const page = await context.newPage();
+
+  const result: TestResult = {
+    testId: "V-001",
+    feature: "Vision 에이전트",
+    scenario: naturalText.slice(0, 80),
+    status: "Pending",
+    failReason: "",
+    videoUrl: "",
+    screenshotUrl: "",
+    consoleLogs: [],
+  };
+
   try {
-    console.log(`\n🔍 페이지 DOM 분석 중… → ${targetUrl}`);
-    let domElements: string | undefined;
-    try {
-      const elements = await extractPageElements(targetUrl);
-      domElements = formatElementsForPrompt(elements);
-      console.log(`✅ ${elements.length}개 요소 추출 완료`);
-    } catch (err: any) {
-      console.warn(`⚠️ DOM 분석 실패 (무시하고 계속): ${err.message}`);
-    }
+    console.log(`\n🤖 Vision 에이전트 시작 → ${targetUrl}`);
+    await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
 
-    console.log(`\n🤖 Claude로 자연어 시나리오 변환 중…`);
-    const testCases = await convertNaturalLanguageToDSL(
-      targetUrl,
-      naturalText,
-      dictionary.getPageNames(),
-      dictionary.getElementNames(),
-      domElements
+    const visionResult = await runVisionAgent(page, naturalText);
+
+    result.consoleLogs = visionResult.steps.map(
+      (s) => `[Step ${s.stepNum}] ${s.action} ${s.details} — ${s.thought}`
     );
 
-    if (!Array.isArray(testCases) || testCases.length === 0) {
-      throw new Error("테스트 케이스를 생성하지 못했습니다. 시나리오를 더 구체적으로 작성해 주세요.");
+    if (visionResult.success) {
+      result.status = "Pass";
+      if (visionResult.summary) result.consoleLogs.push(`✅ ${visionResult.summary}`);
+      run.passed = 1;
+      console.log(`\n✅ Vision 에이전트 완료`);
+    } else {
+      result.status = "Fail";
+      result.failReason = visionResult.failReason || "알 수 없는 오류";
+      const shotPath = path.join(screenshotDir, `${runId}_fail.png`);
+      await page.screenshot({ path: shotPath, fullPage: true });
+      result.screenshotUrl = `${BASE_URL}/data/screenshots/${runId}_fail.png`;
+      run.failed = 1;
+      console.log(`\n❌ Vision 에이전트 실패: ${result.failReason}`);
     }
-
-    run.total = testCases.length;
-    console.log(`✅ ${testCases.length}개 테스트 케이스 생성 완료`);
-    testCases.forEach((tc, i) =>
-      console.log(`  [${tc.testId}] ${tc.scenario}\n    actions: ${tc.actions}`)
-    );
-
-    await executeTestCases(run, testCases, dictionary);
-    run.status = "completed";
-    console.log(`\n✅ 완료 — Pass: ${run.passed} / Fail: ${run.failed}`);
   } catch (err: any) {
-    run.status = "failed";
+    result.status = "Fail";
+    result.failReason = err.message;
+    run.failed = 1;
     run.error = err.message;
     console.error(`\n❌ 오류:`, err.message);
+  } finally {
+    const video = page.video();
+    await context.close();
+    if (video) {
+      try {
+        const videoPath = await video.path();
+        result.videoUrl = `${BASE_URL}/data/recordings/${runId}/${path.basename(videoPath)}`;
+      } catch { /* 녹화 없음 */ }
+    }
+    await browser.close();
   }
 
+  run.cases.push(result);
+  run.status = "completed";
   return run;
 }
