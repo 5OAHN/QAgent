@@ -66,12 +66,13 @@ export async function runTest(testCase: any, dictionary: UIDictionary): Promise<
     result.screenshotUrl = toUrl(shotPath);
     console.log(`  ✗ [${testCase.testId}] Fail: ${err.message}`);
   } finally {
+    // video.path()는 context.close() 이전에 호출해야 함
     const video = page.video();
-    await context.close();
-    await browser.close();
+    await context.close(); // 이 시점에 영상 파일 저장 완료
     if (video) {
       try { result.videoUrl = toUrl(await video.path()); } catch { /* 녹화 없음 */ }
     }
+    await browser.close();
   }
 
   return result;
