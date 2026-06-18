@@ -104,28 +104,35 @@ export function RunDashboard({ runId }: { runId: string }) {
       )}
 
       {/* 실행 중 — 실시간 스텝 */}
-      {!isTerminal && (
-        <div className="mb-6 space-y-3">
-          <div className="flex items-center gap-2">
-            <span className="h-2 w-2 animate-ping rounded-full bg-[#0099ff]" />
-            <span className="text-sm text-[#999]">AI가 테스트를 진행 중이에요… 잠시만 기다려 주세요</span>
-          </div>
-          {(data.cases?.[0]?.consoleLogs?.length ?? 0) > 0 && (
-            <div className="rounded-xl border border-[#1a1a1a] bg-[#0f0f0f] p-4 space-y-1.5 max-h-64 overflow-y-auto">
-              {data.cases[0].consoleLogs?.map((log, i) => (
-                <div key={i} className="flex items-start gap-2 text-xs">
-                  <span className="mt-0.5 shrink-0 text-[#0099ff]">▷</span>
-                  <span className="text-[#999]">{log}</span>
-                </div>
-              ))}
-              <div className="flex items-center gap-1.5 pt-1 text-xs text-[#555]">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#0099ff]" />
-                <span>다음 단계 분석 중…</span>
-              </div>
+      {!isTerminal && (() => {
+        const activeCase = data.cases?.find((c) => c.status === "Pending" && (c.consoleLogs?.length ?? 0) > 0)
+          ?? data.cases?.find((c) => c.status === "Pending");
+        return (
+          <div className="mb-6 space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 animate-ping rounded-full bg-[#0099ff]" />
+              <span className="text-sm text-[#999]">
+                AI가 테스트를 진행 중이에요…
+                {activeCase && <span className="ml-1 text-[#555]">({activeCase.testId})</span>}
+              </span>
             </div>
-          )}
-        </div>
-      )}
+            {(activeCase?.consoleLogs?.length ?? 0) > 0 && (
+              <div className="rounded-xl border border-[#1a1a1a] bg-[#0f0f0f] p-4 space-y-1.5 max-h-56 overflow-y-auto">
+                {activeCase!.consoleLogs!.map((log, i) => (
+                  <div key={i} className="flex items-start gap-2 text-xs">
+                    <span className="mt-0.5 shrink-0 text-[#0099ff]">▷</span>
+                    <span className="text-[#999]">{log}</span>
+                  </div>
+                ))}
+                <div className="flex items-center gap-1.5 pt-1 text-xs text-[#555]">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#0099ff]" />
+                  <span>다음 단계 분석 중…</span>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* 요약 카드 */}
       <div className="mb-6 grid grid-cols-3 gap-3">

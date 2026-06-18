@@ -5,14 +5,21 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 type Mode = "excel" | "natural";
 
-const NATURAL_PLACEHOLDER = `테스트할 내용을 자유롭게 작성하세요.
+interface ScenarioCard {
+  id: number;
+  text: string;
+}
+
+const CARD_PLACEHOLDER = `테스트 시나리오를 자유롭게 작성하세요.
 
 예시)
 1. 로그인 페이지로 이동한다
 2. 병원코드 입력칸에 'H001'을 입력한다
 3. 비밀번호 입력칸에 'pass1234'를 입력한다
 4. 로그인 버튼을 클릭한다
-5. 메인 대시보드 화면이 표시되는지 확인한다`;
+5. 메인 대시보드가 표시되는지 확인한다`;
+
+let nextId = 2;
 
 export default function Page() {
   return (
@@ -26,7 +33,7 @@ function UploadPage() {
   const [targetUrl, setTargetUrl] = useState("");
   const [mode, setMode] = useState<Mode>("excel");
   const [file, setFile] = useState<File | null>(null);
-  const [scenarios, setScenarios] = useState("");
+  const [cards, setCards] = useState<ScenarioCard[]>([{ id: 1, text: "" }]);
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -38,12 +45,30 @@ function UploadPage() {
     const url = searchParams.get("url");
     const sc = searchParams.get("scenarios");
     if (url) setTargetUrl(url);
-    if (sc) { setScenarios(sc); setMode("natural"); }
+    if (sc) {
+      setMode("natural");
+      // 기존 단일 문자열을 카드 하나로 복원
+      setCards([{ id: 1, text: sc }]);
+    }
   }, []);
 
+  const filledCards = cards.filter((c) => c.text.trim().length > 10);
   const isReady =
     targetUrl.trim() !== "" &&
-    (mode === "excel" ? !!file : scenarios.trim().length > 10);
+    (mode === "excel" ? !!file : filledCards.length > 0);
+
+  const addCard = () => {
+    setCards((prev) => [...prev, { id: nextId++, text: "" }]);
+  };
+
+  const removeCard = (id: number) => {
+    setCards((prev) => prev.length > 1 ? prev.filter((c) => c.id !== id) : prev);
+  };
+
+  const updateCard = (id: number, text: string) => {
+    setCards((prev) => prev.map((c) => c.id === id ? { ...c, text } : c));
+    setError("");
+  };
 
   const onDrop = (e: DragEvent) => {
     e.preventDefault();
@@ -67,6 +92,7 @@ function UploadPage() {
         form.append("url", targetUrl);
         res = await fetch("/api/trigger", { method: "POST", body: form });
       } else {
+        const scenarios = filledCards.map((c) => c.text.trim());
         res = await fetch("/api/trigger", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -119,7 +145,7 @@ function UploadPage() {
             테스트 시나리오
           </label>
 
-          {/* 모드 탭 — pricing-tab 스펙 */}
+          {/* 모드 탭 */}
           <div className="flex gap-1 rounded-full border border-[#1a1a1a] bg-[#090909] p-1">
             {(["excel", "natural"] as Mode[]).map((m) => (
               <button
@@ -183,21 +209,53 @@ function UploadPage() {
             </div>
           )}
 
-          {/* 자연어 입력 */}
+          {/* 자연어 입력 — 카드형 */}
           {mode === "natural" && (
             <div className="space-y-2">
-              <textarea
-                value={scenarios}
-                onChange={(e) => { setScenarios(e.target.value); setError(""); }}
-                placeholder={NATURAL_PLACEHOLDER}
-                rows={11}
-                className="w-full resize-none rounded-[10px] border border-[#262626] bg-[#141414] px-[14px] py-[10px] text-[15px] text-white placeholder-[#555] outline-none transition-colors focus:border-[#0099ff] focus:ring-1 focus:ring-[#0099ff]/20"
-              />
-              <div className="flex items-start gap-1.5 text-xs text-[#666]">
+              {cards.map((card, idx) => (
+                <div
+                  key={card.id}
+                  className="group rounded-[12px] border border-[#262626] bg-[#141414] transition-colors focus-within:border-[#0099ff] focus-within:ring-1 focus-within:ring-[#0099ff]/20"
+                >
+                  {/* 카드 헤더 */}
+                  <div className="flex items-center justify-between px-[14px] pt-[10px]">
+                    <span className="text-xs font-medium text-[#555]">
+                      케이스 {idx + 1}
+                    </span>
+                    {cards.length > 1 && (
+                      <button
+                        onClick={() => removeCard(card.id)}
+                        className="text-[#444] transition-colors hover:text-red-400"
+                        aria-label="케이스 삭제"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                          <path d="M2 3.5h10M5.5 3.5V2.5a.5.5 0 01.5-.5h2a.5.5 0 01.5.5v1M5.5 6v4M8.5 6v4M3 3.5l.7 7.2a.5.5 0 00.5.3h5.6a.5.5 0 00.5-.3L11 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                  {/* textarea */}
+                  <textarea
+                    value={card.text}
+                    onChange={(e) => updateCard(card.id, e.target.value)}
+                    placeholder={CARD_PLACEHOLDER}
+                    rows={6}
+                    className="w-full resize-none bg-transparent px-[14px] pb-[10px] pt-[6px] text-[14px] text-white placeholder-[#444] outline-none"
+                  />
+                </div>
+              ))}
+
+              {/* 케이스 추가 버튼 */}
+              <button
+                onClick={addCard}
+                className="w-full rounded-[12px] border border-dashed border-[#2a2a2a] py-3 text-sm text-[#555] transition-colors hover:border-[#0099ff] hover:text-[#0099ff]"
+              >
+                + 테스트 케이스 추가
+              </button>
+
+              <div className="flex items-start gap-1.5 text-xs text-[#555]">
                 <span className="mt-0.5 shrink-0 text-[#0099ff]">i</span>
-                <span>
-                  Claude가 자연어를 분석해 테스트를 자동 실행합니다.
-                </span>
+                <span>각 카드는 독립된 테스트 케이스로 실행됩니다. Claude가 화면을 보며 직접 조작합니다.</span>
               </div>
             </div>
           )}
@@ -216,7 +274,11 @@ function UploadPage() {
           disabled={!isReady || isLoading}
           className="w-full rounded-full bg-white px-[15px] py-[10px] text-[14px] font-medium tracking-[-0.14px] text-black transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-25"
         >
-          {isLoading ? "실행 중…" : "테스트 시작"}
+          {isLoading
+            ? "실행 중…"
+            : mode === "natural"
+              ? `테스트 시작 ${filledCards.length > 0 ? `(${filledCards.length}개 케이스)` : ""}`
+              : "테스트 시작"}
         </button>
 
       </div>

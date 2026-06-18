@@ -38,17 +38,26 @@ app.post("/trigger/excel", upload.single("excel"), (req: Request, res: Response)
 
 // ── 자연어 모드 트리거 ───────────────────────────────────────────────
 app.post("/trigger/natural", (req: Request, res: Response) => {
-  const { url, scenarios } = req.body as { url: string; scenarios: string };
+  const { url, scenarios } = req.body as { url: string; scenarios: string | string[] };
 
-  if (!url || !scenarios?.trim()) {
+  if (!url || !scenarios) {
     return res.status(400).json({ error: "url과 scenarios가 필요합니다." });
+  }
+
+  // 배열이면 그대로, 문자열이면 배열로 래핑
+  const scenarioList: string[] = Array.isArray(scenarios)
+    ? scenarios.filter((s) => s.trim())
+    : [scenarios].filter((s) => s.trim());
+
+  if (scenarioList.length === 0) {
+    return res.status(400).json({ error: "scenarios가 비어 있습니다." });
   }
 
   const runId = crypto.randomUUID();
 
-  console.log(`\n🚀 [${runId}] 자연어 파이프라인 시작 → ${url}`);
+  console.log(`\n🚀 [${runId}] 자연어 파이프라인 시작 → ${url} (케이스 ${scenarioList.length}개)`);
 
-  runNaturalLanguagePipeline(runId, url, scenarios).catch((err) =>
+  runNaturalLanguagePipeline(runId, url, scenarioList).catch((err) =>
     console.error(`[${runId}] 오류:`, err.message)
   );
 
