@@ -85,7 +85,7 @@ export default function UploadPage() {
 
         {/* ① 테스트 대상 URL */}
         <div className="space-y-1.5">
-          <label className="block text-xs font-medium text-[#666] uppercase tracking-widest">
+          <label className="block text-xs font-medium text-[#999] uppercase tracking-widest">
             테스트 대상 URL
           </label>
           <input
@@ -93,24 +93,26 @@ export default function UploadPage() {
             value={targetUrl}
             onChange={(e) => { setTargetUrl(e.target.value); setError(""); }}
             placeholder="https://your-service.com"
-            className="w-full rounded-xl border border-[#262626] bg-[#141414] px-4 py-3 text-sm text-white placeholder-[#3a3a3a] outline-none transition-colors focus:border-[#0099ff] focus:ring-1 focus:ring-[#0099ff]/20"
+            className="w-full rounded-[10px] border border-[#262626] bg-[#141414] px-[14px] py-[10px] text-[15px] text-white placeholder-[#555] outline-none transition-colors focus:border-[#0099ff] focus:ring-1 focus:ring-[#0099ff]/20"
           />
         </div>
 
         {/* ② 시나리오 입력 영역 */}
         <div className="space-y-3">
-          <label className="block text-xs font-medium text-[#666] uppercase tracking-widest">
+          <label className="block text-xs font-medium text-[#999] uppercase tracking-widest">
             테스트 시나리오
           </label>
 
-          {/* 모드 탭 */}
-          <div className="flex rounded-xl border border-[#1a1a1a] bg-[#0f0f0f] p-1">
+          {/* 모드 탭 — pricing-tab 스펙 */}
+          <div className="flex gap-1 rounded-full border border-[#1a1a1a] bg-[#090909] p-1">
             {(["excel", "natural"] as Mode[]).map((m) => (
               <button
                 key={m}
                 onClick={() => { setMode(m); setError(""); }}
-                className={`flex-1 rounded-lg py-2 text-sm font-medium transition-colors ${
-                  mode === m ? "bg-[#1c1c1c] text-white" : "text-[#555] hover:text-[#888]"
+                className={`flex-1 rounded-full px-[14px] py-[8px] text-[14px] font-medium tracking-[-0.14px] transition-colors ${
+                  mode === m
+                    ? "bg-[#1c1c1c] text-white"
+                    : "text-[#999] hover:text-white"
                 }`}
               >
                 {m === "excel" ? "엑셀 업로드" : "자연어 입력"}
@@ -121,7 +123,7 @@ export default function UploadPage() {
           {/* 엑셀 업로드 */}
           {mode === "excel" && (
             <div
-              className={`cursor-pointer rounded-2xl border-2 border-dashed p-10 text-center transition-colors ${
+              className={`cursor-pointer rounded-[30px] border-2 border-dashed p-10 text-center transition-colors ${
                 isDragging
                   ? "border-[#0099ff] bg-[#0099ff]/5"
                   : "border-[#262626] hover:border-[#3a3a3a]"
@@ -154,10 +156,10 @@ export default function UploadPage() {
                   <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full border border-[#2a2a2a] text-[#444]">
                     ↑
                   </div>
-                  <p className="text-sm text-[#666]">
+                  <p className="text-sm text-[#999]">
                     xlsx 파일을 드래그하거나<br />클릭해서 업로드
                   </p>
-                  <p className="text-xs text-[#3a3a3a]">
+                  <p className="text-xs text-[#666]">
                     컬럼: 구분 · 테스트ID · 기능 · 시나리오 · 전제조건 · 입력값/동작 · 기대결과
                   </p>
                 </div>
@@ -173,13 +175,12 @@ export default function UploadPage() {
                 onChange={(e) => { setScenarios(e.target.value); setError(""); }}
                 placeholder={NATURAL_PLACEHOLDER}
                 rows={11}
-                className="w-full resize-none rounded-2xl border border-[#262626] bg-[#141414] px-4 py-3.5 text-sm text-white placeholder-[#333] outline-none transition-colors focus:border-[#0099ff] focus:ring-1 focus:ring-[#0099ff]/20"
+                className="w-full resize-none rounded-[10px] border border-[#262626] bg-[#141414] px-[14px] py-[10px] text-[15px] text-white placeholder-[#555] outline-none transition-colors focus:border-[#0099ff] focus:ring-1 focus:ring-[#0099ff]/20"
               />
-              <div className="flex items-start gap-1.5 text-xs text-[#444]">
+              <div className="flex items-start gap-1.5 text-xs text-[#666]">
                 <span className="mt-0.5 shrink-0 text-[#0099ff]">i</span>
                 <span>
-                  GPT-4o가 자연어를 분석해 테스트를 자동 실행합니다.
-                  ANTHROPIC_API_KEY가 설정되어 있어야 합니다.
+                  Claude가 자연어를 분석해 테스트를 자동 실행합니다.
                 </span>
               </div>
             </div>
@@ -197,7 +198,7 @@ export default function UploadPage() {
         <button
           onClick={handleSubmit}
           disabled={!isReady || isLoading}
-          className="w-full rounded-full bg-white py-3 text-sm font-medium text-black transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-25"
+          className="w-full rounded-full bg-white px-[15px] py-[10px] text-[14px] font-medium tracking-[-0.14px] text-black transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-25"
         >
           {isLoading ? "실행 중…" : "테스트 시작"}
         </button>
