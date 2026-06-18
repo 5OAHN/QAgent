@@ -2,8 +2,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import fs from "fs";
 
 // 실패 분석은 빠른 Sonnet, DSL 변환은 정확한 Opus 사용
-const ANALYSIS_MODEL = "claude-sonnet-4-6";
-const CONVERSION_MODEL = "claude-sonnet-4-6";
+const ANALYSIS_MODEL = "claude-haiku-4-5-20251001";
+const CONVERSION_MODEL = "claude-haiku-4-5-20251001";
 
 function getClient(): Anthropic {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -74,35 +74,42 @@ DSL Commands (joined with " -> "):
   click(selector)                 — click an element
   input(selector, 'value')        — type into an input field
   wait(milliseconds)              — pause execution
+  send(selector, 'value')         — type into a chat/search input AND click the submit button (ALWAYS use this instead of input() for chatbot messages)
   assert_visible(selector)        — verify element is visible
   assert_url(URL or partial URL)  — verify current URL contains string
   assert_text(selector, 'text')   — verify element contains text
 
 Selector priority:
-  1. Use element names from the provided list (they map to real CSS selectors)
-  2. Fall back to CSS selectors (#id, .class, [attr=val], tag)
+  1. ALWAYS use element names from the provided list — NEVER guess CSS selectors
+  2. Only use raw CSS selectors if the element name list is empty
 
 Rules:
   - Split logically distinct flows into separate test cases (N-001, N-002, …)
   - Each test case needs clear "actions" and an optional "expected" assertion
-  - Keep feature and scenario in Korean`;
+  - Keep feature and scenario in Korean
+  - For chatbot/chat input: ALWAYS use send(elementName, 'text') — NEVER use input() + click() for chat messages
+  - NEVER use placeholder, class, or guessed selectors — only registered element names`;
 
 export async function convertNaturalLanguageToDSL(
   targetUrl: string,
   naturalText: string,
   pageNames: string[],
-  elementNames: string[]
+  elementNames: string[],
+  domElements?: string
 ): Promise<GeneratedTestCase[]> {
   const client = getClient();
 
   const userMessage = [
     `Target URL: ${targetUrl}`,
     `Available page names: ${pageNames.length ? pageNames.join(", ") : "(none)"}`,
-    `Available element names: ${elementNames.length ? elementNames.join(", ") : "(none)"}`,
+    `Available element names (registered): ${elementNames.length ? elementNames.join(", ") : "(none)"}`,
     "",
+    domElements
+      ? `Actual page elements extracted from ${targetUrl}:\n${domElements}\n\nUse the selectors above when registered element names are not available.`
+      : "",
     "Test scenario to convert:",
     naturalText,
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 
   const res = await client.messages.create({
     model: CONVERSION_MODEL,

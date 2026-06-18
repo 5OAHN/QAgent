@@ -3,6 +3,7 @@ import path from "path";
 import { UIDictionary } from "./parser";
 import { runTest, TestResult } from "./executor";
 import { analyzeFailure, convertNaturalLanguageToDSL } from "./analyzer";
+import { extractPageElements, formatElementsForPrompt } from "./dom-analyzer";
 
 export interface RunResult {
   runId: string;
@@ -117,12 +118,23 @@ export async function runNaturalLanguagePipeline(
   activeRuns.set(runId, run);
 
   try {
-    console.log(`\n🤖 GPT-4o로 자연어 시나리오 변환 중…`);
+    console.log(`\n🔍 페이지 DOM 분석 중… → ${targetUrl}`);
+    let domElements: string | undefined;
+    try {
+      const elements = await extractPageElements(targetUrl);
+      domElements = formatElementsForPrompt(elements);
+      console.log(`✅ ${elements.length}개 요소 추출 완료`);
+    } catch (err: any) {
+      console.warn(`⚠️ DOM 분석 실패 (무시하고 계속): ${err.message}`);
+    }
+
+    console.log(`\n🤖 Claude로 자연어 시나리오 변환 중…`);
     const testCases = await convertNaturalLanguageToDSL(
       targetUrl,
       naturalText,
       dictionary.getPageNames(),
-      dictionary.getElementNames()
+      dictionary.getElementNames(),
+      domElements
     );
 
     if (!Array.isArray(testCases) || testCases.length === 0) {
