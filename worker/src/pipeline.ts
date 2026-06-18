@@ -14,6 +14,8 @@ export interface RunResult {
   cases: TestResult[];
   createdAt: string;
   mode: "excel" | "natural";
+  targetUrl?: string;
+  scenarios?: string;
   error?: string;
 }
 
@@ -114,6 +116,7 @@ export async function runNaturalLanguagePipeline(
     runId, status: "running", mode: "natural",
     total: 0, passed: 0, failed: 0, cases: [],
     createdAt: new Date().toISOString(),
+    targetUrl, scenarios: naturalText,
   };
   activeRuns.set(runId, run);
 

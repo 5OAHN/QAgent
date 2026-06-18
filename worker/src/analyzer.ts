@@ -95,6 +95,7 @@ Rules:
   - For form inputs with placeholder: use input_placeholder('placeholder', 'value')
   - For form inputs with label: use input_label('label text', 'value')
   - Split logically distinct flows into separate test cases (N-001, N-002, …)
+  - The input may be free-form text, bullet points, numbered steps, or plain sentences — handle all formats
   - Keep feature and scenario in Korean`;
 
 export async function convertNaturalLanguageToDSL(

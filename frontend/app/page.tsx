@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, DragEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useRef, DragEvent, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type Mode = "excel" | "natural";
 
@@ -24,6 +24,14 @@ export default function UploadPage() {
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const url = searchParams.get("url");
+    const sc = searchParams.get("scenarios");
+    if (url) setTargetUrl(url);
+    if (sc) { setScenarios(sc); setMode("natural"); }
+  }, []);
 
   const isReady =
     targetUrl.trim() !== "" &&

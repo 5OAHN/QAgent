@@ -2,6 +2,7 @@
 
 import useSWR from "swr";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 type RunStatus = "running" | "completed" | "failed";
 type CaseStatus = "Pass" | "Fail" | "Pending";
@@ -24,6 +25,9 @@ interface RunResult {
   failed: number;
   createdAt: string;
   cases: TestCase[];
+  mode?: "excel" | "natural";
+  targetUrl?: string;
+  scenarios?: string;
   error?: string;
 }
 
@@ -31,6 +35,7 @@ const TERMINAL: RunStatus[] = ["completed", "failed"];
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function RunDashboard({ runId }: { runId: string }) {
+  const router = useRouter();
   const { data, error, isLoading } = useSWR<RunResult>(
     `/api/status?run_id=${runId}`,
     fetcher,
@@ -59,17 +64,48 @@ export function RunDashboard({ runId }: { runId: string }) {
           <h1 className="text-2xl font-medium" style={{ letterSpacing: "-1px" }}>
             실행 결과
           </h1>
-          <p className="text-xs text-[#666]">
+          <p className="text-xs text-[#999]">
             {new Date(data.createdAt).toLocaleString("ko-KR")} · {runId.slice(0, 8)}…
           </p>
         </div>
-        <StatusBadge status={data.status} />
+        <div className="flex items-center gap-2">
+          <StatusBadge status={data.status} />
+          {data.mode === "natural" && data.targetUrl && data.scenarios && (
+            <button
+              onClick={() => {
+                const params = new URLSearchParams({
+                  url: data.targetUrl!,
+                  scenarios: data.scenarios!,
+                });
+                router.push(`/?${params.toString()}`);
+              }}
+              className="rounded-full border border-[#262626] bg-[#141414] px-3 py-1 text-xs text-[#999] transition-colors hover:border-[#0099ff] hover:text-[#0099ff]"
+            >
+              수정 후 재시도 ↩
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* 지시 내용 */}
+      {data.mode === "natural" && (data.targetUrl || data.scenarios) && (
+        <div className="mb-6 rounded-xl border border-[#1a1a1a] bg-[#0f0f0f] p-4 space-y-2">
+          <p className="text-xs font-medium text-[#999] uppercase tracking-widest">지시 내용</p>
+          {data.targetUrl && (
+            <p className="text-xs text-[#666]">
+              URL: <span className="text-[#0099ff]">{data.targetUrl}</span>
+            </p>
+          )}
+          {data.scenarios && (
+            <pre className="whitespace-pre-wrap text-sm text-[#ccc] leading-relaxed">{data.scenarios}</pre>
+          )}
+        </div>
+      )}
 
       {/* 진행률 */}
       {!isTerminal && (
         <div className="mb-6 space-y-1.5">
-          <div className="flex justify-between text-xs text-[#666]">
+          <div className="flex justify-between text-xs text-[#999]">
             <span>{done} / {data.total} 완료</span>
             <span>{progress}%</span>
           </div>
@@ -79,7 +115,7 @@ export function RunDashboard({ runId }: { runId: string }) {
               style={{ width: `${progress}%` }}
             />
           </div>
-          <p className="text-xs text-[#444]">3초마다 자동 갱신 중…</p>
+          <p className="text-xs text-[#666]">3초마다 자동 갱신 중…</p>
         </div>
       )}
 
@@ -96,7 +132,7 @@ export function RunDashboard({ runId }: { runId: string }) {
       {/* 케이스 테이블 */}
       <div className="overflow-hidden rounded-xl border border-[#1a1a1a]">
         <table className="w-full text-sm">
-          <thead className="bg-[#141414] text-left text-xs text-[#666]">
+          <thead className="bg-[#141414] text-left text-xs text-[#999]">
             <tr>
               {["ID", "기능", "시나리오", "결과", "상세"].map((h) => (
                 <th key={h} className="px-4 py-3 font-medium">{h}</th>
@@ -106,7 +142,7 @@ export function RunDashboard({ runId }: { runId: string }) {
           <tbody className="divide-y divide-[#1a1a1a]">
             {data.cases.length === 0 ? (
               <tr>
-                <td colSpan={5} className="py-12 text-center text-[#444]">
+                <td colSpan={5} className="py-12 text-center text-[#666]">
                   테스트 케이스를 실행하는 중…
                 </td>
               </tr>
@@ -123,12 +159,12 @@ export function RunDashboard({ runId }: { runId: string }) {
 function CaseRow({ tc }: { tc: TestCase }) {
   return (
     <tr className="bg-[#090909] transition-colors hover:bg-[#0f0f0f]">
-      <td className="px-4 py-3 font-mono text-xs text-[#666]">{tc.testId}</td>
+      <td className="px-4 py-3 font-mono text-xs text-[#999]">{tc.testId}</td>
       <td className="px-4 py-3 text-[#999]">{tc.feature}</td>
       <td className="px-4 py-3 text-[#ccc]">{tc.scenario}</td>
       <td className="px-4 py-3">
         {tc.status === "Pending" ? (
-          <span className="text-xs text-[#444]">대기 중</span>
+          <span className="text-xs text-[#666]">대기 중</span>
         ) : (
           <ResultBadge status={tc.status} />
         )}
@@ -184,13 +220,13 @@ function Card({ label, value, color }: { label: string; value: number; color: st
   return (
     <div className="rounded-xl border border-[#1a1a1a] bg-[#141414] p-4 text-center">
       <p className={`text-3xl font-bold ${color}`}>{value}</p>
-      <p className="mt-1 text-xs text-[#666]">{label}</p>
+      <p className="mt-1 text-xs text-[#999]">{label}</p>
     </div>
   );
 }
 
 function Spinner() {
-  return <div className="flex h-40 items-center justify-center text-[#444]">불러오는 중…</div>;
+  return <div className="flex h-40 items-center justify-center text-[#666]">불러오는 중…</div>;
 }
 
 function ErrorBox({ msg }: { msg: string }) {
