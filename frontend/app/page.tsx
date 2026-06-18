@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, DragEvent, useEffect } from "react";
+import { useState, useRef, DragEvent, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 type Mode = "excel" | "natural";
@@ -14,7 +14,15 @@ const NATURAL_PLACEHOLDER = `테스트할 내용을 자유롭게 작성하세요
 4. 로그인 버튼을 클릭한다
 5. 메인 대시보드 화면이 표시되는지 확인한다`;
 
-export default function UploadPage() {
+export default function Page() {
+  return (
+    <Suspense>
+      <UploadPage />
+    </Suspense>
+  );
+}
+
+function UploadPage() {
   const [targetUrl, setTargetUrl] = useState("");
   const [mode, setMode] = useState<Mode>("excel");
   const [file, setFile] = useState<File | null>(null);
