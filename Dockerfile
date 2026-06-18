@@ -14,6 +14,7 @@ RUN npm run build
 
 ENV HEADLESS=true
 ENV NODE_ENV=production
+ENV PORT=8001
 
-EXPOSE 8080
+EXPOSE 8001
 CMD ["node", "dist/main.js"]
