@@ -1,19 +1,17 @@
-# Node.js + Chromium 사전 탑재 공식 이미지 — 빌드 시 브라우저 다운로드 없음
+# Node.js + Chromium 사전 탑재 공식 이미지
 FROM mcr.microsoft.com/playwright:v1.44.0-jammy
 
 WORKDIR /app
 
-# 의존성 레이어 분리 (package.json 변경 시에만 재설치)
-COPY package*.json ./
+# Railway는 repo 루트를 빌드 컨텍스트로 사용 → worker/ 경로로 참조
+COPY worker/package*.json ./
 RUN npm ci
 
-# TypeScript 빌드
-COPY tsconfig.json ./
-COPY src ./src
-RUN npm run build
+COPY worker/tsconfig.json ./
+COPY worker/src ./src
+COPY worker/ui_dictionary.yaml ./
 
-# ui_dictionary는 런타임에 필요
-COPY ui_dictionary.yaml ./
+RUN npm run build
 
 ENV PORT=8001
 ENV HEADLESS=true
