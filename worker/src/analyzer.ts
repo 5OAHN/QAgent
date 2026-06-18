@@ -150,8 +150,9 @@ export async function convertNaturalLanguageToDSL(
     throw new Error("Claude가 테스트 케이스를 생성하지 못했습니다. 시나리오를 더 구체적으로 작성해 주세요.");
   }
 
-  const cases = (toolBlock.input as any).testCases as GeneratedTestCase[];
-  if (!cases?.length) {
+  const raw = (toolBlock.input as any).testCases;
+  const cases: GeneratedTestCase[] = Array.isArray(raw) ? raw : [];
+  if (!cases.length) {
     throw new Error("생성된 테스트 케이스가 없습니다.");
   }
 

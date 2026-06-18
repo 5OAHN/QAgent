@@ -125,6 +125,10 @@ export async function runNaturalLanguagePipeline(
       dictionary.getElementNames()
     );
 
+    if (!Array.isArray(testCases) || testCases.length === 0) {
+      throw new Error("테스트 케이스를 생성하지 못했습니다. 시나리오를 더 구체적으로 작성해 주세요.");
+    }
+
     run.total = testCases.length;
     console.log(`✅ ${testCases.length}개 테스트 케이스 생성 완료`);
     testCases.forEach((tc, i) =>
