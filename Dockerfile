@@ -12,9 +12,8 @@ COPY worker/ui_dictionary.yaml ./
 
 RUN npm run build
 
-ENV PORT=8001
 ENV HEADLESS=true
 ENV NODE_ENV=production
 
-EXPOSE 8001
+EXPOSE 8080
 CMD ["node", "dist/main.js"]
