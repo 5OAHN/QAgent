@@ -35,7 +35,7 @@ export function RunDashboard({ runId }: { runId: string }) {
     `/api/status?run_id=${runId}`,
     fetcher,
     {
-      refreshInterval: (d) => (TERMINAL.includes(d?.status) ? 0 : 3000),
+      refreshInterval: (d) => (d?.status && TERMINAL.includes(d.status) ? 0 : 3000),
       revalidateOnFocus: true,
       refreshWhenHidden: false,
     }
