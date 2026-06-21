@@ -52,7 +52,7 @@ function UploadPage() {
     }
   }, []);
 
-  const filledCards = cards.filter((c) => c.text.trim().length > 10);
+  const filledCards = cards.filter((c) => c.text.trim().length > 0);
   const isReady =
     targetUrl.trim() !== "" &&
     (mode === "excel" ? !!file : filledCards.length > 0);

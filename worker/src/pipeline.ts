@@ -199,7 +199,7 @@ export async function runNaturalLanguagePipeline(
 
       const liveStepLogs: string[] = [];
 
-      const visionResult = await runVisionAgent(page, naturalText, 25, (step) => {
+      const visionResult = await runVisionAgent(page, naturalText, 15, (step) => {
         liveStepLogs.push(`[Step ${step.stepNum}] ${step.action} ${step.details} — ${step.thought}`);
         result.consoleLogs = [...liveStepLogs];
         run.cases = run.cases.map((c) => c.testId === testId ? { ...result } : c);

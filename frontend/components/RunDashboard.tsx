@@ -213,8 +213,8 @@ export function RunDashboard({ runId }: { runId: string }) {
           )}
         </div>
 
-        {/* Retry button */}
-        {data.mode === "natural" && data.targetUrl && data.scenarios && isTerminal && (
+        {/* Retry / edit button — 일시정지 중 또는 완료 후 노출 */}
+        {data.mode === "natural" && data.targetUrl && data.scenarios && (isTerminal || data.paused) && (
           <div style={{ padding: "10px 16px", borderTop: `1px solid ${C.border}` }}>
             <button
               onClick={() => {
@@ -223,7 +223,7 @@ export function RunDashboard({ runId }: { runId: string }) {
               }}
               style={{ width: "100%", padding: "8px 0", borderRadius: 8, border: `1px solid ${C.borderMid}`, background: C.surface, color: C.textMid, fontSize: 12, fontWeight: 500, cursor: "pointer" }}
             >
-              수정 후 재시도 ↩
+              {data.paused ? "✏️ 시나리오 수정 후 재시도 ↩" : "수정 후 재시도 ↩"}
             </button>
           </div>
         )}
