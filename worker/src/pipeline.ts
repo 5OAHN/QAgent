@@ -157,6 +157,7 @@ export async function runNaturalLanguagePipeline(
 
   // 케이스별 순차 실행
   let sharedStorageState: any;
+  let sharedCurrentUrl: string | undefined;
   for (let i = 0; i < scenarioList.length; i++) {
     // 케이스 시작 전 중지 확인
     if (control.isCancelled()) {
@@ -192,8 +193,9 @@ export async function runNaturalLanguagePipeline(
     const page = await context.newPage();
 
     try {
-      console.log(`\n🤖 [${testId}] Vision 에이전트 시작 → ${targetUrl}`);
-      await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+      const startUrl = sharedCurrentUrl ?? targetUrl;
+      console.log(`\n🤖 [${testId}] Vision 에이전트 시작 → ${startUrl}`);
+      await page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
 
       const liveStepLogs: string[] = [];
 
@@ -211,6 +213,7 @@ export async function runNaturalLanguagePipeline(
         result.status = "Pass";
         if (visionResult.summary) result.consoleLogs.push(`✅ ${visionResult.summary}`);
         sharedStorageState = await context.storageState();
+        sharedCurrentUrl = page.url();
         run.passed++;
         console.log(`\n✅ [${testId}] 완료`);
       } else {
