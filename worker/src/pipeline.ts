@@ -59,9 +59,11 @@ async function executeTestCases(
   testCases: any[],
   dictionary: UIDictionary
 ): Promise<void> {
+  let storageState: any;
   for (const tc of testCases) {
     console.log(`\n[${tc.testId}] ${tc.scenario}`);
-    const result = await runTest(tc, dictionary);
+    const { result, storageState: nextState } = await runTest(tc, dictionary, storageState);
+    storageState = nextState ?? storageState;
     if (result.status === "Fail") {
       result.failReason = await analyzeFailure(tc, result);
     }
@@ -154,6 +156,7 @@ export async function runNaturalLanguagePipeline(
   };
 
   // 케이스별 순차 실행
+  let sharedStorageState: any;
   for (let i = 0; i < scenarioList.length; i++) {
     // 케이스 시작 전 중지 확인
     if (control.isCancelled()) {
@@ -184,6 +187,7 @@ export async function runNaturalLanguagePipeline(
     const context = await browser.newContext({
       recordVideo: { dir: recordingDir, size: { width: 1280, height: 720 } },
       viewport: { width: 1280, height: 720 },
+      ...(sharedStorageState ? { storageState: sharedStorageState } : {}),
     });
     const page = await context.newPage();
 
@@ -206,6 +210,7 @@ export async function runNaturalLanguagePipeline(
       if (visionResult.success) {
         result.status = "Pass";
         if (visionResult.summary) result.consoleLogs.push(`✅ ${visionResult.summary}`);
+        sharedStorageState = await context.storageState();
         run.passed++;
         console.log(`\n✅ [${testId}] 완료`);
       } else {

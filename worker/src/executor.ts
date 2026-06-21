@@ -22,7 +22,16 @@ function toUrl(localPath: string): string {
   return `${BASE_URL}/data/${relative}`;
 }
 
-export async function runTest(testCase: any, dictionary: UIDictionary): Promise<TestResult> {
+export interface TestRunOutput {
+  result: TestResult;
+  storageState?: any;
+}
+
+export async function runTest(
+  testCase: any,
+  dictionary: UIDictionary,
+  incomingStorageState?: any
+): Promise<TestRunOutput> {
   const recordingDir = path.resolve(`data/recordings/${testCase.testId}`);
   const screenshotDir = path.resolve("data/screenshots");
   fs.mkdirSync(recordingDir, { recursive: true });
@@ -44,17 +53,20 @@ export async function runTest(testCase: any, dictionary: UIDictionary): Promise<
   const context = await browser.newContext({
     recordVideo: { dir: recordingDir, size: { width: 1280, height: 720 } },
     viewport: { width: 1280, height: 720 },
+    ...(incomingStorageState ? { storageState: incomingStorageState } : {}),
   });
   const page = await context.newPage();
   page.on("console", (msg) => result.consoleLogs.push(`[${msg.type()}] ${msg.text()}`));
 
   const parser = new DSLParser(dictionary);
+  let outgoingStorageState: any;
 
   try {
     await parser.execute(page, testCase.actions);
     if (testCase.expected?.trim().startsWith("assert")) {
       await parser.execute(page, testCase.expected);
     }
+    outgoingStorageState = await context.storageState();
     result.status = "Pass";
     console.log(`  ✓ [${testCase.testId}] Pass`);
   } catch (err: any) {
@@ -66,14 +78,13 @@ export async function runTest(testCase: any, dictionary: UIDictionary): Promise<
     result.screenshotUrl = toUrl(shotPath);
     console.log(`  ✗ [${testCase.testId}] Fail: ${err.message}`);
   } finally {
-    // video.path()는 context.close() 이전에 호출해야 함
     const video = page.video();
-    await context.close(); // 이 시점에 영상 파일 저장 완료
+    await context.close();
     if (video) {
       try { result.videoUrl = toUrl(await video.path()); } catch { /* 녹화 없음 */ }
     }
     await browser.close();
   }
 
-  return result;
+  return { result, storageState: outgoingStorageState };
 }
