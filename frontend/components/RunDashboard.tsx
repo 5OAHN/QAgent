@@ -364,7 +364,7 @@ function BrowserMockup({ tc, isTerminal }: { tc: TestCase | null; isTerminal: bo
             src={tc.videoUrl}
             controls
             autoPlay
-            style={{ width: "100%", height: "100%", objectFit: "contain" }}
+            style={{ width: "100%", height: "100%", objectFit: "contain", background: "#000" }}
           />
         ) : tc?.screenshotUrl ? (
           <img
@@ -509,12 +509,15 @@ function TerminalPanel({ tc, isPaused }: { tc: TestCase | null; isPaused: boolea
             {(tc.consoleLogs ?? []).length === 0 && !isRunning && (
               <span style={{ color: "#3a3a42" }}>로그 없음</span>
             )}
-            {tc.consoleLogs?.map((log, i) => (
-              <div key={i} style={{ display: "flex", gap: 10, padding: "2px 0", lineHeight: 1.6 }}>
-                <span style={{ color: "#3a3a42", flexShrink: 0, userSelect: "none" }}>{String(i + 1).padStart(2, "0")}</span>
-                <span style={{ color: "#9a9aa3" }}>{log}</span>
-              </div>
-            ))}
+            {tc.consoleLogs?.map((log, i) => {
+              const isErr = /error|fail|timeout|못했습니다|실패|오류|찾지 못|찾을 수 없/i.test(log);
+              return (
+                <div key={i} style={{ display: "flex", gap: 10, padding: "2px 0", lineHeight: 1.6, background: isErr ? "rgba(248,113,113,.06)" : "transparent", borderRadius: isErr ? 4 : 0, paddingLeft: isErr ? 4 : 0 }}>
+                  <span style={{ color: isErr ? "#7a3030" : "#3a3a42", flexShrink: 0, userSelect: "none" }}>{String(i + 1).padStart(2, "0")}</span>
+                  <span style={{ color: isErr ? "#f87171" : "#9a9aa3" }}>{log}</span>
+                </div>
+              );
+            })}
             {isRunning && (
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, color: isPaused ? "#ca8a04" : C.purple }}>
                 {isPaused

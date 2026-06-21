@@ -137,13 +137,23 @@ function UploadPage() {
           <label className="block text-xs font-medium text-[#999] uppercase tracking-widest">
             테스트 대상 URL
           </label>
-          <input
-            type="url"
-            value={targetUrl}
-            onChange={(e) => { setTargetUrl(e.target.value); setError(""); }}
-            placeholder="https://your-service.com"
-            className="w-full rounded-[10px] border border-[#262626] bg-[#141414] px-[14px] py-[10px] text-[15px] text-white placeholder-[#555] outline-none transition-colors focus:border-[#0099ff] focus:ring-1 focus:ring-[#0099ff]/20"
-          />
+          <div className="relative">
+            <input
+              type="url"
+              value={targetUrl}
+              onChange={(e) => { setTargetUrl(e.target.value); setError(""); }}
+              placeholder="https://your-service.com"
+              className="w-full rounded-[10px] border border-[#262626] bg-[#141414] px-[14px] py-[10px] pr-10 text-[15px] text-white placeholder-[#555] outline-none transition-colors focus:border-[#0099ff] focus:ring-1 focus:ring-[#0099ff]/20"
+            />
+            {/^https?:\/\/.+\..+/.test(targetUrl.trim()) && (
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-green-400">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <circle cx="8" cy="8" r="7" fill="currentColor" fillOpacity=".15" stroke="currentColor" strokeWidth="1.2"/>
+                  <path d="M5 8l2 2.5 4-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </span>
+            )}
+          </div>
         </div>
 
         {/* ② 시나리오 입력 영역 */}
@@ -153,15 +163,15 @@ function UploadPage() {
           </label>
 
           {/* 모드 탭 */}
-          <div className="flex gap-1 rounded-full border border-[#1a1a1a] bg-[#090909] p-1">
+          <div className="flex gap-1 rounded-lg border border-[#262626] bg-[#0d0d0d] p-1">
             {(["excel", "natural"] as Mode[]).map((m) => (
               <button
                 key={m}
                 onClick={() => { setMode(m); setError(""); }}
-                className={`flex-1 rounded-full px-[14px] py-[8px] text-[14px] font-medium tracking-[-0.14px] transition-colors ${
+                className={`flex-1 rounded-md px-[14px] py-[8px] text-[14px] font-medium tracking-[-0.14px] transition-all ${
                   mode === m
-                    ? "bg-[#1c1c1c] text-white"
-                    : "text-[#999] hover:text-white"
+                    ? "bg-[#0099ff] text-white shadow-sm"
+                    : "text-[#555] hover:text-[#999]"
                 }`}
               >
                 {m === "excel" ? "엑셀 업로드" : "자연어 입력"}
