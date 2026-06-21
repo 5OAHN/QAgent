@@ -2,6 +2,7 @@
 
 import { useState, useRef, DragEvent, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 
 type Mode = "excel" | "natural";
 
@@ -123,6 +124,12 @@ function UploadPage() {
             QAgent
           </h1>
           <p className="text-sm text-[#999]">AI Native QA Automation Pipeline</p>
+          <Link
+            href="/dashboard/demo"
+            className="inline-block mt-1 text-xs text-[#555] hover:text-[#0099ff] transition-colors"
+          >
+            UI 미리보기 →
+          </Link>
         </div>
 
         {/* ① 테스트 대상 URL */}
