@@ -79,27 +79,23 @@ export function RunDashboard({ runId }: { runId: string }) {
     }
   );
 
-  // Auto-select: when a case transitions Pending → Pass/Fail, auto-show it
+  // Auto-select: 실행 중인 케이스 → 완료된 케이스 순으로 자동 포커스
   useEffect(() => {
     if (!data?.cases) return;
-    for (const tc of data.cases) {
-      const prevStatus = prevCasesRef.current.get(tc.testId);
-      if (prevStatus === "Pending" && tc.status !== "Pending") {
-        setActiveId(tc.testId);
-      }
+
+    // 유저가 직접 선택하지 않은 경우에만 자동 선택
+    const running = data.cases.find((c) => c.status === "Pending");
+    if (running) {
+      setActiveId(running.testId);
+    } else if (!activeId) {
+      const done = data.cases.find((c) => c.status !== "Pending");
+      if (done) setActiveId(done.testId);
     }
+
     const next = new Map<string, CaseStatus>();
     data.cases.forEach((c) => next.set(c.testId, c.status));
     prevCasesRef.current = next;
   }, [data?.cases]);
-
-  // Auto-select first case when data loads
-  useEffect(() => {
-    if (data?.cases?.length && !activeId) {
-      const done = data.cases.find((c) => c.status !== "Pending");
-      if (done) setActiveId(done.testId);
-    }
-  }, [data?.cases, activeId]);
 
   const sendControl = async (action: ControlAction) => {
     await fetch(`/api/run/${runId}/control`, {
@@ -376,18 +372,107 @@ function BrowserMockup({ tc, isTerminal }: { tc: TestCase | null; isTerminal: bo
             alt="screenshot"
             style={{ width: "100%", height: "100%", objectFit: "contain" }}
           />
+        ) : tc?.status === "Pending" ? (
+          <LiveStepView tc={tc} isPaused={isTerminal} />
         ) : (
           <div style={{
             position: "absolute", inset: 0,
             background: "repeating-linear-gradient(135deg,#202024,#202024 12px,#1a1a1e 12px,#1a1a1e 24px)",
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>
-            <span style={{ fontSize: 12, color: "#52525b", background: "rgba(26,26,30,.9)", padding: "6px 14px", borderRadius: 8 }}>
-              {tc?.status === "Pending" ? "녹화 중…" : "미디어 없음"}
+            <span style={{ fontSize: 12, color: "#555", background: "rgba(0,0,0,.6)", padding: "6px 14px", borderRadius: 8 }}>
+              미디어 없음
             </span>
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Live step view (실행 중 브라우저 목업 내부) ──────────────────────────
+function LiveStepView({ tc, isPaused }: { tc: TestCase; isPaused: boolean }) {
+  const logs = tc.consoleLogs ?? [];
+  const lastStep = logs[logs.length - 1] ?? null;
+
+  // "[Step N] action details — thought" 파싱
+  const parseStep = (log: string) => {
+    const m = log.match(/^\[Step (\d+)\] (.+?) — (.+)$/);
+    if (m) return { num: m[1], action: m[2], thought: m[3] };
+    return { num: "?", action: log, thought: "" };
+  };
+
+  const current = lastStep ? parseStep(lastStep) : null;
+  const total = logs.length;
+
+  return (
+    <div style={{
+      position: "absolute", inset: 0,
+      background: "#0a0a0a",
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      padding: 32, gap: 20,
+    }}>
+      {/* 상단 REC 배지 */}
+      <div style={{ position: "absolute", top: 16, right: 16, display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,.05)", padding: "4px 10px", borderRadius: 999 }}>
+        <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#f87171", display: "inline-block", animation: "pulse 1s ease-in-out infinite" }} />
+        <span style={{ fontSize: 11, color: "#555", fontFamily: "monospace" }}>REC</span>
+      </div>
+
+      {/* 스피너 + 현재 액션 */}
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14, maxWidth: 480, width: "100%" }}>
+        {/* 원형 진행 표시 */}
+        <div style={{ position: "relative", width: 56, height: 56 }}>
+          <svg width="56" height="56" viewBox="0 0 56 56" style={{ transform: "rotate(-90deg)" }}>
+            <circle cx="28" cy="28" r="24" fill="none" stroke="#1a1a1a" strokeWidth="3" />
+            <circle cx="28" cy="28" r="24" fill="none" stroke={C.purple} strokeWidth="3"
+              strokeDasharray="150.8" strokeDashoffset="0"
+              style={{ animation: "spin 1.5s linear infinite" }}
+            />
+          </svg>
+          <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: C.purple, fontFamily: "monospace" }}>
+            {total}
+          </span>
+        </div>
+
+        {/* 현재 스텝 */}
+        {current ? (
+          <div style={{ textAlign: "center", width: "100%" }}>
+            <div style={{ fontSize: 11, color: "#444", fontFamily: "monospace", marginBottom: 6 }}>
+              STEP {current.num}
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#ccc", marginBottom: 8, lineHeight: 1.4 }}>
+              {current.action}
+            </div>
+            {current.thought && (
+              <div style={{ fontSize: 12, color: "#555", lineHeight: 1.5, background: "#111", borderRadius: 8, padding: "8px 12px", textAlign: "left" }}>
+                💭 {current.thought}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{ fontSize: 13, color: "#444" }}>에이전트 초기화 중…</div>
+        )}
+      </div>
+
+      {/* 하단 스텝 타임라인 */}
+      {logs.length > 0 && (
+        <div style={{ width: "100%", maxWidth: 480, display: "flex", flexDirection: "column", gap: 3, maxHeight: 120, overflowY: "auto" }}>
+          {logs.slice(-5).map((log, i) => {
+            const s = parseStep(log);
+            const isLast = i === Math.min(logs.length, 5) - 1;
+            return (
+              <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, opacity: isLast ? 1 : 0.35 }}>
+                <span style={{ fontSize: 10, fontFamily: "monospace", color: isLast ? C.purple : "#333", flexShrink: 0, marginTop: 2 }}>
+                  {String(logs.length - (Math.min(logs.length, 5) - 1 - i)).padStart(2, "0")}
+                </span>
+                <span style={{ fontSize: 11, color: isLast ? "#999" : "#444", lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {s.action}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -570,6 +655,7 @@ if (typeof document !== "undefined") {
     s.textContent = `
       @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
       @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+      @keyframes spin { from{stroke-dashoffset:150.8} to{stroke-dashoffset:0} }
     `;
     document.head.appendChild(s);
   }
