@@ -38,29 +38,29 @@ interface RunResult {
 const TERMINAL: RunStatus[] = ["completed", "failed"];
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-// ── Design tokens ─────────────────────────────────────────────────────────
+// ── Design tokens (다크 모드 — 첫 화면 톤 기준) ──────────────────────────
 const C = {
-  purple:     "#5b57d1",
-  purpleDark: "#4f4bc4",
-  purpleBg:   "rgba(91,87,209,.08)",
-  purpleBg2:  "#e8e7fb",
-  green:      "#15823f",
-  greenBg:    "#e8f6ed",
-  red:        "#e5484d",
-  redBg:      "#fdeceb",
-  bg:         "#fafafa",
-  bgAlt:      "#f5f5f7",
-  bgAlt2:     "#f1f1f4",
-  surface:    "#ffffff",
-  border:     "#ececef",
-  borderMid:  "#e4e4ea",
-  borderDark: "#e0e0e4",
-  textPrimary:"#1a1a1e",
-  textMid:    "#52525b",
-  textLight:  "#71717a",
-  textFaint:  "#a1a1aa",
-  terminal:   "#1a1a1e",
-  terminalBorder: "#2a2a30",
+  purple:     "#0099ff",
+  purpleDark: "#007acc",
+  purpleBg:   "rgba(0,153,255,.08)",
+  purpleBg2:  "rgba(0,153,255,.12)",
+  green:      "#4ade80",
+  greenBg:    "rgba(74,222,128,.08)",
+  red:        "#f87171",
+  redBg:      "rgba(248,113,113,.08)",
+  bg:         "#090909",
+  bgAlt:      "#0d0d0d",
+  bgAlt2:     "#141414",
+  surface:    "#141414",
+  border:     "#1a1a1a",
+  borderMid:  "#262626",
+  borderDark: "#333333",
+  textPrimary:"#ffffff",
+  textMid:    "#999999",
+  textLight:  "#777777",
+  textFaint:  "#555555",
+  terminal:   "#0a0a0a",
+  terminalBorder: "#1a1a1a",
 };
 
 // ── Main component ─────────────────────────────────────────────────────────
