@@ -185,7 +185,6 @@ function NewTestForm() {
                       background: mode === m ? "#fff" : "transparent",
                       color: mode === m ? "#4338ca" : "#9ca3af",
                       boxShadow: mode === m ? "0 1px 6px rgba(99,102,241,0.12)" : "none",
-                      fontWeight: mode === m ? 600 : 400,
                     }}>
                     {m === "excel" ? "엑셀 업로드" : "자연어 입력"}
                   </button>
