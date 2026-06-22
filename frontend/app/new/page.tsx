@@ -19,6 +19,19 @@ const CARD_PLACEHOLDER = `테스트 시나리오를 자유롭게 작성하세요
 const EXECUTOR_CHIPS = ["기획", "디자인", "프론트엔드", "백엔드", "QA"];
 let nextId = 2;
 
+/* ─── 공통 스타일 ─────────────────────────────────────────────── */
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  borderRadius: 10,
+  border: "1px solid rgba(209,213,219,0.8)",
+  background: "rgba(255,255,255,0.75)",
+  padding: "10px 14px",
+  fontSize: 14,
+  color: "#111827",
+  outline: "none",
+  transition: "border-color .15s, box-shadow .15s",
+};
+
 export default function NewPage() {
   return <Suspense><NewTestForm /></Suspense>;
 }
@@ -88,146 +101,229 @@ function NewTestForm() {
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-6">
-      <div className="w-full max-w-lg space-y-5">
-
-        {/* 헤더 */}
-        <div className="mb-2 text-center space-y-1.5">
-          <Link href="/" className="inline-flex items-center gap-1.5 text-xs text-[#555] hover:text-[#0099ff] transition-colors mb-2">
-            ← 이력으로 돌아가기
-          </Link>
-          <h1 className="text-5xl font-medium text-white" style={{ letterSpacing: "-2.5px" }}>QAgent</h1>
-          <p className="text-sm text-[#999]">AI Native QA Automation Pipeline</p>
-          <Link href="/dashboard/demo" className="inline-block mt-1 text-xs text-[#555] hover:text-[#0099ff] transition-colors">
-            UI 미리보기 →
-          </Link>
+    <>
+      {/* 상단 헤더 (글래스) */}
+      <header style={{
+        background: "rgba(255,255,255,0.45)",
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
+        borderBottom: "1px solid rgba(255,255,255,0.6)",
+        padding: "0 28px",
+        height: 54,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        flexShrink: 0,
+        boxShadow: "0 4px 20px rgba(99,102,241,0.06)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 12, color: "#a5b4fc", fontWeight: 500 }}>QAgent</span>
+          <span style={{ fontSize: 12, color: "#d1d5db" }}>/</span>
+          <span style={{ fontSize: 12, color: "#4338ca", fontWeight: 600 }}>새 테스트</span>
         </div>
+        <Link href="/dashboard/demo" style={{ fontSize: 12, color: "#9ca3af", textDecoration: "none" }}>UI 미리보기 →</Link>
+      </header>
 
-        {/* ① URL */}
-        <div className="space-y-1.5">
-          <label className="block text-xs font-medium text-[#999] uppercase tracking-widest">테스트 대상 URL</label>
-          <div className="relative">
-            <input
-              type="url" value={targetUrl}
-              onChange={(e) => { setTargetUrl(e.target.value); setError(""); }}
-              placeholder="https://your-service.com"
-              className="w-full rounded-[10px] border border-[#262626] bg-[#141414] px-[14px] py-[10px] pr-10 text-[15px] text-white placeholder-[#555] outline-none transition-colors focus:border-[#0099ff] focus:ring-1 focus:ring-[#0099ff]/20"
-            />
-            {/^https?:\/\/.+\..+/.test(targetUrl.trim()) && (
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-green-400">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <circle cx="8" cy="8" r="7" fill="currentColor" fillOpacity=".15" stroke="currentColor" strokeWidth="1.2"/>
-                  <path d="M5 8l2 2.5 4-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </span>
-            )}
-          </div>
-        </div>
+      {/* 폼 영역 */}
+      <main style={{ flex: 1, overflowY: "auto", display: "flex", justifyContent: "center", alignItems: "flex-start", padding: "36px 24px" }}>
+        <div style={{ width: "100%", maxWidth: 520, display: "flex", flexDirection: "column", gap: 18 }}>
 
-        {/* ② 시나리오 */}
-        <div className="space-y-3">
-          <label className="block text-xs font-medium text-[#999] uppercase tracking-widest">테스트 시나리오</label>
-          <div className="flex gap-1 rounded-lg border border-[#262626] bg-[#0d0d0d] p-1">
-            {(["excel", "natural"] as Mode[]).map((m) => (
-              <button key={m} onClick={() => { setMode(m); setError(""); }}
-                className={`flex-1 rounded-md px-[14px] py-[8px] text-[14px] font-medium tracking-[-0.14px] transition-all ${mode === m ? "bg-[#0099ff] text-white shadow-sm" : "text-[#555] hover:text-[#999]"}`}>
-                {m === "excel" ? "엑셀 업로드" : "자연어 입력"}
-              </button>
-            ))}
+          {/* 제목 */}
+          <div style={{ textAlign: "center", marginBottom: 4 }}>
+            <h1 style={{ fontSize: 28, fontWeight: 700, color: "#1e1b4b", letterSpacing: "-1px", marginBottom: 6 }}>새 테스트 실행</h1>
+            <p style={{ fontSize: 13, color: "#9ca3af" }}>AI가 화면을 보며 시나리오를 자동으로 수행합니다</p>
           </div>
 
-          {mode === "excel" && (
-            <div
-              className={`cursor-pointer rounded-[30px] border-2 border-dashed p-10 text-center transition-colors ${isDragging ? "border-[#0099ff] bg-[#0099ff]/5" : "border-[#262626] hover:border-[#3a3a3a]"}`}
-              onClick={() => fileRef.current?.click()}
-              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={onDrop}
-            >
-              <input ref={fileRef} type="file" accept=".xlsx" className="hidden" onChange={(e) => { setFile(e.target.files?.[0] || null); setError(""); }} />
-              {file ? (
-                <div className="space-y-1">
-                  <p className="font-medium text-white">{file.name}</p>
-                  <p className="text-sm text-[#666]">{(file.size / 1024).toFixed(1)} KB</p>
-                  <button className="mt-2 text-xs text-[#0099ff] hover:underline" onClick={(e) => { e.stopPropagation(); setFile(null); }}>파일 변경</button>
+          {/* 폼 카드 */}
+          <div style={{
+            background: "rgba(255,255,255,0.75)",
+            backdropFilter: "blur(16px)",
+            WebkitBackdropFilter: "blur(16px)",
+            border: "1px solid rgba(255,255,255,0.8)",
+            borderRadius: 18,
+            boxShadow: "0 8px 40px rgba(99,102,241,0.10)",
+            padding: "28px 28px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 20,
+          }}>
+
+            {/* ① URL */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", letterSpacing: "0.08em", textTransform: "uppercase" }}>테스트 대상 URL</label>
+              <div style={{ position: "relative" }}>
+                <input
+                  type="url" value={targetUrl}
+                  onChange={(e) => { setTargetUrl(e.target.value); setError(""); }}
+                  placeholder="https://your-service.com"
+                  style={{ ...inputStyle, paddingRight: 40 }}
+                  onFocus={(e) => { e.target.style.borderColor = "#818cf8"; e.target.style.boxShadow = "0 0 0 3px rgba(99,102,241,0.1)"; }}
+                  onBlur={(e) => { e.target.style.borderColor = "rgba(209,213,219,0.8)"; e.target.style.boxShadow = "none"; }}
+                />
+                {/^https?:\/\/.+\..+/.test(targetUrl.trim()) && (
+                  <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "#16a34a" }}>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <circle cx="8" cy="8" r="7" fill="currentColor" fillOpacity=".12" stroke="currentColor" strokeWidth="1.2"/>
+                      <path d="M5 8l2 2.5 4-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* ② 시나리오 */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", letterSpacing: "0.08em", textTransform: "uppercase" }}>테스트 시나리오</label>
+
+              {/* 모드 탭 */}
+              <div style={{ display: "flex", gap: 4, background: "rgba(241,243,249,0.8)", borderRadius: 10, padding: 4, border: "1px solid rgba(229,231,235,0.6)" }}>
+                {(["excel", "natural"] as Mode[]).map((m) => (
+                  <button key={m} onClick={() => { setMode(m); setError(""); }}
+                    style={{
+                      flex: 1, padding: "8px 14px", borderRadius: 8, fontSize: 13, fontWeight: 500,
+                      border: "none", cursor: "pointer", transition: "all .15s",
+                      background: mode === m ? "#fff" : "transparent",
+                      color: mode === m ? "#4338ca" : "#9ca3af",
+                      boxShadow: mode === m ? "0 1px 6px rgba(99,102,241,0.12)" : "none",
+                      fontWeight: mode === m ? 600 : 400,
+                    }}>
+                    {m === "excel" ? "엑셀 업로드" : "자연어 입력"}
+                  </button>
+                ))}
+              </div>
+
+              {/* 엑셀 업로드 */}
+              {mode === "excel" && (
+                <div
+                  onClick={() => fileRef.current?.click()}
+                  onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onDrop={onDrop}
+                  style={{
+                    cursor: "pointer", borderRadius: 14, padding: "36px 24px", textAlign: "center",
+                    border: `2px dashed ${isDragging ? "#818cf8" : "rgba(209,213,219,0.7)"}`,
+                    background: isDragging ? "rgba(238,242,255,0.6)" : "rgba(249,250,251,0.5)",
+                    transition: "all .15s",
+                  }}
+                >
+                  <input ref={fileRef} type="file" accept=".xlsx" style={{ display: "none" }} onChange={(e) => { setFile(e.target.files?.[0] || null); setError(""); }} />
+                  {file ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "center" }}>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>{file.name}</p>
+                      <p style={{ fontSize: 12, color: "#9ca3af" }}>{(file.size / 1024).toFixed(1)} KB</p>
+                      <button onClick={(e) => { e.stopPropagation(); setFile(null); }} style={{ marginTop: 6, fontSize: 12, color: "#6366f1", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>파일 변경</button>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "center" }}>
+                      <div style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(238,242,255,0.8)", border: "1px solid rgba(199,210,254,0.6)", display: "flex", alignItems: "center", justifyContent: "center", color: "#818cf8" }}>↑</div>
+                      <p style={{ fontSize: 13, color: "#6b7280" }}>xlsx 파일을 드래그하거나 클릭해서 업로드</p>
+                      <p style={{ fontSize: 11, color: "#9ca3af" }}>컬럼: 구분 · 테스트ID · 기능 · 시나리오 · 전제조건 · 입력값/동작 · 기대결과</p>
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full border border-[#2a2a2a] text-[#444]">↑</div>
-                  <p className="text-sm text-[#999]">xlsx 파일을 드래그하거나<br />클릭해서 업로드</p>
-                  <p className="text-xs text-[#666]">컬럼: 구분 · 테스트ID · 기능 · 시나리오 · 전제조건 · 입력값/동작 · 기대결과</p>
+              )}
+
+              {/* 자연어 입력 */}
+              {mode === "natural" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {cards.map((card, idx) => (
+                    <div key={card.id} style={{ borderRadius: 12, border: "1px solid rgba(209,213,219,0.7)", background: "rgba(255,255,255,0.7)", overflow: "hidden", transition: "border-color .15s" }}
+                      onFocusCapture={(e) => e.currentTarget.style.borderColor = "#818cf8"}
+                      onBlurCapture={(e) => e.currentTarget.style.borderColor = "rgba(209,213,219,0.7)"}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 14px 4px" }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: "#9ca3af" }}>케이스 {idx + 1}</span>
+                        {cards.length > 1 && (
+                          <button onClick={() => removeCard(card.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 2 }}
+                            onMouseEnter={(e) => (e.currentTarget.style.color = "#ef4444")}
+                            onMouseLeave={(e) => (e.currentTarget.style.color = "#d1d5db")}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3.5h10M5.5 3.5V2.5a.5.5 0 01.5-.5h2a.5.5 0 01.5.5v1M5.5 6v4M8.5 6v4M3 3.5l.7 7.2a.5.5 0 00.5.3h5.6a.5.5 0 00.5-.3L11 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                          </button>
+                        )}
+                      </div>
+                      <textarea value={card.text} onChange={(e) => updateCard(card.id, e.target.value)} placeholder={CARD_PLACEHOLDER} rows={6}
+                        style={{ width: "100%", resize: "none", background: "transparent", padding: "4px 14px 12px", fontSize: 13, color: "#111827", outline: "none", border: "none" }} />
+                    </div>
+                  ))}
+                  <button onClick={addCard} style={{
+                    width: "100%", borderRadius: 12, padding: "11px", fontSize: 13, color: "#818cf8", fontWeight: 500,
+                    border: "1.5px dashed rgba(129,140,248,0.4)", background: "transparent", cursor: "pointer", transition: "all .15s",
+                  }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(238,242,255,0.5)"; e.currentTarget.style.borderColor = "#818cf8"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "rgba(129,140,248,0.4)"; }}
+                  >
+                    + 테스트 케이스 추가
+                  </button>
+                  <p style={{ fontSize: 11, color: "#9ca3af", display: "flex", gap: 5, alignItems: "flex-start" }}>
+                    <span style={{ color: "#818cf8", flexShrink: 0, marginTop: 1 }}>i</span>
+                    각 카드는 독립된 테스트 케이스로 실행됩니다. Claude가 화면을 보며 직접 조작합니다.
+                  </p>
                 </div>
               )}
             </div>
-          )}
 
-          {mode === "natural" && (
-            <div className="space-y-2">
-              {cards.map((card, idx) => (
-                <div key={card.id} className="group rounded-[12px] border border-[#262626] bg-[#141414] transition-colors focus-within:border-[#0099ff] focus-within:ring-1 focus-within:ring-[#0099ff]/20">
-                  <div className="flex items-center justify-between px-[14px] pt-[10px]">
-                    <span className="text-xs font-medium text-[#555]">케이스 {idx + 1}</span>
-                    {cards.length > 1 && (
-                      <button onClick={() => removeCard(card.id)} className="text-[#444] transition-colors hover:text-red-400">
-                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3.5h10M5.5 3.5V2.5a.5.5 0 01.5-.5h2a.5.5 0 01.5.5v1M5.5 6v4M8.5 6v4M3 3.5l.7 7.2a.5.5 0 00.5.3h5.6a.5.5 0 00.5-.3L11 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                      </button>
-                    )}
-                  </div>
-                  <textarea value={card.text} onChange={(e) => updateCard(card.id, e.target.value)} placeholder={CARD_PLACEHOLDER} rows={6}
-                    className="w-full resize-none bg-transparent px-[14px] pb-[10px] pt-[6px] text-[14px] text-white placeholder-[#444] outline-none" />
-                </div>
-              ))}
-              <button onClick={addCard} className="w-full rounded-[12px] border border-dashed border-[#2a2a2a] py-3 text-sm text-[#555] transition-colors hover:border-[#0099ff] hover:text-[#0099ff]">
-                + 테스트 케이스 추가
-              </button>
-              <div className="flex items-start gap-1.5 text-xs text-[#555]">
-                <span className="mt-0.5 shrink-0 text-[#0099ff]">i</span>
-                <span>각 카드는 독립된 테스트 케이스로 실행됩니다. Claude가 화면을 보며 직접 조작합니다.</span>
+            {/* ③ 실행자 */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", letterSpacing: "0.08em", textTransform: "uppercase" }}>실행자 정보</label>
+              <input
+                type="text" value={executor}
+                onChange={(e) => setExecutor(e.target.value)}
+                placeholder="담당자 이름 또는 직무"
+                style={inputStyle}
+                onFocus={(e) => { e.target.style.borderColor = "#818cf8"; e.target.style.boxShadow = "0 0 0 3px rgba(99,102,241,0.1)"; }}
+                onBlur={(e) => { e.target.style.borderColor = "rgba(209,213,219,0.8)"; e.target.style.boxShadow = "none"; }}
+              />
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {EXECUTOR_CHIPS.map((chip) => (
+                  <button key={chip} onClick={() => setExecutor((prev) => prev === chip ? "" : chip)}
+                    style={{
+                      borderRadius: 99, padding: "4px 12px", fontSize: 12, fontWeight: 500, cursor: "pointer",
+                      border: executor === chip ? "1.5px solid #818cf8" : "1px solid rgba(209,213,219,0.8)",
+                      background: executor === chip ? "rgba(238,242,255,0.9)" : "rgba(255,255,255,0.6)",
+                      color: executor === chip ? "#4338ca" : "#6b7280",
+                      transition: "all .12s",
+                    }}>
+                    {chip}
+                  </button>
+                ))}
               </div>
             </div>
-          )}
-        </div>
 
-        {/* ③ 실행자 정보 */}
-        <div className="space-y-2">
-          <label className="block text-xs font-medium text-[#999] uppercase tracking-widest">실행자 정보</label>
-          <input
-            type="text" value={executor}
-            onChange={(e) => setExecutor(e.target.value)}
-            placeholder="담당자 이름 또는 직무를 입력하세요"
-            className="w-full rounded-[10px] border border-[#262626] bg-[#141414] px-[14px] py-[10px] text-[14px] text-white placeholder-[#555] outline-none transition-colors focus:border-[#0099ff] focus:ring-1 focus:ring-[#0099ff]/20"
-          />
-          {/* 퀵 선택 칩 */}
-          <div className="flex flex-wrap gap-2 pt-0.5">
-            {EXECUTOR_CHIPS.map((chip) => (
-              <button
-                key={chip}
-                onClick={() => setExecutor((prev) => prev === chip ? "" : chip)}
-                className={`rounded-full border px-3 py-1 text-xs font-medium transition-all ${
-                  executor === chip
-                    ? "border-[#0099ff] bg-[#0099ff]/15 text-[#0099ff]"
-                    : "border-[#262626] bg-[#141414] text-[#555] hover:border-[#444] hover:text-[#999]"
-                }`}
-              >
-                {chip}
-              </button>
-            ))}
+            {/* 오류 메시지 */}
+            {error && (
+              <div style={{ borderRadius: 10, background: "rgba(254,242,242,0.9)", border: "1px solid #fecaca", padding: "10px 14px", fontSize: 13, color: "#dc2626" }}>
+                {error}
+              </div>
+            )}
+
+            {/* 제출 버튼 */}
+            <button
+              onClick={handleSubmit}
+              disabled={!isReady || isLoading}
+              style={{
+                width: "100%", borderRadius: 12, padding: "13px",
+                fontSize: 14, fontWeight: 700, letterSpacing: "-0.2px",
+                border: "none", cursor: isReady && !isLoading ? "pointer" : "not-allowed",
+                background: isReady && !isLoading
+                  ? "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)"
+                  : "rgba(209,213,219,0.5)",
+                color: isReady && !isLoading ? "#fff" : "#9ca3af",
+                boxShadow: isReady && !isLoading ? "0 4px 16px rgba(99,102,241,0.3)" : "none",
+                transition: "all .15s",
+              }}
+              onMouseEnter={(e) => { if (isReady && !isLoading) e.currentTarget.style.opacity = "0.9"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
+            >
+              {isLoading
+                ? "실행 중…"
+                : mode === "natural"
+                  ? `테스트 시작${filledCards.length > 0 ? ` (${filledCards.length}개 케이스)` : ""}`
+                  : "테스트 시작"}
+            </button>
           </div>
         </div>
-
-        {/* 오류 */}
-        {error && (
-          <div className="rounded-xl border border-red-800/40 bg-red-950/20 px-4 py-3 text-sm text-red-400">{error}</div>
-        )}
-
-        {/* 제출 */}
-        <button
-          onClick={handleSubmit} disabled={!isReady || isLoading}
-          className="w-full rounded-full bg-white px-[15px] py-[10px] text-[14px] font-medium tracking-[-0.14px] text-black transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-25"
-        >
-          {isLoading ? "실행 중…" : mode === "natural" ? `테스트 시작 ${filledCards.length > 0 ? `(${filledCards.length}개 케이스)` : ""}` : "테스트 시작"}
-        </button>
-      </div>
-    </main>
+      </main>
+    </>
   );
 }
