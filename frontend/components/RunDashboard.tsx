@@ -208,6 +208,7 @@ export function RunDashboard({ runId }: { runId: string }) {
                 isActive={tc.testId === activeId}
                 onClick={() => setActiveId(tc.testId)}
                 isPaused={!!data.paused}
+                targetUrl={data.targetUrl}
               />
             ))
           )}
@@ -239,6 +240,9 @@ export function RunDashboard({ runId }: { runId: string }) {
               <span style={{ fontSize: 11, fontFamily: "monospace", color: C.textFaint, background: C.bgAlt2, padding: "2px 8px", borderRadius: 5 }}>{activeCase.testId}</span>
               <span style={{ fontSize: 13, fontWeight: 500, color: C.textPrimary, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{activeCase.scenario}</span>
               {activeCase.status !== "Pending" && <CaseStatusBadge status={activeCase.status} />}
+              {activeCase.status === "Fail" && (
+                <CopyReportButton tc={activeCase} targetUrl={data.targetUrl} />
+              )}
             </>
           ) : (
             <span style={{ fontSize: 13, color: C.textFaint }}>시나리오를 선택하세요</span>
@@ -259,14 +263,70 @@ export function RunDashboard({ runId }: { runId: string }) {
   );
 }
 
+// ── 에러 리포트 마크다운 생성 ──────────────────────────────────────────────
+function buildErrorReport(tc: TestCase, targetUrl?: string): string {
+  const recentLogs = (tc.consoleLogs ?? []).slice(-5);
+  const lines: string[] = [
+    `## 🚨 QAgent 에러 리포트`,
+    ``,
+    `| 항목 | 내용 |`,
+    `|------|------|`,
+    `| **테스트 ID** | \`${tc.testId}\` |`,
+    `| **시나리오** | ${tc.scenario} |`,
+    `| **상태** | ❌ Fail |`,
+    ...(targetUrl ? [`| **진입 URL** | ${targetUrl} |`] : []),
+    ``,
+    `### ❗ 에러 메시지`,
+    `\`\`\``,
+    tc.failReason || "(에러 메시지 없음)",
+    `\`\`\``,
+  ];
+
+  if (recentLogs.length > 0) {
+    lines.push(``, `### 📋 최근 실행 로그 (마지막 ${recentLogs.length}줄)`);
+    lines.push(`\`\`\``);
+    recentLogs.forEach((log) => lines.push(log));
+    lines.push(`\`\`\``);
+  }
+
+  if (tc.screenshotUrl || tc.videoUrl) {
+    lines.push(``, `### 🔗 첨부 파일`);
+    if (tc.screenshotUrl) lines.push(`- 📸 스크린샷: [열기](${tc.screenshotUrl})`);
+    if (tc.videoUrl)      lines.push(`- 🎬 녹화 영상: [열기](${tc.videoUrl})`);
+  }
+
+  lines.push(``, `---`, `*QAgent 자동 생성 리포트*`);
+  return lines.join("\n");
+}
+
 // ── Scenario card ──────────────────────────────────────────────────────────
 function ScenarioCard({
-  tc, isActive, onClick, isPaused,
+  tc, isActive, onClick, isPaused, targetUrl,
 }: {
-  tc: TestCase; isActive: boolean; onClick: () => void; isPaused: boolean;
+  tc: TestCase; isActive: boolean; onClick: () => void; isPaused: boolean; targetUrl?: string;
 }) {
+  const [copied, setCopied] = useState(false);
   const isRunning = tc.status === "Pending";
   const isFail = tc.status === "Fail";
+
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(buildErrorReport(tc, targetUrl));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // fallback: textarea 방식
+      const el = document.createElement("textarea");
+      el.value = buildErrorReport(tc, targetUrl);
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   return (
     <div
@@ -277,17 +337,13 @@ function ScenarioCard({
         border: isActive
           ? `2px solid ${C.purple}`
           : isFail
-          ? `1px solid rgba(229,72,77,.25)`
+          ? `1px solid rgba(248,113,113,.25)`
           : `1px solid ${C.border}`,
-        background: isActive
-          ? C.purpleBg2
-          : isFail
-          ? C.redBg
-          : C.surface,
+        background: isActive ? C.purpleBg2 : isFail ? C.redBg : C.surface,
         padding: "10px 12px",
         cursor: "pointer",
         transition: "all .15s",
-        boxShadow: isActive ? `0 0 0 3px rgba(91,87,209,.12)` : "none",
+        boxShadow: isActive ? `0 0 0 3px rgba(0,153,255,.12)` : "none",
       }}
     >
       <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
@@ -304,21 +360,53 @@ function ScenarioCard({
 
         {/* Content */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
-            <span style={{ fontSize: 10.5, fontFamily: "monospace", color: isActive ? C.purple : C.textFaint, fontWeight: 600 }}>
-              {tc.testId}
-            </span>
-            {isRunning && (
-              <span style={{ fontSize: 10, color: isPaused ? "#ca8a04" : C.purple, background: isPaused ? "#fefce8" : C.purpleBg, padding: "1px 6px", borderRadius: 999, fontWeight: 500 }}>
-                {isPaused ? "일시정지" : "실행 중"}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginBottom: 3 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 10.5, fontFamily: "monospace", color: isActive ? C.purple : C.textFaint, fontWeight: 600 }}>
+                {tc.testId}
               </span>
+              {isRunning && (
+                <span style={{ fontSize: 10, color: isPaused ? "#ca8a04" : C.purple, background: isPaused ? "rgba(202,138,4,.1)" : C.purpleBg, padding: "1px 6px", borderRadius: 999, fontWeight: 500 }}>
+                  {isPaused ? "일시정지" : "실행 중"}
+                </span>
+              )}
+            </div>
+            {/* 에러 리포트 복사 버튼 — Fail 케이스만 */}
+            {isFail && (
+              <button
+                onClick={handleCopy}
+                title="에러 리포트 복사"
+                style={{
+                  flexShrink: 0,
+                  display: "flex", alignItems: "center", gap: 4,
+                  padding: "2px 7px", borderRadius: 6,
+                  border: copied ? `1px solid ${C.green}` : `1px solid rgba(248,113,113,.3)`,
+                  background: copied ? C.greenBg : "rgba(248,113,113,.08)",
+                  color: copied ? C.green : C.red,
+                  fontSize: 10, fontWeight: 500, cursor: "pointer",
+                  transition: "all .2s",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {copied ? (
+                  <>
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2 2 4-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    복사됨
+                  </>
+                ) : (
+                  <>
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><rect x="3" y="1" width="6" height="7" rx="1" stroke="currentColor" strokeWidth="1.2"/><path d="M1 3h1.5v5.5H7V9H2a1 1 0 01-1-1V3z" fill="currentColor" fillOpacity=".4"/></svg>
+                    에러 복사
+                  </>
+                )}
+              </button>
             )}
           </div>
           <p style={{ fontSize: 12.5, color: isFail ? C.red : C.textPrimary, lineHeight: 1.45, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any, overflow: "hidden" }}>
             {tc.scenario}
           </p>
           {tc.failReason && (
-            <p style={{ marginTop: 5, fontSize: 11, color: "#c5341b", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any, overflow: "hidden" }}>
+            <p style={{ marginTop: 5, fontSize: 11, color: "#f87171", opacity: 0.75, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any, overflow: "hidden" }}>
               {tc.failReason}
             </p>
           )}
@@ -531,6 +619,57 @@ function TerminalPanel({ tc, isPaused }: { tc: TestCase | null; isPaused: boolea
         )}
       </div>
     </div>
+  );
+}
+
+// ── Top bar 에러 복사 버튼 ─────────────────────────────────────────────────
+function CopyReportButton({ tc, targetUrl }: { tc: TestCase; targetUrl?: string }) {
+  const [state, setState] = useState<"idle" | "copied" | "error">("idle");
+
+  const handleClick = async () => {
+    try {
+      await navigator.clipboard.writeText(buildErrorReport(tc, targetUrl));
+    } catch {
+      const el = document.createElement("textarea");
+      el.value = buildErrorReport(tc, targetUrl);
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+    }
+    setState("copied");
+    setTimeout(() => setState("idle"), 2000);
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      title="에러 리포트를 마크다운으로 복사"
+      style={{
+        display: "flex", alignItems: "center", gap: 5,
+        padding: "5px 10px", borderRadius: 7, flexShrink: 0,
+        border: state === "copied" ? `1px solid ${C.green}` : `1px solid ${C.borderMid}`,
+        background: state === "copied" ? C.greenBg : C.bgAlt2,
+        color: state === "copied" ? C.green : C.textMid,
+        fontSize: 11, fontWeight: 500, cursor: "pointer",
+        transition: "all .2s",
+      }}
+    >
+      {state === "copied" ? (
+        <>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          복사됨!
+        </>
+      ) : (
+        <>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <rect x="4" y="1.5" width="6.5" height="8" rx="1.2" stroke="currentColor" strokeWidth="1.2"/>
+            <path d="M1.5 4H3v5.5h4.5v1.5H2.5a1 1 0 01-1-1V4z" fill="currentColor" fillOpacity=".5"/>
+          </svg>
+          에러 리포트 복사
+        </>
+      )}
+    </button>
   );
 }
 
