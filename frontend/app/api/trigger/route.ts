@@ -26,6 +26,8 @@ export async function POST(req: NextRequest) {
     workerForm.append("excel", file, file.name);
     const url = formData.get("url");
     if (url) workerForm.append("url", url as string);
+    const executor = formData.get("executor");
+    if (executor) workerForm.append("executor", executor as string);
 
     const res = await fetch(`${WORKER_URL}/trigger/excel`, {
       method: "POST",

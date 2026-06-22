@@ -19,7 +19,14 @@ export interface RunResult {
   mode: "excel" | "natural";
   targetUrl?: string;
   scenarios?: string;
+  executor?: string;
   error?: string;
+}
+
+export function getAllRuns(): RunResult[] {
+  return Array.from(activeRuns.values()).sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
 }
 
 const activeRuns = new Map<string, RunResult>();
@@ -76,7 +83,8 @@ async function executeTestCases(
 export async function runExcelPipeline(
   runId: string,
   excelPath: string,
-  targetUrl?: string
+  targetUrl?: string,
+  executor?: string
 ): Promise<RunResult> {
   const dictionary = new UIDictionary(path.resolve("ui_dictionary.yaml"));
 
@@ -104,6 +112,7 @@ export async function runExcelPipeline(
     runId, status: "running", mode: "excel",
     total: testCases.length, passed: 0, failed: 0,
     cases: [], createdAt: new Date().toISOString(),
+    executor,
   };
   activeRuns.set(runId, run);
 
@@ -123,7 +132,8 @@ export async function runExcelPipeline(
 export async function runNaturalLanguagePipeline(
   runId: string,
   targetUrl: string,
-  scenarioList: string[]
+  scenarioList: string[],
+  executor?: string
 ): Promise<RunResult> {
   if (!process.env.ANTHROPIC_API_KEY) {
     const run: RunResult = {
@@ -142,6 +152,7 @@ export async function runNaturalLanguagePipeline(
     createdAt: new Date().toISOString(),
     targetUrl,
     scenarios: scenarioList.join("\n\n---\n\n"),
+    executor,
   };
   activeRuns.set(runId, run);
 

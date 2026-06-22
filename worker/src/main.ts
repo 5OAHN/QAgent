@@ -3,7 +3,7 @@ import cors from "cors";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { runExcelPipeline, runNaturalLanguagePipeline, getRunResult, cancelRun, pauseRun, resumeRun } from "./pipeline";
+import { runExcelPipeline, runNaturalLanguagePipeline, getRunResult, getAllRuns, cancelRun, pauseRun, resumeRun } from "./pipeline";
 
 const app = express();
 app.use(cors());
@@ -26,10 +26,11 @@ app.post("/trigger/excel", upload.single("excel"), (req: Request, res: Response)
 
   const runId = crypto.randomUUID();
   const targetUrl = req.body.url as string | undefined;
+  const executor  = req.body.executor as string | undefined;
 
-  console.log(`\n🚀 [${runId}] 엑셀 파이프라인 시작${targetUrl ? ` → ${targetUrl}` : ""}`);
+  console.log(`\n🚀 [${runId}] 엑셀 파이프라인 시작${targetUrl ? ` → ${targetUrl}` : ""}${executor ? ` (${executor})` : ""}`);
 
-  runExcelPipeline(runId, req.file.path, targetUrl).catch((err) =>
+  runExcelPipeline(runId, req.file.path, targetUrl, executor).catch((err) =>
     console.error(`[${runId}] 오류:`, err.message)
   );
 
@@ -38,13 +39,12 @@ app.post("/trigger/excel", upload.single("excel"), (req: Request, res: Response)
 
 // ── 자연어 모드 트리거 ───────────────────────────────────────────────
 app.post("/trigger/natural", (req: Request, res: Response) => {
-  const { url, scenarios } = req.body as { url: string; scenarios: string | string[] };
+  const { url, scenarios, executor } = req.body as { url: string; scenarios: string | string[]; executor?: string };
 
   if (!url || !scenarios) {
     return res.status(400).json({ error: "url과 scenarios가 필요합니다." });
   }
 
-  // 배열이면 그대로, 문자열이면 배열로 래핑
   const scenarioList: string[] = Array.isArray(scenarios)
     ? scenarios.filter((s) => s.trim())
     : [scenarios].filter((s) => s.trim());
@@ -55,13 +55,18 @@ app.post("/trigger/natural", (req: Request, res: Response) => {
 
   const runId = crypto.randomUUID();
 
-  console.log(`\n🚀 [${runId}] 자연어 파이프라인 시작 → ${url} (케이스 ${scenarioList.length}개)`);
+  console.log(`\n🚀 [${runId}] 자연어 파이프라인 시작 → ${url} (케이스 ${scenarioList.length}개)${executor ? ` by ${executor}` : ""}`);
 
-  runNaturalLanguagePipeline(runId, url, scenarioList).catch((err) =>
+  runNaturalLanguagePipeline(runId, url, scenarioList, executor).catch((err) =>
     console.error(`[${runId}] 오류:`, err.message)
   );
 
   res.json({ run_id: runId, status: "queued" });
+});
+
+// ── 전체 실행 이력 조회 ──────────────────────────────────────────────
+app.get("/runs", (_: Request, res: Response) => {
+  res.json(getAllRuns());
 });
 
 // ── 상태 조회 ────────────────────────────────────────────────────────
