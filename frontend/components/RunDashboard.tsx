@@ -38,30 +38,42 @@ interface RunResult {
 const TERMINAL: RunStatus[] = ["completed", "failed"];
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-// ── Design tokens (다크 모드 — 첫 화면 톤 기준) ──────────────────────────
+// ── Light glassmorphism tokens ──────────────────────────────────────────────
 const C = {
-  purple:     "#0099ff",
-  purpleDark: "#007acc",
-  purpleBg:   "rgba(0,153,255,.08)",
-  purpleBg2:  "rgba(0,153,255,.12)",
-  green:      "#4ade80",
-  greenBg:    "rgba(74,222,128,.08)",
-  red:        "#f87171",
-  redBg:      "rgba(248,113,113,.08)",
-  bg:         "#090909",
-  bgAlt:      "#0d0d0d",
-  bgAlt2:     "#141414",
-  surface:    "#141414",
-  border:     "#1a1a1a",
-  borderMid:  "#262626",
-  borderDark: "#333333",
-  textPrimary:"#ffffff",
-  textMid:    "#999999",
-  textLight:  "#777777",
-  textFaint:  "#555555",
-  terminal:   "#0a0a0a",
-  terminalBorder: "#1a1a1a",
+  indigo:      "#6366f1",
+  indigoDark:  "#4338ca",
+  indigoBg:    "rgba(99,102,241,0.08)",
+  indigoBg2:   "rgba(99,102,241,0.12)",
+  green:       "#16a34a",
+  greenLight:  "#4ade80",
+  greenBg:     "rgba(22,163,74,0.08)",
+  red:         "#dc2626",
+  redBg:       "rgba(220,38,38,0.07)",
+  amber:       "#d97706",
+  amberBg:     "rgba(217,119,6,0.08)",
+  // glass surfaces
+  glass:       "rgba(255,255,255,0.60)",
+  glassDark:   "rgba(255,255,255,0.80)",
+  glassHover:  "rgba(238,242,255,0.55)",
+  border:      "rgba(255,255,255,0.65)",
+  borderSoft:  "rgba(229,231,235,0.7)",
+  // text
+  text:        "#111827",
+  textMid:     "#6b7280",
+  textLight:   "#9ca3af",
+  textFaint:   "#d1d5db",
+  // terminal (keep dark for code readability)
+  terminal:    "#0f0f13",
+  termBorder:  "rgba(255,255,255,0.06)",
 };
+
+const glass = (extra?: React.CSSProperties): React.CSSProperties => ({
+  background: C.glass,
+  backdropFilter: "blur(18px)",
+  WebkitBackdropFilter: "blur(18px)",
+  border: `1px solid ${C.border}`,
+  ...extra,
+});
 
 // ── Main component ─────────────────────────────────────────────────────────
 export function RunDashboard({ runId }: { runId: string }) {
@@ -79,11 +91,8 @@ export function RunDashboard({ runId }: { runId: string }) {
     }
   );
 
-  // Auto-select: 실행 중인 케이스 → 완료된 케이스 순으로 자동 포커스
   useEffect(() => {
     if (!data?.cases) return;
-
-    // 유저가 직접 선택하지 않은 경우에만 자동 선택
     const running = data.cases.find((c) => c.status === "Pending");
     if (running) {
       setActiveId(running.testId);
@@ -91,7 +100,6 @@ export function RunDashboard({ runId }: { runId: string }) {
       const done = data.cases.find((c) => c.status !== "Pending");
       if (done) setActiveId(done.testId);
     }
-
     const next = new Map<string, CaseStatus>();
     data.cases.forEach((c) => next.set(c.testId, c.status));
     prevCasesRef.current = next;
@@ -115,55 +123,48 @@ export function RunDashboard({ runId }: { runId: string }) {
   const activeCase = data.cases.find((c) => c.testId === activeId) ?? null;
 
   return (
-    <div style={{ display: "flex", height: "100vh", background: C.bg, fontFamily: "-apple-system, BlinkMacSystemFont, 'Geist', sans-serif", overflow: "hidden" }}>
+    <div style={{ display: "flex", flex: 1, minHeight: 0, overflow: "hidden", fontFamily: "-apple-system, BlinkMacSystemFont, 'Geist', sans-serif" }}>
 
-      {/* ── Left sidebar ──────────────────────────────────────── */}
-      <aside style={{ width: 56, background: C.surface, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 16, paddingBottom: 16, flexShrink: 0, gap: 8 }}>
-        {/* Logo */}
-        <div style={{ width: 32, height: 32, borderRadius: 8, background: C.purple, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 8 }}>
-          <span style={{ color: "#fff", fontWeight: 700, fontSize: 15, letterSpacing: "-0.5px" }}>Q</span>
-        </div>
-        <div style={{ flex: 1 }} />
-        <SideIcon title="홈" href="/">
-          <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>
-        </SideIcon>
+      {/* ── Middle: scenario list (glass panel) ───────────────────── */}
+      <div style={{
+        ...glass({ borderRadius: 0, borderTop: "none", borderBottom: "none", borderLeft: "none" }),
+        width: 320,
+        display: "flex",
+        flexDirection: "column",
+        flexShrink: 0,
+        boxShadow: "4px 0 24px rgba(99,102,241,0.06)",
+      }}>
 
-        <SideIcon title="설정">
-          <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-        </SideIcon>
-      </aside>
-
-      {/* ── Middle: Scenario list ──────────────────────────────── */}
-      <div style={{ width: 340, background: C.surface, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", flexShrink: 0 }}>
         {/* Header */}
         <div style={{ padding: "16px 16px 12px", borderBottom: `1px solid ${C.border}` }}>
-          <Link href="/new" style={{ fontSize: 11, color: C.purple, textDecoration: "none", display: "block", marginBottom: 8 }}>
-            ← 새 테스트
+          <Link href="/new" style={{ fontSize: 11, color: C.indigo, textDecoration: "none", display: "flex", alignItems: "center", gap: 4, marginBottom: 10, fontWeight: 500 }}>
+            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 12 12"><path d="M8 2L4 6l4 4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            새 테스트
           </Link>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
             <div>
-              <h1 style={{ fontSize: 15, fontWeight: 600, color: C.textPrimary, letterSpacing: "-0.3px" }}>실행 결과</h1>
-              <p style={{ fontSize: 11, color: C.textFaint, marginTop: 2 }}>
+              <h1 style={{ fontSize: 15, fontWeight: 700, color: C.text, letterSpacing: "-0.4px" }}>실행 결과</h1>
+              <p style={{ fontSize: 11, color: C.textLight, marginTop: 2 }}>
                 {new Date(data.createdAt).toLocaleString("ko-KR")} · {runId.slice(0, 8)}…
               </p>
             </div>
             <RunStatusBadge status={data.status} paused={data.paused} />
           </div>
 
-          {/* Progress bar */}
+          {/* Progress */}
           <div style={{ marginBottom: 10 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: C.textFaint, marginBottom: 5 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: C.textLight, marginBottom: 5 }}>
               <span>{done} / {data.total} 케이스</span>
-              <span style={{ color: C.purple, fontWeight: 600 }}>{progress}%</span>
+              <span style={{ color: C.indigo, fontWeight: 600 }}>{progress}%</span>
             </div>
-            <div style={{ height: 4, background: C.bgAlt2, borderRadius: 999, overflow: "hidden" }}>
-              <div style={{ height: "100%", width: `${progress}%`, background: C.purple, borderRadius: 999, transition: "width 0.5s ease" }} />
+            <div style={{ height: 5, background: "rgba(99,102,241,0.1)", borderRadius: 999, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${progress}%`, background: "linear-gradient(90deg, #6366f1, #8b5cf6)", borderRadius: 999, transition: "width 0.5s ease" }} />
             </div>
           </div>
 
           {/* Summary chips */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
-            <SummaryChip label="전체" value={data.total} color={C.textPrimary} bg={C.bgAlt} />
+            <SummaryChip label="전체" value={data.total} color={C.text} bg="rgba(243,244,246,0.8)" />
             <SummaryChip label="Pass" value={data.passed} color={C.green} bg={C.greenBg} />
             <SummaryChip label="Fail" value={data.failed} color={C.red} bg={C.redBg} />
           </div>
@@ -171,7 +172,7 @@ export function RunDashboard({ runId }: { runId: string }) {
 
         {/* Control buttons */}
         {!isTerminal && (
-          <div style={{ padding: "10px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", gap: 6 }}>
+          <div style={{ padding: "10px 14px", borderBottom: `1px solid ${C.border}`, display: "flex", gap: 6 }}>
             {data.paused ? (
               <CtrlButton onClick={() => sendControl("resume")} variant="primary">▶ 재개</CtrlButton>
             ) : (
@@ -181,25 +182,22 @@ export function RunDashboard({ runId }: { runId: string }) {
           </div>
         )}
 
-        {/* Scenario list header */}
-        <div style={{ padding: "12px 16px 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: C.textMid }}>
+        {/* Scenario list */}
+        <div style={{ padding: "10px 12px 6px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: C.textMid, letterSpacing: "0.05em", textTransform: "uppercase" }}>
             시나리오
-            <span style={{ marginLeft: 6, background: C.bgAlt2, color: C.textLight, borderRadius: 999, padding: "1px 7px", fontSize: 11, fontWeight: 500 }}>
+            <span style={{ marginLeft: 6, background: "rgba(99,102,241,0.1)", color: C.indigo, borderRadius: 999, padding: "1px 7px", fontSize: 10.5, fontWeight: 600 }}>
               {data.cases.length}
             </span>
           </span>
         </div>
 
-        {/* Scenario cards */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "0 10px 16px" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: "0 10px 12px" }}>
           {data.cases.length === 0 ? (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 120, color: C.textFaint, fontSize: 13 }}>
-              {!isTerminal ? (
-                <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <PulsingDot color={C.purple} /> 준비 중…
-                </span>
-              ) : "케이스 없음"}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 100, color: C.textLight, fontSize: 13 }}>
+              {!isTerminal
+                ? <span style={{ display: "flex", alignItems: "center", gap: 8 }}><PulsingDot color={C.indigo} /> 준비 중…</span>
+                : "케이스 없음"}
             </div>
           ) : (
             data.cases.map((tc) => (
@@ -215,15 +213,20 @@ export function RunDashboard({ runId }: { runId: string }) {
           )}
         </div>
 
-        {/* Retry / edit button — 일시정지 중 또는 완료 후 노출 */}
+        {/* Retry / edit */}
         {data.mode === "natural" && data.targetUrl && data.scenarios && (isTerminal || data.paused) && (
-          <div style={{ padding: "10px 16px", borderTop: `1px solid ${C.border}` }}>
+          <div style={{ padding: "10px 14px", borderTop: `1px solid ${C.border}` }}>
             <button
               onClick={() => {
                 const params = new URLSearchParams({ url: data.targetUrl!, scenarios: data.scenarios! });
-                router.push(`/?${params.toString()}`);
+                router.push(`/new?${params.toString()}`);
               }}
-              style={{ width: "100%", padding: "8px 0", borderRadius: 8, border: `1px solid ${C.borderMid}`, background: C.surface, color: C.textMid, fontSize: 12, fontWeight: 500, cursor: "pointer" }}
+              style={{
+                width: "100%", padding: "9px 0", borderRadius: 9,
+                border: `1px solid rgba(99,102,241,0.2)`,
+                background: "rgba(238,242,255,0.6)",
+                color: C.indigo, fontSize: 12, fontWeight: 500, cursor: "pointer",
+              }}
             >
               {data.paused ? "✏️ 시나리오 수정 후 재시도 ↩" : "수정 후 재시도 ↩"}
             </button>
@@ -231,22 +234,25 @@ export function RunDashboard({ runId }: { runId: string }) {
         )}
       </div>
 
-      {/* ── Right: Viewer + Logs ────────────────────────────────── */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", background: C.bgAlt }}>
+      {/* ── Right: Viewer + Logs ───────────────────────────────────── */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", background: "rgba(248,250,252,0.4)" }}>
 
         {/* Top bar */}
-        <div style={{ padding: "12px 20px", background: C.surface, borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+        <div style={{
+          ...glass({ borderRadius: 0, borderLeft: "none", borderRight: "none", borderTop: "none" }),
+          padding: "11px 20px",
+          display: "flex", alignItems: "center", gap: 10, flexShrink: 0,
+          boxShadow: "0 4px 16px rgba(99,102,241,0.05)",
+        }}>
           {activeCase ? (
             <>
-              <span style={{ fontSize: 11, fontFamily: "monospace", color: C.textFaint, background: C.bgAlt2, padding: "2px 8px", borderRadius: 5 }}>{activeCase.testId}</span>
-              <span style={{ fontSize: 13, fontWeight: 500, color: C.textPrimary, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{activeCase.scenario}</span>
+              <span style={{ fontSize: 11, fontFamily: "monospace", color: C.indigo, background: C.indigoBg, padding: "2px 8px", borderRadius: 5, fontWeight: 600 }}>{activeCase.testId}</span>
+              <span style={{ fontSize: 13, fontWeight: 500, color: C.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{activeCase.scenario}</span>
               {activeCase.status !== "Pending" && <CaseStatusBadge status={activeCase.status} />}
-              {activeCase.status === "Fail" && (
-                <CopyReportButton tc={activeCase} targetUrl={data.targetUrl} />
-              )}
+              {activeCase.status === "Fail" && <CopyReportButton tc={activeCase} targetUrl={data.targetUrl} />}
             </>
           ) : (
-            <span style={{ fontSize: 13, color: C.textFaint }}>시나리오를 선택하세요</span>
+            <span style={{ fontSize: 13, color: C.textLight }}>시나리오를 선택하세요</span>
           )}
         </div>
 
@@ -264,46 +270,8 @@ export function RunDashboard({ runId }: { runId: string }) {
   );
 }
 
-// ── 에러 리포트 마크다운 생성 ──────────────────────────────────────────────
-function buildErrorReport(tc: TestCase, targetUrl?: string): string {
-  const recentLogs = (tc.consoleLogs ?? []).slice(-5);
-  const lines: string[] = [
-    `## 🚨 QAgent 에러 리포트`,
-    ``,
-    `| 항목 | 내용 |`,
-    `|------|------|`,
-    `| **테스트 ID** | \`${tc.testId}\` |`,
-    `| **시나리오** | ${tc.scenario} |`,
-    `| **상태** | ❌ Fail |`,
-    ...(targetUrl ? [`| **진입 URL** | ${targetUrl} |`] : []),
-    ``,
-    `### ❗ 에러 메시지`,
-    `\`\`\``,
-    tc.failReason || "(에러 메시지 없음)",
-    `\`\`\``,
-  ];
-
-  if (recentLogs.length > 0) {
-    lines.push(``, `### 📋 최근 실행 로그 (마지막 ${recentLogs.length}줄)`);
-    lines.push(`\`\`\``);
-    recentLogs.forEach((log) => lines.push(log));
-    lines.push(`\`\`\``);
-  }
-
-  if (tc.screenshotUrl || tc.videoUrl) {
-    lines.push(``, `### 🔗 첨부 파일`);
-    if (tc.screenshotUrl) lines.push(`- 📸 스크린샷: [열기](${tc.screenshotUrl})`);
-    if (tc.videoUrl)      lines.push(`- 🎬 녹화 영상: [열기](${tc.videoUrl})`);
-  }
-
-  lines.push(``, `---`, `*QAgent 자동 생성 리포트*`);
-  return lines.join("\n");
-}
-
 // ── Scenario card ──────────────────────────────────────────────────────────
-function ScenarioCard({
-  tc, isActive, onClick, isPaused, targetUrl,
-}: {
+function ScenarioCard({ tc, isActive, onClick, isPaused, targetUrl }: {
   tc: TestCase; isActive: boolean; onClick: () => void; isPaused: boolean; targetUrl?: string;
 }) {
   const [copied, setCopied] = useState(false);
@@ -312,102 +280,64 @@ function ScenarioCard({
 
   const handleCopy = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    try {
-      await navigator.clipboard.writeText(buildErrorReport(tc, targetUrl));
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // fallback: textarea 방식
+    try { await navigator.clipboard.writeText(buildErrorReport(tc, targetUrl)); }
+    catch {
       const el = document.createElement("textarea");
       el.value = buildErrorReport(tc, targetUrl);
-      document.body.appendChild(el);
-      el.select();
-      document.execCommand("copy");
-      document.body.removeChild(el);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      document.body.appendChild(el); el.select(); document.execCommand("copy"); document.body.removeChild(el);
     }
+    setCopied(true); setTimeout(() => setCopied(false), 2000);
   };
 
   return (
     <div
       onClick={onClick}
       style={{
-        marginTop: 6,
-        borderRadius: 10,
-        border: isActive
-          ? `2px solid ${C.purple}`
-          : isFail
-          ? `1px solid rgba(248,113,113,.25)`
-          : `1px solid ${C.border}`,
-        background: isActive ? C.purpleBg2 : isFail ? C.redBg : C.surface,
-        padding: "10px 12px",
-        cursor: "pointer",
+        marginTop: 6, borderRadius: 11, cursor: "pointer", padding: "10px 12px",
         transition: "all .15s",
-        boxShadow: isActive ? `0 0 0 3px rgba(0,153,255,.12)` : "none",
+        background: isActive ? "rgba(255,255,255,0.85)" : isFail ? "rgba(254,242,242,0.6)" : "rgba(255,255,255,0.5)",
+        border: isActive
+          ? `1.5px solid rgba(99,102,241,0.4)`
+          : isFail ? `1px solid rgba(220,38,38,0.2)` : `1px solid rgba(255,255,255,0.7)`,
+        boxShadow: isActive ? "0 2px 12px rgba(99,102,241,0.14)" : "0 1px 4px rgba(0,0,0,0.04)",
       }}
     >
       <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-        {/* Status indicator */}
         <div style={{ flexShrink: 0, marginTop: 2 }}>
-          {isRunning ? (
-            <PulsingDot color={C.purple} />
-          ) : tc.status === "Pass" ? (
-            <CheckCircle color={C.green} />
-          ) : (
-            <XCircle color={C.red} />
-          )}
+          {isRunning ? <PulsingDot color={C.indigo} />
+            : tc.status === "Pass" ? <CheckCircle color={C.green} />
+            : <XCircle color={C.red} />}
         </div>
-
-        {/* Content */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginBottom: 3 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: 10.5, fontFamily: "monospace", color: isActive ? C.purple : C.textFaint, fontWeight: 600 }}>
-                {tc.testId}
-              </span>
+              <span style={{ fontSize: 10.5, fontFamily: "monospace", color: isActive ? C.indigo : C.textMid, fontWeight: 600 }}>{tc.testId}</span>
               {isRunning && (
-                <span style={{ fontSize: 10, color: isPaused ? "#ca8a04" : C.purple, background: isPaused ? "rgba(202,138,4,.1)" : C.purpleBg, padding: "1px 6px", borderRadius: 999, fontWeight: 500 }}>
+                <span style={{ fontSize: 10, color: isPaused ? C.amber : C.indigo, background: isPaused ? C.amberBg : C.indigoBg, padding: "1px 6px", borderRadius: 999, fontWeight: 600 }}>
                   {isPaused ? "일시정지" : "실행 중"}
                 </span>
               )}
             </div>
-            {/* 에러 리포트 복사 버튼 — Fail 케이스만 */}
             {isFail && (
-              <button
-                onClick={handleCopy}
-                title="에러 리포트 복사"
-                style={{
-                  flexShrink: 0,
-                  display: "flex", alignItems: "center", gap: 4,
-                  padding: "2px 7px", borderRadius: 6,
-                  border: copied ? `1px solid ${C.green}` : `1px solid rgba(248,113,113,.3)`,
-                  background: copied ? C.greenBg : "rgba(248,113,113,.08)",
-                  color: copied ? C.green : C.red,
-                  fontSize: 10, fontWeight: 500, cursor: "pointer",
-                  transition: "all .2s",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {copied ? (
-                  <>
-                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2 2 4-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                    복사됨
-                  </>
-                ) : (
-                  <>
-                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><rect x="3" y="1" width="6" height="7" rx="1" stroke="currentColor" strokeWidth="1.2"/><path d="M1 3h1.5v5.5H7V9H2a1 1 0 01-1-1V3z" fill="currentColor" fillOpacity=".4"/></svg>
-                    에러 복사
-                  </>
-                )}
+              <button onClick={handleCopy} style={{
+                flexShrink: 0, display: "flex", alignItems: "center", gap: 4,
+                padding: "2px 7px", borderRadius: 6, cursor: "pointer",
+                border: copied ? `1px solid ${C.green}` : `1px solid rgba(220,38,38,0.25)`,
+                background: copied ? C.greenBg : C.redBg,
+                color: copied ? C.green : C.red,
+                fontSize: 10, fontWeight: 500, whiteSpace: "nowrap", transition: "all .2s",
+              }}>
+                {copied
+                  ? <><svg width="10" height="10" fill="none"><path d="M2 5l2 2 4-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>복사됨</>
+                  : <>에러 복사</>}
               </button>
             )}
           </div>
-          <p style={{ fontSize: 12.5, color: isFail ? C.red : C.textPrimary, lineHeight: 1.45, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any, overflow: "hidden" }}>
+          <p style={{ fontSize: 12.5, color: isFail ? C.red : C.text, lineHeight: 1.45, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any, overflow: "hidden" }}>
             {tc.scenario}
           </p>
           {tc.failReason && (
-            <p style={{ marginTop: 5, fontSize: 11, color: "#f87171", opacity: 0.75, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any, overflow: "hidden" }}>
+            <p style={{ marginTop: 5, fontSize: 11, color: C.red, opacity: 0.7, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any, overflow: "hidden" }}>
               {tc.failReason}
             </p>
           )}
@@ -429,49 +359,43 @@ function BrowserMockup({ tc, isTerminal }: { tc: TestCase | null; isTerminal: bo
   }, [tc?.videoUrl]);
 
   return (
-    <div style={{ height: "100%", borderRadius: 12, overflow: "hidden", boxShadow: "0 4px 20px rgba(0,0,0,.10)", border: `1px solid ${C.borderDark}`, display: "flex", flexDirection: "column", background: C.terminal }}>
+    <div style={{
+      height: "100%", borderRadius: 14, overflow: "hidden",
+      boxShadow: "0 8px 32px rgba(99,102,241,0.12), 0 2px 8px rgba(0,0,0,0.06)",
+      border: `1px solid rgba(255,255,255,0.7)`,
+      display: "flex", flexDirection: "column",
+      background: "#1a1a22",
+    }}>
       {/* Browser chrome */}
-      <div style={{ background: "#2a2a30", padding: "9px 14px", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-        {/* Traffic lights */}
+      <div style={{ background: "rgba(255,255,255,0.06)", backdropFilter: "blur(8px)", padding: "9px 14px", display: "flex", alignItems: "center", gap: 10, flexShrink: 0, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
         <div style={{ display: "flex", gap: 6 }}>
           <div style={{ width: 11, height: 11, borderRadius: "50%", background: "#ff5f57" }} />
           <div style={{ width: 11, height: 11, borderRadius: "50%", background: "#febc2e" }} />
           <div style={{ width: 11, height: 11, borderRadius: "50%", background: "#28c840" }} />
         </div>
-        {/* URL bar */}
-        <div style={{ flex: 1, background: "#1a1a1e", borderRadius: 6, padding: "4px 10px", fontSize: 11, color: "#71717a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <div style={{ flex: 1, background: "rgba(0,0,0,0.3)", borderRadius: 6, padding: "4px 10px", fontSize: 11, color: "rgba(255,255,255,0.3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {tc?.videoUrl ? "recorded session" : "대기 중…"}
         </div>
+        {tc?.status === "Pending" && (
+          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, color: "#f87171", background: "rgba(248,113,113,0.1)", padding: "3px 8px", borderRadius: 999 }}>
+            <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#f87171", display: "inline-block", animation: "pulse 1s ease-in-out infinite" }} />
+            REC
+          </div>
+        )}
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", background: C.terminal }}>
+      <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", background: "#0f0f13" }}>
         {tc?.videoUrl ? (
-          <video
-            ref={videoRef}
-            key={tc.videoUrl}
-            src={tc.videoUrl}
-            controls
-            autoPlay
-            style={{ width: "100%", height: "100%", objectFit: "contain", background: "#000" }}
-          />
+          <video ref={videoRef} key={tc.videoUrl} src={tc.videoUrl} controls autoPlay
+            style={{ width: "100%", height: "100%", objectFit: "contain", background: "#000" }} />
         ) : tc?.screenshotUrl ? (
-          <img
-            src={tc.screenshotUrl}
-            alt="screenshot"
-            style={{ width: "100%", height: "100%", objectFit: "contain" }}
-          />
+          <img src={tc.screenshotUrl} alt="screenshot" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
         ) : tc?.status === "Pending" ? (
           <LiveStepView tc={tc} isPaused={isTerminal} />
         ) : (
-          <div style={{
-            position: "absolute", inset: 0,
-            background: "repeating-linear-gradient(135deg,#202024,#202024 12px,#1a1a1e 12px,#1a1a1e 24px)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
-            <span style={{ fontSize: 12, color: "#555", background: "rgba(0,0,0,.6)", padding: "6px 14px", borderRadius: 8 }}>
-              미디어 없음
-            </span>
+          <div style={{ position: "absolute", inset: 0, background: "repeating-linear-gradient(135deg,#16161e,#16161e 12px,#12121a 12px,#12121a 24px)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.2)", background: "rgba(0,0,0,0.4)", padding: "6px 14px", borderRadius: 8 }}>미디어 없음</span>
           </div>
         )}
       </div>
@@ -479,12 +403,11 @@ function BrowserMockup({ tc, isTerminal }: { tc: TestCase | null; isTerminal: bo
   );
 }
 
-// ── Live step view (실행 중 브라우저 목업 내부) ──────────────────────────
+// ── Live step view ─────────────────────────────────────────────────────────
 function LiveStepView({ tc, isPaused }: { tc: TestCase; isPaused: boolean }) {
   const logs = tc.consoleLogs ?? [];
   const lastStep = logs[logs.length - 1] ?? null;
 
-  // "[Step N] action details — thought" 파싱
   const parseStep = (log: string) => {
     const m = log.match(/^\[Step (\d+)\] (.+?) — (.+)$/);
     if (m) return { num: m[1], action: m[2], thought: m[3] };
@@ -495,66 +418,49 @@ function LiveStepView({ tc, isPaused }: { tc: TestCase; isPaused: boolean }) {
   const total = logs.length;
 
   return (
-    <div style={{
-      position: "absolute", inset: 0,
-      background: "#0a0a0a",
-      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-      padding: 32, gap: 20,
-    }}>
-      {/* 상단 REC 배지 */}
-      <div style={{ position: "absolute", top: 16, right: 16, display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,.05)", padding: "4px 10px", borderRadius: 999 }}>
-        <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#f87171", display: "inline-block", animation: "pulse 1s ease-in-out infinite" }} />
-        <span style={{ fontSize: 11, color: "#555", fontFamily: "monospace" }}>REC</span>
-      </div>
-
-      {/* 스피너 + 현재 액션 */}
+    <div style={{ position: "absolute", inset: 0, background: "#0a0a12", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 32, gap: 20 }}>
+      {/* 스피너 + 스텝 */}
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14, maxWidth: 480, width: "100%" }}>
-        {/* 원형 진행 표시 */}
-        <div style={{ position: "relative", width: 56, height: 56 }}>
-          <svg width="56" height="56" viewBox="0 0 56 56" style={{ transform: "rotate(-90deg)" }}>
-            <circle cx="28" cy="28" r="24" fill="none" stroke="#1a1a1a" strokeWidth="3" />
-            <circle cx="28" cy="28" r="24" fill="none" stroke={C.purple} strokeWidth="3"
-              strokeDasharray="150.8" strokeDashoffset="0"
-              style={{ animation: "spin 1.5s linear infinite" }}
+        <div style={{ position: "relative", width: 60, height: 60 }}>
+          <svg width="60" height="60" viewBox="0 0 60 60" style={{ transform: "rotate(-90deg)" }}>
+            <circle cx="30" cy="30" r="26" fill="none" stroke="rgba(99,102,241,0.15)" strokeWidth="3" />
+            <circle cx="30" cy="30" r="26" fill="none" stroke="#818cf8" strokeWidth="3"
+              strokeDasharray="163.4" strokeDashoffset="0"
+              style={{ animation: "dashSpin 1.6s linear infinite" }}
             />
           </svg>
-          <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: C.purple, fontFamily: "monospace" }}>
+          <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: "#818cf8", fontFamily: "monospace" }}>
             {total}
           </span>
         </div>
 
-        {/* 현재 스텝 */}
         {current ? (
           <div style={{ textAlign: "center", width: "100%" }}>
-            <div style={{ fontSize: 11, color: "#444", fontFamily: "monospace", marginBottom: 6 }}>
-              STEP {current.num}
-            </div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "#ccc", marginBottom: 8, lineHeight: 1.4 }}>
-              {current.action}
-            </div>
+            <div style={{ fontSize: 10, color: "rgba(99,102,241,0.5)", fontFamily: "monospace", marginBottom: 6, letterSpacing: "0.1em" }}>STEP {current.num}</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.85)", marginBottom: 8, lineHeight: 1.4 }}>{current.action}</div>
             {current.thought && (
-              <div style={{ fontSize: 12, color: "#555", lineHeight: 1.5, background: "#111", borderRadius: 8, padding: "8px 12px", textAlign: "left" }}>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", lineHeight: 1.5, background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "8px 12px", textAlign: "left", border: "1px solid rgba(255,255,255,0.06)" }}>
                 💭 {current.thought}
               </div>
             )}
           </div>
         ) : (
-          <div style={{ fontSize: 13, color: "#444" }}>에이전트 초기화 중…</div>
+          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.3)" }}>에이전트 초기화 중…</div>
         )}
       </div>
 
-      {/* 하단 스텝 타임라인 */}
+      {/* 스텝 타임라인 */}
       {logs.length > 0 && (
-        <div style={{ width: "100%", maxWidth: 480, display: "flex", flexDirection: "column", gap: 3, maxHeight: 120, overflowY: "auto" }}>
+        <div style={{ width: "100%", maxWidth: 480, display: "flex", flexDirection: "column", gap: 3, maxHeight: 110, overflowY: "auto" }}>
           {logs.slice(-5).map((log, i) => {
             const s = parseStep(log);
             const isLast = i === Math.min(logs.length, 5) - 1;
             return (
-              <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, opacity: isLast ? 1 : 0.35 }}>
-                <span style={{ fontSize: 10, fontFamily: "monospace", color: isLast ? C.purple : "#333", flexShrink: 0, marginTop: 2 }}>
+              <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, opacity: isLast ? 1 : 0.3 }}>
+                <span style={{ fontSize: 10, fontFamily: "monospace", color: isLast ? "#818cf8" : "rgba(255,255,255,0.2)", flexShrink: 0, marginTop: 2 }}>
                   {String(logs.length - (Math.min(logs.length, 5) - 1 - i)).padStart(2, "0")}
                 </span>
-                <span style={{ fontSize: 11, color: isLast ? "#999" : "#444", lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <span style={{ fontSize: 11, color: isLast ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.2)", lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {s.action}
                 </span>
               </div>
@@ -566,7 +472,7 @@ function LiveStepView({ tc, isPaused }: { tc: TestCase; isPaused: boolean }) {
   );
 }
 
-// ── Terminal logs panel ────────────────────────────────────────────────────
+// ── Terminal panel ─────────────────────────────────────────────────────────
 function TerminalPanel({ tc, isPaused }: { tc: TestCase | null; isPaused: boolean }) {
   const logEndRef = useRef<HTMLDivElement>(null);
   const isRunning = tc?.status === "Pending";
@@ -576,43 +482,39 @@ function TerminalPanel({ tc, isPaused }: { tc: TestCase | null; isPaused: boolea
   }, [tc?.consoleLogs?.length, isRunning]);
 
   return (
-    <div style={{ flex: 1, borderRadius: 10, border: `1px solid ${C.terminalBorder}`, background: C.terminal, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      {/* Terminal header */}
-      <div style={{ padding: "8px 14px", borderBottom: `1px solid ${C.terminalBorder}`, display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: "#52525b", letterSpacing: "0.05em", textTransform: "uppercase" }}>실행 로그</span>
-        {isRunning && <PulsingDot color={C.purple} />}
+    <div style={{ flex: 1, borderRadius: 12, border: "1px solid rgba(255,255,255,0.08)", background: C.terminal, display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 4px 20px rgba(0,0,0,0.12)" }}>
+      <div style={{ padding: "8px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 8, flexShrink: 0, background: "rgba(255,255,255,0.03)" }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.25)", letterSpacing: "0.08em", textTransform: "uppercase" }}>실행 로그</span>
+        {isRunning && <PulsingDot color="#818cf8" />}
       </div>
-
-      {/* Log lines */}
       <div style={{ flex: 1, overflowY: "auto", padding: "10px 14px", fontFamily: "monospace", fontSize: 12 }}>
         {!tc ? (
-          <span style={{ color: "#3a3a42" }}>시나리오를 선택하면 로그가 표시됩니다.</span>
+          <span style={{ color: "rgba(255,255,255,0.15)" }}>시나리오를 선택하면 로그가 표시됩니다.</span>
         ) : (
           <>
             {tc.failReason && (
-              <div style={{ display: "flex", gap: 8, marginBottom: 8, padding: "6px 10px", borderRadius: 6, background: "rgba(229,72,77,.08)", border: `1px solid rgba(229,72,77,.2)` }}>
+              <div style={{ display: "flex", gap: 8, marginBottom: 8, padding: "6px 10px", borderRadius: 6, background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.2)" }}>
                 <span style={{ color: C.red, flexShrink: 0 }}>✗</span>
-                <span style={{ color: "#e5797d", lineHeight: 1.5 }}>{tc.failReason}</span>
+                <span style={{ color: "#fca5a5", lineHeight: 1.5 }}>{tc.failReason}</span>
               </div>
             )}
             {(tc.consoleLogs ?? []).length === 0 && !isRunning && (
-              <span style={{ color: "#3a3a42" }}>로그 없음</span>
+              <span style={{ color: "rgba(255,255,255,0.15)" }}>로그 없음</span>
             )}
             {tc.consoleLogs?.map((log, i) => {
               const isErr = /error|fail|timeout|못했습니다|실패|오류|찾지 못|찾을 수 없/i.test(log);
               return (
-                <div key={i} style={{ display: "flex", gap: 10, padding: "2px 0", lineHeight: 1.6, background: isErr ? "rgba(248,113,113,.06)" : "transparent", borderRadius: isErr ? 4 : 0, paddingLeft: isErr ? 4 : 0 }}>
-                  <span style={{ color: isErr ? "#7a3030" : "#3a3a42", flexShrink: 0, userSelect: "none" }}>{String(i + 1).padStart(2, "0")}</span>
-                  <span style={{ color: isErr ? "#f87171" : "#9a9aa3" }}>{log}</span>
+                <div key={i} style={{ display: "flex", gap: 10, padding: "2px 0", lineHeight: 1.6, background: isErr ? "rgba(220,38,38,0.06)" : "transparent", borderRadius: isErr ? 4 : 0, paddingLeft: isErr ? 4 : 0 }}>
+                  <span style={{ color: isErr ? "rgba(220,38,38,0.4)" : "rgba(255,255,255,0.15)", flexShrink: 0, userSelect: "none" }}>{String(i + 1).padStart(2, "0")}</span>
+                  <span style={{ color: isErr ? "#fca5a5" : "rgba(255,255,255,0.5)" }}>{log}</span>
                 </div>
               );
             })}
             {isRunning && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, color: isPaused ? "#ca8a04" : C.purple }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, color: isPaused ? "#fbbf24" : "#818cf8" }}>
                 {isPaused
-                  ? <><span style={{ width: 6, height: 6, borderRadius: "50%", background: "#ca8a04", display: "inline-block" }} /><span style={{ fontSize: 11 }}>일시정지됨</span></>
-                  : <><BlinkingCursor /><span style={{ fontSize: 11 }}>분석 중…</span></>
-                }
+                  ? <><span style={{ width: 6, height: 6, borderRadius: "50%", background: "#fbbf24", display: "inline-block" }} /><span style={{ fontSize: 11 }}>일시정지됨</span></>
+                  : <><BlinkingCursor /><span style={{ fontSize: 11 }}>분석 중…</span></>}
               </div>
             )}
             <div ref={logEndRef} />
@@ -623,135 +525,118 @@ function TerminalPanel({ tc, isPaused }: { tc: TestCase | null; isPaused: boolea
   );
 }
 
-// ── Top bar 에러 복사 버튼 ─────────────────────────────────────────────────
-function CopyReportButton({ tc, targetUrl }: { tc: TestCase; targetUrl?: string }) {
-  const [state, setState] = useState<"idle" | "copied" | "error">("idle");
+// ── Error report builder ───────────────────────────────────────────────────
+function buildErrorReport(tc: TestCase, targetUrl?: string): string {
+  const recentLogs = (tc.consoleLogs ?? []).slice(-5);
+  const lines = [
+    `## 🚨 QAgent 에러 리포트`,
+    ``,
+    `| 항목 | 내용 |`,
+    `|------|------|`,
+    `| **테스트 ID** | \`${tc.testId}\` |`,
+    `| **시나리오** | ${tc.scenario} |`,
+    `| **상태** | ❌ Fail |`,
+    ...(targetUrl ? [`| **진입 URL** | ${targetUrl} |`] : []),
+    ``,
+    `### ❗ 에러 메시지`,
+    `\`\`\``,
+    tc.failReason || "(에러 메시지 없음)",
+    `\`\`\``,
+  ];
+  if (recentLogs.length > 0) {
+    lines.push(``, `### 📋 최근 실행 로그 (마지막 ${recentLogs.length}줄)`, `\`\`\``);
+    recentLogs.forEach((l) => lines.push(l));
+    lines.push(`\`\`\``);
+  }
+  if (tc.screenshotUrl || tc.videoUrl) {
+    lines.push(``, `### 🔗 첨부 파일`);
+    if (tc.screenshotUrl) lines.push(`- 📸 스크린샷: [열기](${tc.screenshotUrl})`);
+    if (tc.videoUrl)      lines.push(`- 🎬 녹화 영상: [열기](${tc.videoUrl})`);
+  }
+  lines.push(``, `---`, `*QAgent 자동 생성 리포트*`);
+  return lines.join("\n");
+}
 
+// ── Top bar copy button ────────────────────────────────────────────────────
+function CopyReportButton({ tc, targetUrl }: { tc: TestCase; targetUrl?: string }) {
+  const [state, setState] = useState<"idle" | "copied">("idle");
   const handleClick = async () => {
-    try {
-      await navigator.clipboard.writeText(buildErrorReport(tc, targetUrl));
-    } catch {
+    try { await navigator.clipboard.writeText(buildErrorReport(tc, targetUrl)); }
+    catch {
       const el = document.createElement("textarea");
       el.value = buildErrorReport(tc, targetUrl);
-      document.body.appendChild(el);
-      el.select();
-      document.execCommand("copy");
-      document.body.removeChild(el);
+      document.body.appendChild(el); el.select(); document.execCommand("copy"); document.body.removeChild(el);
     }
-    setState("copied");
-    setTimeout(() => setState("idle"), 2000);
+    setState("copied"); setTimeout(() => setState("idle"), 2000);
   };
-
   return (
-    <button
-      onClick={handleClick}
-      title="에러 리포트를 마크다운으로 복사"
-      style={{
-        display: "flex", alignItems: "center", gap: 5,
-        padding: "5px 10px", borderRadius: 7, flexShrink: 0,
-        border: state === "copied" ? `1px solid ${C.green}` : `1px solid ${C.borderMid}`,
-        background: state === "copied" ? C.greenBg : C.bgAlt2,
-        color: state === "copied" ? C.green : C.textMid,
-        fontSize: 11, fontWeight: 500, cursor: "pointer",
-        transition: "all .2s",
-      }}
-    >
-      {state === "copied" ? (
-        <>
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          복사됨!
-        </>
-      ) : (
-        <>
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <rect x="4" y="1.5" width="6.5" height="8" rx="1.2" stroke="currentColor" strokeWidth="1.2"/>
-            <path d="M1.5 4H3v5.5h4.5v1.5H2.5a1 1 0 01-1-1V4z" fill="currentColor" fillOpacity=".5"/>
-          </svg>
-          에러 리포트 복사
-        </>
-      )}
+    <button onClick={handleClick} style={{
+      display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 7, flexShrink: 0, cursor: "pointer",
+      border: state === "copied" ? `1px solid rgba(22,163,74,0.3)` : `1px solid rgba(99,102,241,0.2)`,
+      background: state === "copied" ? C.greenBg : C.indigoBg,
+      color: state === "copied" ? C.green : C.indigo,
+      fontSize: 11, fontWeight: 500, transition: "all .2s",
+    }}>
+      {state === "copied"
+        ? <><svg width="12" height="12" fill="none"><path d="M2 6l3 3 5-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>복사됨!</>
+        : <>에러 리포트 복사</>}
     </button>
   );
 }
 
-// ── Small atoms ────────────────────────────────────────────────────────────
-function SideIcon({ children, title, href }: { children: React.ReactNode; title: string; href?: string }) {
-  const style: React.CSSProperties = {
-    width: 36, height: 36, borderRadius: 8, display: "flex", alignItems: "center",
-    justifyContent: "center", color: C.textLight, cursor: "pointer",
-    transition: "background .15s, color .15s",
-  };
-  if (href) return (
-    <Link href={href} title={title} style={{ ...style, textDecoration: "none" }}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = C.bgAlt2; (e.currentTarget as HTMLElement).style.color = C.purple; }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = C.textLight; }}>
-      {children}
-    </Link>
-  );
-  return (
-    <div title={title} style={style}
-      onMouseEnter={e => { e.currentTarget.style.background = C.bgAlt2; e.currentTarget.style.color = C.purple; }}
-      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = C.textLight; }}>
-      {children}
-    </div>
-  );
-}
-
+// ── Atoms ──────────────────────────────────────────────────────────────────
 function SummaryChip({ label, value, color, bg }: { label: string; value: number; color: string; bg: string }) {
   return (
-    <div style={{ background: bg, borderRadius: 8, padding: "7px 10px", display: "flex", flexDirection: "column", gap: 1 }}>
-      <span style={{ fontSize: 10.5, color: C.textFaint }}>{label}</span>
-      <span style={{ fontSize: 16, fontWeight: 700, color, letterSpacing: "-0.5px" }}>{value}</span>
+    <div style={{ background: bg, borderRadius: 9, padding: "7px 10px", border: "1px solid rgba(255,255,255,0.5)" }}>
+      <span style={{ fontSize: 10, color: C.textLight, display: "block", marginBottom: 2 }}>{label}</span>
+      <span style={{ fontSize: 17, fontWeight: 700, color, letterSpacing: "-0.5px" }}>{value}</span>
     </div>
   );
 }
 
 function CtrlButton({ children, onClick, variant }: { children: React.ReactNode; onClick: () => void; variant: "primary" | "ghost" | "danger" }) {
-  const styles = {
-    primary: { background: C.purple, color: "#fff", border: `1px solid ${C.purpleDark}` },
-    ghost:   { background: C.surface, color: C.textMid, border: `1px solid ${C.borderMid}` },
-    danger:  { background: "#fff0f0", color: C.red, border: `1px solid rgba(229,72,77,.25)` },
+  const s = {
+    primary: { background: "linear-gradient(135deg,#6366f1,#8b5cf6)", color: "#fff", border: "none", boxShadow: "0 2px 8px rgba(99,102,241,0.3)" },
+    ghost:   { background: "rgba(255,255,255,0.6)", color: C.textMid, border: `1px solid ${C.borderSoft}` },
+    danger:  { background: "rgba(254,242,242,0.8)", color: C.red, border: "1px solid rgba(220,38,38,0.2)" },
   }[variant];
   return (
-    <button onClick={onClick} style={{ ...styles, flex: 1, padding: "6px 0", borderRadius: 7, fontSize: 12, fontWeight: 500, cursor: "pointer" }}>
+    <button onClick={onClick} style={{ ...s, flex: 1, padding: "7px 0", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
       {children}
     </button>
   );
 }
 
 function RunStatusBadge({ status, paused }: { status: RunStatus; paused?: boolean }) {
-  if (status === "running" && paused) {
-    return <span style={{ fontSize: 11, fontWeight: 500, padding: "3px 10px", borderRadius: 999, background: "#fefce8", color: "#a16207" }}>일시정지</span>;
-  }
+  if (status === "running" && paused)
+    return <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999, background: C.amberBg, color: C.amber, border: `1px solid rgba(217,119,6,0.25)` }}>일시정지</span>;
   const map = {
-    running:   { bg: C.purpleBg2, color: C.purple, label: "실행 중" },
-    completed: { bg: C.greenBg,   color: C.green,  label: "완료" },
-    failed:    { bg: C.redBg,     color: C.red,    label: "오류" },
+    running:   { bg: C.indigoBg2, color: C.indigo,  label: "실행 중",  border: "rgba(99,102,241,0.2)" },
+    completed: { bg: C.greenBg,   color: C.green,   label: "완료",    border: "rgba(22,163,74,0.2)" },
+    failed:    { bg: C.redBg,     color: C.red,     label: "오류",    border: "rgba(220,38,38,0.2)" },
   };
-  const { bg, color, label } = map[status];
-  return <span style={{ fontSize: 11, fontWeight: 500, padding: "3px 10px", borderRadius: 999, background: bg, color }}>{label}</span>;
+  const { bg, color, label, border } = map[status];
+  return <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999, background: bg, color, border: `1px solid ${border}` }}>{label}</span>;
 }
 
 function CaseStatusBadge({ status }: { status: "Pass" | "Fail" }) {
   return status === "Pass"
-    ? <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999, background: C.greenBg, color: C.green }}>Pass</span>
-    : <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999, background: C.redBg, color: C.red }}>Fail</span>;
+    ? <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999, background: C.greenBg, color: C.green, border: "1px solid rgba(22,163,74,0.2)" }}>Pass</span>
+    : <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999, background: C.redBg,   color: C.red,   border: "1px solid rgba(220,38,38,0.2)" }}>Fail</span>;
 }
 
 function PulsingDot({ color }: { color: string }) {
-  return (
-    <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: "50%", background: color, animation: "pulse 1.4s ease-in-out infinite", flexShrink: 0 }} />
-  );
+  return <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: "50%", background: color, animation: "pulse 1.4s ease-in-out infinite", flexShrink: 0 }} />;
 }
 
 function BlinkingCursor() {
-  return <span style={{ display: "inline-block", width: 7, height: 13, background: C.purple, borderRadius: 1, animation: "blink 1s step-end infinite" }} />;
+  return <span style={{ display: "inline-block", width: 7, height: 13, background: "#818cf8", borderRadius: 1, animation: "blink 1s step-end infinite" }} />;
 }
 
 function CheckCircle({ color }: { color: string }) {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <circle cx="8" cy="8" r="7.5" fill={color} fillOpacity=".15" stroke={color} strokeWidth="1"/>
+      <circle cx="8" cy="8" r="7.5" fill={color} fillOpacity=".12" stroke={color} strokeWidth="1"/>
       <path d="M5 8l2 2 4-4" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   );
@@ -760,7 +645,7 @@ function CheckCircle({ color }: { color: string }) {
 function XCircle({ color }: { color: string }) {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <circle cx="8" cy="8" r="7.5" fill={color} fillOpacity=".1" stroke={color} strokeWidth="1"/>
+      <circle cx="8" cy="8" r="7.5" fill={color} fillOpacity=".08" stroke={color} strokeWidth="1"/>
       <path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke={color} strokeWidth="1.5" strokeLinecap="round"/>
     </svg>
   );
@@ -768,12 +653,12 @@ function XCircle({ color }: { color: string }) {
 
 function LoadingScreen() {
   return (
-    <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", background: C.bg, fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif" }}>
+    <div style={{ display: "flex", flex: 1, alignItems: "center", justifyContent: "center", fontFamily: "-apple-system, sans-serif" }}>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-        <div style={{ width: 36, height: 36, borderRadius: 10, background: C.purple, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <span style={{ color: "#fff", fontWeight: 700, fontSize: 18 }}>Q</span>
+        <div style={{ width: 40, height: 40, borderRadius: 11, background: "linear-gradient(135deg,#6366f1,#8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(99,102,241,0.3)" }}>
+          <span style={{ color: "#fff", fontWeight: 800, fontSize: 18 }}>Q</span>
         </div>
-        <p style={{ fontSize: 13, color: C.textFaint }}>불러오는 중…</p>
+        <p style={{ fontSize: 13, color: C.textLight }}>불러오는 중…</p>
       </div>
     </div>
   );
@@ -781,15 +666,15 @@ function LoadingScreen() {
 
 function ErrorScreen({ msg }: { msg: string }) {
   return (
-    <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", background: C.bg }}>
-      <div style={{ maxWidth: 360, padding: "20px 24px", borderRadius: 12, border: `1px solid rgba(229,72,77,.25)`, background: C.redBg, fontSize: 13, color: C.red }}>
+    <div style={{ display: "flex", flex: 1, alignItems: "center", justifyContent: "center" }}>
+      <div style={{ maxWidth: 360, padding: "20px 24px", borderRadius: 14, border: "1px solid rgba(220,38,38,0.2)", background: "rgba(254,242,242,0.9)", fontSize: 13, color: C.red }}>
         {msg}
       </div>
     </div>
   );
 }
 
-// ── Global animation keyframes (injected once) ─────────────────────────────
+// ── Global keyframes ───────────────────────────────────────────────────────
 if (typeof document !== "undefined") {
   const id = "__qa_keyframes";
   if (!document.getElementById(id)) {
@@ -798,7 +683,10 @@ if (typeof document !== "undefined") {
     s.textContent = `
       @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
       @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
-      @keyframes spin { from{stroke-dashoffset:150.8} to{stroke-dashoffset:0} }
+      @keyframes dashSpin {
+        0%   { stroke-dashoffset: 163.4; }
+        100% { stroke-dashoffset: 0; }
+      }
     `;
     document.head.appendChild(s);
   }

@@ -51,9 +51,6 @@ export default function GlobalNav() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
 
-  // RunDashboard 페이지에서는 자체 레이아웃 사용
-  if (pathname.startsWith("/dashboard/")) return null;
-
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
     return pathname.startsWith(href);
