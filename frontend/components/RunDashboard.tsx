@@ -426,11 +426,11 @@ function AISuggestionsAccordion({ suggestions }: { suggestions: UXSuggestion[] }
   return (
     <div style={{
       borderRadius: 10,
-      border: "1px solid rgba(99,102,241,0.25)",
-      background: "rgba(99,102,241,0.05)",
+      border: `1px solid ${C.borderSoft}`,
+      background: C.indigoBg,
       overflow: "hidden",
     }}>
-      {/* 헤더 — 클릭으로 토글 */}
+      {/* 헤더 */}
       <button
         onClick={() => setOpen((v) => !v)}
         style={{
@@ -440,18 +440,18 @@ function AISuggestionsAccordion({ suggestions }: { suggestions: UXSuggestion[] }
       >
         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
           <span style={{ fontSize: 13 }}>💡</span>
-          <span style={{ fontSize: 12, fontWeight: 600, color: "#a5b4fc", letterSpacing: "-0.2px" }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: C.indigoDark, letterSpacing: "-0.2px" }}>
             AI 개선 제안
           </span>
           <span style={{
-            fontSize: 10, fontWeight: 700, color: "#818cf8",
-            background: "rgba(99,102,241,0.2)", padding: "1px 7px", borderRadius: 999,
+            fontSize: 10, fontWeight: 700, color: C.indigo,
+            background: C.indigoBg2, padding: "1px 7px", borderRadius: 999,
           }}>
             {suggestions.length}
           </span>
         </div>
         <span style={{
-          fontSize: 13, color: "rgba(255,255,255,0.3)",
+          fontSize: 13, color: C.textMid,
           display: "inline-block",
           transform: open ? "rotate(180deg)" : "rotate(0deg)",
           transition: "transform 0.2s ease",
@@ -460,27 +460,27 @@ function AISuggestionsAccordion({ suggestions }: { suggestions: UXSuggestion[] }
 
       {/* 제안 목록 */}
       {open && (
-        <div style={{ borderTop: "1px solid rgba(99,102,241,0.15)", padding: "8px 14px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ borderTop: `1px solid ${C.borderSoft}`, padding: "8px 14px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
           {suggestions.map((s, i) => (
             <div key={i} style={{
               borderRadius: 8,
-              border: "1px solid rgba(255,255,255,0.06)",
-              background: "rgba(255,255,255,0.03)",
+              border: `1px solid ${C.borderSoft}`,
+              background: C.glass,
               padding: "10px 12px",
               display: "flex", flexDirection: "column", gap: 5,
             }}>
               <span style={{
                 alignSelf: "flex-start", fontSize: 10, fontWeight: 600,
-                color: "#818cf8", background: "rgba(99,102,241,0.15)",
-                border: "1px solid rgba(99,102,241,0.2)",
+                color: C.indigo, background: C.indigoBg2,
+                border: `1px solid rgba(99,102,241,0.2)`,
                 padding: "2px 8px", borderRadius: 999,
               }}>
                 {s.area}
               </span>
-              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", lineHeight: 1.6, margin: 0 }}>{s.issue}</p>
+              <p style={{ fontSize: 12, color: C.textMid, lineHeight: 1.6, margin: 0 }}>{s.issue}</p>
               <div style={{ display: "flex", gap: 5, alignItems: "flex-start" }}>
-                <span style={{ fontSize: 11, color: "#6ee7b7", flexShrink: 0, marginTop: 1 }}>→</span>
-                <p style={{ fontSize: 12, color: "rgba(255,255,255,0.8)", lineHeight: 1.6, margin: 0, fontWeight: 500 }}>{s.suggestion}</p>
+                <span style={{ fontSize: 11, color: C.green, flexShrink: 0, marginTop: 1, fontWeight: 700 }}>→</span>
+                <p style={{ fontSize: 12, color: C.text, lineHeight: 1.6, margin: 0, fontWeight: 500 }}>{s.suggestion}</p>
               </div>
             </div>
           ))}
