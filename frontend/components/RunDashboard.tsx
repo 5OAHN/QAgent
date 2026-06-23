@@ -264,9 +264,16 @@ export function RunDashboard({ runId }: { runId: string }) {
         </div>
 
         {/* Browser mockup */}
-        <div style={{ flex: "0 0 56%", padding: "16px 20px 8px", minHeight: 0 }}>
+        <div style={{ flex: "0 0 50%", padding: "16px 20px 8px", minHeight: 0 }}>
           <BrowserMockup tc={activeCase} isTerminal={isTerminal} />
         </div>
+
+        {/* AI 제안 */}
+        {(activeCase?.suggestions?.length ?? 0) > 0 && (
+          <div style={{ flexShrink: 0, padding: "0 20px 8px" }}>
+            <AISuggestionsAccordion suggestions={activeCase!.suggestions!} />
+          </div>
+        )}
 
         {/* Terminal logs */}
         <div style={{ flex: 1, padding: "0 20px 16px", minHeight: 0, display: "flex", flexDirection: "column" }}>
@@ -408,6 +415,77 @@ function BrowserMockup({ tc, isTerminal }: { tc: TestCase | null; isTerminal: bo
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── AI 제안 아코디언 (영상↔로그 사이) ─────────────────────────────────────
+function AISuggestionsAccordion({ suggestions }: { suggestions: UXSuggestion[] }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div style={{
+      borderRadius: 10,
+      border: "1px solid rgba(99,102,241,0.25)",
+      background: "rgba(99,102,241,0.05)",
+      overflow: "hidden",
+    }}>
+      {/* 헤더 — 클릭으로 토글 */}
+      <button
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "9px 14px", background: "none", border: "none", cursor: "pointer",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <span style={{ fontSize: 13 }}>💡</span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "#a5b4fc", letterSpacing: "-0.2px" }}>
+            AI 개선 제안
+          </span>
+          <span style={{
+            fontSize: 10, fontWeight: 700, color: "#818cf8",
+            background: "rgba(99,102,241,0.2)", padding: "1px 7px", borderRadius: 999,
+          }}>
+            {suggestions.length}
+          </span>
+        </div>
+        <span style={{
+          fontSize: 13, color: "rgba(255,255,255,0.3)",
+          display: "inline-block",
+          transform: open ? "rotate(180deg)" : "rotate(0deg)",
+          transition: "transform 0.2s ease",
+        }}>⌄</span>
+      </button>
+
+      {/* 제안 목록 */}
+      {open && (
+        <div style={{ borderTop: "1px solid rgba(99,102,241,0.15)", padding: "8px 14px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+          {suggestions.map((s, i) => (
+            <div key={i} style={{
+              borderRadius: 8,
+              border: "1px solid rgba(255,255,255,0.06)",
+              background: "rgba(255,255,255,0.03)",
+              padding: "10px 12px",
+              display: "flex", flexDirection: "column", gap: 5,
+            }}>
+              <span style={{
+                alignSelf: "flex-start", fontSize: 10, fontWeight: 600,
+                color: "#818cf8", background: "rgba(99,102,241,0.15)",
+                border: "1px solid rgba(99,102,241,0.2)",
+                padding: "2px 8px", borderRadius: 999,
+              }}>
+                {s.area}
+              </span>
+              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", lineHeight: 1.6, margin: 0 }}>{s.issue}</p>
+              <div style={{ display: "flex", gap: 5, alignItems: "flex-start" }}>
+                <span style={{ fontSize: 11, color: "#6ee7b7", flexShrink: 0, marginTop: 1 }}>→</span>
+                <p style={{ fontSize: 12, color: "rgba(255,255,255,0.8)", lineHeight: 1.6, margin: 0, fontWeight: 500 }}>{s.suggestion}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
