@@ -375,31 +375,32 @@ function BrowserMockup({ tc, isTerminal }: { tc: TestCase | null; isTerminal: bo
   return (
     <div style={{
       height: "100%", borderRadius: 14, overflow: "hidden",
-      boxShadow: "0 8px 32px rgba(99,102,241,0.12), 0 2px 8px rgba(0,0,0,0.06)",
-      border: `1px solid rgba(255,255,255,0.7)`,
+      boxShadow: "0 4px 20px rgba(99,102,241,0.08), 0 1px 4px rgba(0,0,0,0.04)",
+      border: `1px solid ${C.borderSoft}`,
       display: "flex", flexDirection: "column",
-      background: "#1a1a22",
+      background: C.glassDark,
+      backdropFilter: "blur(12px)",
     }}>
       {/* Browser chrome */}
-      <div style={{ background: "rgba(255,255,255,0.06)", backdropFilter: "blur(8px)", padding: "9px 14px", display: "flex", alignItems: "center", gap: 10, flexShrink: 0, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+      <div style={{ background: "rgba(243,244,246,0.8)", padding: "9px 14px", display: "flex", alignItems: "center", gap: 10, flexShrink: 0, borderBottom: `1px solid ${C.borderSoft}` }}>
         <div style={{ display: "flex", gap: 6 }}>
           <div style={{ width: 11, height: 11, borderRadius: "50%", background: "#ff5f57" }} />
           <div style={{ width: 11, height: 11, borderRadius: "50%", background: "#febc2e" }} />
           <div style={{ width: 11, height: 11, borderRadius: "50%", background: "#28c840" }} />
         </div>
-        <div style={{ flex: 1, background: "rgba(0,0,0,0.3)", borderRadius: 6, padding: "4px 10px", fontSize: 11, color: "rgba(255,255,255,0.3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <div style={{ flex: 1, background: "rgba(0,0,0,0.06)", borderRadius: 6, padding: "4px 10px", fontSize: 11, color: C.textLight, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {tc?.videoUrl ? "recorded session" : "대기 중…"}
         </div>
         {tc?.status === "Pending" && (
-          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, color: "#f87171", background: "rgba(248,113,113,0.1)", padding: "3px 8px", borderRadius: 999 }}>
-            <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#f87171", display: "inline-block", animation: "pulse 1s ease-in-out infinite" }} />
+          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, color: C.red, background: C.redBg, padding: "3px 8px", borderRadius: 999 }}>
+            <span style={{ width: 5, height: 5, borderRadius: "50%", background: C.red, display: "inline-block", animation: "pulse 1s ease-in-out infinite" }} />
             REC
           </div>
         )}
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", background: "#0f0f13" }}>
+      <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", background: "rgba(248,250,252,0.6)" }}>
         {tc?.videoUrl ? (
           <video ref={videoRef} key={tc.videoUrl} src={tc.videoUrl} controls autoPlay
             style={{ width: "100%", height: "100%", objectFit: "contain", background: "#000" }} />
@@ -407,11 +408,9 @@ function BrowserMockup({ tc, isTerminal }: { tc: TestCase | null; isTerminal: bo
           <img src={tc.screenshotUrl} alt="screenshot" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
         ) : tc?.status === "Pending" ? (
           <LiveStepView tc={tc} isPaused={isTerminal} />
-        ) : (tc?.suggestions?.length ?? 0) > 0 ? (
-          <UXSuggestionsPanel suggestions={tc!.suggestions!} />
         ) : (
-          <div style={{ position: "absolute", inset: 0, background: "repeating-linear-gradient(135deg,#16161e,#16161e 12px,#12121a 12px,#12121a 24px)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.2)", background: "rgba(0,0,0,0.4)", padding: "6px 14px", borderRadius: 8 }}>미디어 없음</span>
+          <div style={{ position: "absolute", inset: 0, background: `repeating-linear-gradient(135deg,${C.glass},${C.glass} 12px,rgba(229,231,235,0.4) 12px,rgba(229,231,235,0.4) 24px)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ fontSize: 12, color: C.textLight, background: C.glass, padding: "6px 14px", borderRadius: 8, border: `1px solid ${C.borderSoft}` }}>미디어 없음</span>
           </div>
         )}
       </div>
@@ -624,38 +623,38 @@ function TerminalPanel({ tc, isPaused }: { tc: TestCase | null; isPaused: boolea
   }, [tc?.consoleLogs?.length, isRunning]);
 
   return (
-    <div style={{ flex: 1, borderRadius: 12, border: "1px solid rgba(255,255,255,0.08)", background: C.terminal, display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 4px 20px rgba(0,0,0,0.12)" }}>
-      <div style={{ padding: "8px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 8, flexShrink: 0, background: "rgba(255,255,255,0.03)" }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.25)", letterSpacing: "0.08em", textTransform: "uppercase" }}>실행 로그</span>
-        {isRunning && <PulsingDot color="#818cf8" />}
+    <div style={{ flex: 1, borderRadius: 12, border: `1px solid ${C.borderSoft}`, background: C.glassDark, backdropFilter: "blur(12px)", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 2px 12px rgba(99,102,241,0.06)" }}>
+      <div style={{ padding: "8px 14px", borderBottom: `1px solid ${C.borderSoft}`, display: "flex", alignItems: "center", gap: 8, flexShrink: 0, background: "rgba(243,244,246,0.7)" }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: C.textMid, letterSpacing: "0.06em", textTransform: "uppercase" }}>실행 로그</span>
+        {isRunning && <PulsingDot color={C.indigo} />}
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "10px 14px", fontFamily: "monospace", fontSize: 12 }}>
         {!tc ? (
-          <span style={{ color: "rgba(255,255,255,0.15)" }}>시나리오를 선택하면 로그가 표시됩니다.</span>
+          <span style={{ color: C.textLight }}>시나리오를 선택하면 로그가 표시됩니다.</span>
         ) : (
           <>
             {tc.failReason && (
-              <div style={{ display: "flex", gap: 8, marginBottom: 8, padding: "6px 10px", borderRadius: 6, background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.2)" }}>
+              <div style={{ display: "flex", gap: 8, marginBottom: 8, padding: "6px 10px", borderRadius: 6, background: C.redBg, border: `1px solid rgba(220,38,38,0.2)` }}>
                 <span style={{ color: C.red, flexShrink: 0 }}>✗</span>
-                <span style={{ color: "#fca5a5", lineHeight: 1.5 }}>{tc.failReason}</span>
+                <span style={{ color: C.red, lineHeight: 1.5 }}>{tc.failReason}</span>
               </div>
             )}
             {(tc.consoleLogs ?? []).length === 0 && !isRunning && (
-              <span style={{ color: "rgba(255,255,255,0.15)" }}>로그 없음</span>
+              <span style={{ color: C.textLight }}>로그 없음</span>
             )}
             {tc.consoleLogs?.map((log, i) => {
               const isErr = /error|fail|timeout|못했습니다|실패|오류|찾지 못|찾을 수 없/i.test(log);
               return (
-                <div key={i} style={{ display: "flex", gap: 10, padding: "2px 0", lineHeight: 1.6, background: isErr ? "rgba(220,38,38,0.06)" : "transparent", borderRadius: isErr ? 4 : 0, paddingLeft: isErr ? 4 : 0 }}>
-                  <span style={{ color: isErr ? "rgba(220,38,38,0.4)" : "rgba(255,255,255,0.15)", flexShrink: 0, userSelect: "none" }}>{String(i + 1).padStart(2, "0")}</span>
-                  <span style={{ color: isErr ? "#fca5a5" : "rgba(255,255,255,0.5)" }}>{log}</span>
+                <div key={i} style={{ display: "flex", gap: 10, padding: "2px 0", lineHeight: 1.6, background: isErr ? C.redBg : "transparent", borderRadius: isErr ? 4 : 0, paddingLeft: isErr ? 4 : 0 }}>
+                  <span style={{ color: isErr ? C.red : C.textFaint, flexShrink: 0, userSelect: "none" }}>{String(i + 1).padStart(2, "0")}</span>
+                  <span style={{ color: isErr ? C.red : C.textMid }}>{log}</span>
                 </div>
               );
             })}
             {isRunning && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, color: isPaused ? "#fbbf24" : "#818cf8" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, color: isPaused ? C.amber : C.indigo }}>
                 {isPaused
-                  ? <><span style={{ width: 6, height: 6, borderRadius: "50%", background: "#fbbf24", display: "inline-block" }} /><span style={{ fontSize: 11 }}>일시정지됨</span></>
+                  ? <><span style={{ width: 6, height: 6, borderRadius: "50%", background: C.amber, display: "inline-block" }} /><span style={{ fontSize: 11 }}>일시정지됨</span></>
                   : <><BlinkingCursor /><span style={{ fontSize: 11 }}>분석 중…</span></>}
               </div>
             )}
