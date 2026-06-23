@@ -45,27 +45,27 @@ interface RunResult {
 const TERMINAL: RunStatus[] = ["completed", "failed"];
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-// ── Light glassmorphism tokens ──────────────────────────────────────────────
+// ── Apple design tokens ──────────────────────────────────────────────────────
 const C = {
-  indigo:      "#6366f1",
-  indigoDark:  "#4338ca",
-  indigoBg:    "rgba(99,102,241,0.08)",
-  indigoBg2:   "rgba(99,102,241,0.12)",
+  indigo:      "#0066cc",
+  indigoDark:  "#0055aa",
+  indigoBg:    "#eff6ff",
+  indigoBg2:   "#dbeafe",
   green:       "#16a34a",
   greenLight:  "#4ade80",
-  greenBg:     "rgba(22,163,74,0.08)",
+  greenBg:     "#f0fdf4",
   red:         "#dc2626",
-  redBg:       "rgba(220,38,38,0.07)",
+  redBg:       "#fef2f2",
   amber:       "#d97706",
-  amberBg:     "rgba(217,119,6,0.08)",
-  // glass surfaces
-  glass:       "rgba(255,255,255,0.60)",
-  glassDark:   "rgba(255,255,255,0.80)",
-  glassHover:  "rgba(238,242,255,0.55)",
-  border:      "rgba(255,255,255,0.65)",
-  borderSoft:  "rgba(229,231,235,0.7)",
+  amberBg:     "#fffbeb",
+  // surfaces
+  glass:       "#ffffff",
+  glassDark:   "#ffffff",
+  glassHover:  "#f5f5f7",
+  border:      "#e0e0e0",
+  borderSoft:  "#f0f0f0",
   // text
-  text:        "#111827",
+  text:        "#1d1d1f",
   textMid:     "#6b7280",
   textLight:   "#9ca3af",
   textFaint:   "#d1d5db",
@@ -76,8 +76,6 @@ const C = {
 
 const glass = (extra?: React.CSSProperties): React.CSSProperties => ({
   background: C.glass,
-  backdropFilter: "blur(18px)",
-  WebkitBackdropFilter: "blur(18px)",
   border: `1px solid ${C.border}`,
   ...extra,
 });
@@ -139,7 +137,7 @@ export function RunDashboard({ runId }: { runId: string }) {
         display: "flex",
         flexDirection: "column",
         flexShrink: 0,
-        boxShadow: "4px 0 24px rgba(99,102,241,0.06)",
+        boxShadow: "none",
       }}>
 
         {/* Header */}
@@ -164,14 +162,14 @@ export function RunDashboard({ runId }: { runId: string }) {
               <span>{done} / {data.total} 케이스</span>
               <span style={{ color: C.indigo, fontWeight: 600 }}>{progress}%</span>
             </div>
-            <div style={{ height: 5, background: "rgba(99,102,241,0.1)", borderRadius: 999, overflow: "hidden" }}>
-              <div style={{ height: "100%", width: `${progress}%`, background: "linear-gradient(90deg, #6366f1, #8b5cf6)", borderRadius: 999, transition: "width 0.5s ease" }} />
+            <div style={{ height: 5, background: C.indigoBg, borderRadius: 999, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${progress}%`, background: C.indigo, borderRadius: 999, transition: "width 0.5s ease" }} />
             </div>
           </div>
 
           {/* Summary chips */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
-            <SummaryChip label="전체" value={data.total} color={C.text} bg="rgba(243,244,246,0.8)" />
+            <SummaryChip label="전체" value={data.total} color={C.text} bg="#f5f5f7" />
             <SummaryChip label="Pass" value={data.passed} color={C.green} bg={C.greenBg} />
             <SummaryChip label="Fail" value={data.failed} color={C.red} bg={C.redBg} />
           </div>
@@ -193,7 +191,7 @@ export function RunDashboard({ runId }: { runId: string }) {
         <div style={{ padding: "10px 12px 6px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: C.textMid, letterSpacing: "0.05em", textTransform: "uppercase" }}>
             시나리오
-            <span style={{ marginLeft: 6, background: "rgba(99,102,241,0.1)", color: C.indigo, borderRadius: 999, padding: "1px 7px", fontSize: 10.5, fontWeight: 600 }}>
+            <span style={{ marginLeft: 6, background: C.indigoBg, color: C.indigo, borderRadius: 999, padding: "1px 7px", fontSize: 10.5, fontWeight: 600 }}>
               {data.cases.length}
             </span>
           </span>
@@ -230,8 +228,8 @@ export function RunDashboard({ runId }: { runId: string }) {
               }}
               style={{
                 width: "100%", padding: "9px 0", borderRadius: 9,
-                border: `1px solid rgba(99,102,241,0.2)`,
-                background: "rgba(238,242,255,0.6)",
+                border: `1px solid ${C.border}`,
+                background: C.indigoBg,
                 color: C.indigo, fontSize: 12, fontWeight: 500, cursor: "pointer",
               }}
             >
@@ -242,14 +240,14 @@ export function RunDashboard({ runId }: { runId: string }) {
       </div>
 
       {/* ── Right: Viewer + Logs ───────────────────────────────────── */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", background: "rgba(248,250,252,0.4)" }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", background: "#f5f5f7" }}>
 
         {/* Top bar */}
         <div style={{
           ...glass({ borderRadius: 0, borderLeft: "none", borderRight: "none", borderTop: "none" }),
           padding: "11px 20px",
           display: "flex", alignItems: "center", gap: 10, flexShrink: 0,
-          boxShadow: "0 4px 16px rgba(99,102,241,0.05)",
+          boxShadow: "none",
         }}>
           {activeCase ? (
             <>
@@ -309,11 +307,11 @@ function ScenarioCard({ tc, isActive, onClick, isPaused, targetUrl }: {
       style={{
         marginTop: 6, borderRadius: 11, cursor: "pointer", padding: "10px 12px",
         transition: "all .15s",
-        background: isActive ? "rgba(255,255,255,0.85)" : isFail ? "rgba(254,242,242,0.6)" : "rgba(255,255,255,0.5)",
+        background: isActive ? C.glass : isFail ? C.redBg : "#fafafc",
         border: isActive
-          ? `1.5px solid rgba(99,102,241,0.4)`
-          : isFail ? `1px solid rgba(220,38,38,0.2)` : `1px solid rgba(255,255,255,0.7)`,
-        boxShadow: isActive ? "0 2px 12px rgba(99,102,241,0.14)" : "0 1px 4px rgba(0,0,0,0.04)",
+          ? `1.5px solid ${C.indigo}`
+          : isFail ? `1px solid #fecaca` : `1px solid ${C.border}`,
+        boxShadow: "none",
       }}
     >
       <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
@@ -375,8 +373,8 @@ function BrowserMockup({ tc, isTerminal }: { tc: TestCase | null; isTerminal: bo
   return (
     <div style={{
       height: "100%", borderRadius: 14, overflow: "hidden",
-      boxShadow: "0 4px 20px rgba(99,102,241,0.08), 0 1px 4px rgba(0,0,0,0.04)",
-      border: `1px solid ${C.borderSoft}`,
+      boxShadow: "none",
+      border: `1px solid ${C.border}`,
       display: "flex", flexDirection: "column",
       background: C.glassDark,
       backdropFilter: "blur(12px)",
@@ -471,7 +469,7 @@ function AISuggestionsAccordion({ suggestions }: { suggestions: UXSuggestion[] }
               <span style={{
                 alignSelf: "flex-start", fontSize: 10, fontWeight: 600,
                 color: C.indigo, background: C.indigoBg2,
-                border: `1px solid rgba(99,102,241,0.2)`,
+                border: `1px solid #bfdbfe`,
                 padding: "2px 8px", borderRadius: 999,
               }}>
                 {s.area}
@@ -518,9 +516,9 @@ function UXSuggestionsPanel({ suggestions }: { suggestions: UXSuggestion[] }) {
             alignSelf: "flex-start",
             fontSize: 10,
             fontWeight: 600,
-            color: "#818cf8",
-            background: "rgba(99,102,241,0.15)",
-            border: "1px solid rgba(99,102,241,0.25)",
+            color: C.indigo,
+            background: C.indigoBg,
+            border: "1px solid #bfdbfe",
             padding: "2px 8px",
             borderRadius: 999,
             letterSpacing: "0.02em",
@@ -528,13 +526,13 @@ function UXSuggestionsPanel({ suggestions }: { suggestions: UXSuggestion[] }) {
             {s.area}
           </span>
           {/* 문제점 */}
-          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", lineHeight: 1.6 }}>
+          <p style={{ fontSize: 12, color: C.textMid, lineHeight: 1.6 }}>
             {s.issue}
           </p>
           {/* 제안 */}
           <div style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
-            <span style={{ fontSize: 11, color: "#6ee7b7", flexShrink: 0, marginTop: 1 }}>→</span>
-            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.8)", lineHeight: 1.6, fontWeight: 500 }}>
+            <span style={{ fontSize: 11, color: C.green, flexShrink: 0, marginTop: 1 }}>→</span>
+            <p style={{ fontSize: 12, color: C.text, lineHeight: 1.6, fontWeight: 500 }}>
               {s.suggestion}
             </p>
           </div>
@@ -564,20 +562,20 @@ function LiveStepView({ tc, isPaused }: { tc: TestCase; isPaused: boolean }) {
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14, maxWidth: 480, width: "100%" }}>
         <div style={{ position: "relative", width: 60, height: 60 }}>
           <svg width="60" height="60" viewBox="0 0 60 60" style={{ transform: "rotate(-90deg)" }}>
-            <circle cx="30" cy="30" r="26" fill="none" stroke="rgba(99,102,241,0.15)" strokeWidth="3" />
-            <circle cx="30" cy="30" r="26" fill="none" stroke="#818cf8" strokeWidth="3"
+            <circle cx="30" cy="30" r="26" fill="none" stroke="rgba(0,102,204,0.15)" strokeWidth="3" />
+            <circle cx="30" cy="30" r="26" fill="none" stroke="#0066cc" strokeWidth="3"
               strokeDasharray="163.4" strokeDashoffset="0"
               style={{ animation: "dashSpin 1.6s linear infinite" }}
             />
           </svg>
-          <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: "#818cf8", fontFamily: "monospace" }}>
+          <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: "#0066cc", fontFamily: "monospace" }}>
             {total}
           </span>
         </div>
 
         {current ? (
           <div style={{ textAlign: "center", width: "100%" }}>
-            <div style={{ fontSize: 10, color: "rgba(99,102,241,0.5)", fontFamily: "monospace", marginBottom: 6, letterSpacing: "0.1em" }}>STEP {current.num}</div>
+            <div style={{ fontSize: 10, color: "rgba(0,102,204,0.5)", fontFamily: "monospace", marginBottom: 6, letterSpacing: "0.1em" }}>STEP {current.num}</div>
             <div style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.85)", marginBottom: 8, lineHeight: 1.4 }}>{current.action}</div>
             {current.thought && (
               <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", lineHeight: 1.5, background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "8px 12px", textAlign: "left", border: "1px solid rgba(255,255,255,0.06)" }}>
@@ -598,7 +596,7 @@ function LiveStepView({ tc, isPaused }: { tc: TestCase; isPaused: boolean }) {
             const isLast = i === Math.min(logs.length, 5) - 1;
             return (
               <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, opacity: isLast ? 1 : 0.3 }}>
-                <span style={{ fontSize: 10, fontFamily: "monospace", color: isLast ? "#818cf8" : "rgba(255,255,255,0.2)", flexShrink: 0, marginTop: 2 }}>
+                <span style={{ fontSize: 10, fontFamily: "monospace", color: isLast ? "#0066cc" : "rgba(255,255,255,0.2)", flexShrink: 0, marginTop: 2 }}>
                   {String(logs.length - (Math.min(logs.length, 5) - 1 - i)).padStart(2, "0")}
                 </span>
                 <span style={{ fontSize: 11, color: isLast ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.2)", lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -623,7 +621,7 @@ function TerminalPanel({ tc, isPaused }: { tc: TestCase | null; isPaused: boolea
   }, [tc?.consoleLogs?.length, isRunning]);
 
   return (
-    <div style={{ flex: 1, borderRadius: 12, border: `1px solid ${C.borderSoft}`, background: C.glassDark, backdropFilter: "blur(12px)", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 2px 12px rgba(99,102,241,0.06)" }}>
+    <div style={{ flex: 1, borderRadius: 12, border: `1px solid ${C.border}`, background: C.glass, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <div style={{ padding: "8px 14px", borderBottom: `1px solid ${C.borderSoft}`, display: "flex", alignItems: "center", gap: 8, flexShrink: 0, background: "rgba(243,244,246,0.7)" }}>
         <span style={{ fontSize: 11, fontWeight: 600, color: C.textMid, letterSpacing: "0.06em", textTransform: "uppercase" }}>실행 로그</span>
         {isRunning && <PulsingDot color={C.indigo} />}
@@ -713,7 +711,7 @@ function CopyReportButton({ tc, targetUrl }: { tc: TestCase; targetUrl?: string 
   return (
     <button onClick={handleClick} style={{
       display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 7, flexShrink: 0, cursor: "pointer",
-      border: state === "copied" ? `1px solid rgba(22,163,74,0.3)` : `1px solid rgba(99,102,241,0.2)`,
+      border: state === "copied" ? `1px solid #bbf7d0` : `1px solid #bfdbfe`,
       background: state === "copied" ? C.greenBg : C.indigoBg,
       color: state === "copied" ? C.green : C.indigo,
       fontSize: 11, fontWeight: 500, transition: "all .2s",
@@ -737,9 +735,9 @@ function SummaryChip({ label, value, color, bg }: { label: string; value: number
 
 function CtrlButton({ children, onClick, variant }: { children: React.ReactNode; onClick: () => void; variant: "primary" | "ghost" | "danger" }) {
   const s = {
-    primary: { background: "linear-gradient(135deg,#6366f1,#8b5cf6)", color: "#fff", border: "none", boxShadow: "0 2px 8px rgba(99,102,241,0.3)" },
-    ghost:   { background: "rgba(255,255,255,0.6)", color: C.textMid, border: `1px solid ${C.borderSoft}` },
-    danger:  { background: "rgba(254,242,242,0.8)", color: C.red, border: "1px solid rgba(220,38,38,0.2)" },
+    primary: { background: C.indigo, color: "#fff", border: "none", boxShadow: "none" },
+    ghost:   { background: C.glass, color: C.textMid, border: `1px solid ${C.border}` },
+    danger:  { background: C.redBg, color: C.red, border: "1px solid #fecaca" },
   }[variant];
   return (
     <button onClick={onClick} style={{ ...s, flex: 1, padding: "7px 0", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
@@ -752,9 +750,9 @@ function RunStatusBadge({ status, paused }: { status: RunStatus; paused?: boolea
   if (status === "running" && paused)
     return <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999, background: C.amberBg, color: C.amber, border: `1px solid rgba(217,119,6,0.25)` }}>일시정지</span>;
   const map = {
-    running:   { bg: C.indigoBg2, color: C.indigo,  label: "실행 중",  border: "rgba(99,102,241,0.2)" },
-    completed: { bg: C.greenBg,   color: C.green,   label: "완료",    border: "rgba(22,163,74,0.2)" },
-    failed:    { bg: C.redBg,     color: C.red,     label: "오류",    border: "rgba(220,38,38,0.2)" },
+    running:   { bg: C.indigoBg2, color: C.indigo,  label: "실행 중",  border: "#bfdbfe" },
+    completed: { bg: C.greenBg,   color: C.green,   label: "완료",    border: "#bbf7d0" },
+    failed:    { bg: C.redBg,     color: C.red,     label: "오류",    border: "#fecaca" },
   };
   const { bg, color, label, border } = map[status];
   return <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999, background: bg, color, border: `1px solid ${border}` }}>{label}</span>;
@@ -762,8 +760,8 @@ function RunStatusBadge({ status, paused }: { status: RunStatus; paused?: boolea
 
 function CaseStatusBadge({ status }: { status: "Pass" | "Fail" }) {
   return status === "Pass"
-    ? <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999, background: C.greenBg, color: C.green, border: "1px solid rgba(22,163,74,0.2)" }}>Pass</span>
-    : <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999, background: C.redBg,   color: C.red,   border: "1px solid rgba(220,38,38,0.2)" }}>Fail</span>;
+    ? <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999, background: C.greenBg, color: C.green, border: "1px solid #bbf7d0" }}>Pass</span>
+    : <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999, background: C.redBg,   color: C.red,   border: "1px solid #fecaca" }}>Fail</span>;
 }
 
 function PulsingDot({ color }: { color: string }) {
@@ -771,7 +769,7 @@ function PulsingDot({ color }: { color: string }) {
 }
 
 function BlinkingCursor() {
-  return <span style={{ display: "inline-block", width: 7, height: 13, background: "#818cf8", borderRadius: 1, animation: "blink 1s step-end infinite" }} />;
+  return <span style={{ display: "inline-block", width: 7, height: 13, background: "#0066cc", borderRadius: 1, animation: "blink 1s step-end infinite" }} />;
 }
 
 function CheckCircle({ color }: { color: string }) {
@@ -796,8 +794,8 @@ function LoadingScreen() {
   return (
     <div style={{ display: "flex", flex: 1, alignItems: "center", justifyContent: "center", fontFamily: "-apple-system, sans-serif" }}>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-        <div style={{ width: 40, height: 40, borderRadius: 11, background: "linear-gradient(135deg,#6366f1,#8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(99,102,241,0.3)" }}>
-          <span style={{ color: "#fff", fontWeight: 800, fontSize: 18 }}>Q</span>
+        <div style={{ width: 40, height: 40, borderRadius: 11, background: "#0066cc", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <span style={{ color: "#fff", fontWeight: 700, fontSize: 18 }}>Q</span>
         </div>
         <p style={{ fontSize: 13, color: C.textLight }}>불러오는 중…</p>
       </div>
@@ -808,7 +806,7 @@ function LoadingScreen() {
 function ErrorScreen({ msg }: { msg: string }) {
   return (
     <div style={{ display: "flex", flex: 1, alignItems: "center", justifyContent: "center" }}>
-      <div style={{ maxWidth: 360, padding: "20px 24px", borderRadius: 14, border: "1px solid rgba(220,38,38,0.2)", background: "rgba(254,242,242,0.9)", fontSize: 13, color: C.red }}>
+      <div style={{ maxWidth: 360, padding: "20px 24px", borderRadius: 14, border: "1px solid #fecaca", background: C.redBg, fontSize: 13, color: C.red }}>
         {msg}
       </div>
     </div>

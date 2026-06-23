@@ -9,15 +9,15 @@ export default function DemoPage() {
       {/* 데모 배너 */}
       <div style={{
         flexShrink: 0,
-        background: "rgba(99,102,241,0.08)",
-        borderBottom: "1px solid rgba(99,102,241,0.2)",
+        background: "#eff6ff",
+        borderBottom: "1px solid #bfdbfe",
         padding: "7px 20px",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
         zIndex: 50,
       }}>
-        <span style={{ fontSize: 12, color: "#818cf8", fontWeight: 500 }}>
+        <span style={{ fontSize: 12, color: "#0066cc", fontWeight: 400 }}>
           👁 데모 모드 — 실제 테스트가 아닌 시뮬레이션입니다
         </span>
         <Link href="/new" style={{ fontSize: 11, color: "#9ca3af", textDecoration: "none" }}>
