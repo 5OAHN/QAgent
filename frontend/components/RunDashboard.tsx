@@ -9,6 +9,12 @@ type RunStatus = "running" | "completed" | "failed";
 type ControlAction = "cancel" | "pause" | "resume";
 type CaseStatus = "Pass" | "Fail" | "Pending";
 
+interface UXSuggestion {
+  area: string;
+  issue: string;
+  suggestion: string;
+}
+
 interface TestCase {
   testId: string;
   feature: string;
@@ -18,6 +24,7 @@ interface TestCase {
   videoUrl: string;
   screenshotUrl: string;
   consoleLogs?: string[];
+  suggestions?: UXSuggestion[];
 }
 
 interface RunResult {
@@ -393,12 +400,69 @@ function BrowserMockup({ tc, isTerminal }: { tc: TestCase | null; isTerminal: bo
           <img src={tc.screenshotUrl} alt="screenshot" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
         ) : tc?.status === "Pending" ? (
           <LiveStepView tc={tc} isPaused={isTerminal} />
+        ) : (tc?.suggestions?.length ?? 0) > 0 ? (
+          <UXSuggestionsPanel suggestions={tc!.suggestions!} />
         ) : (
           <div style={{ position: "absolute", inset: 0, background: "repeating-linear-gradient(135deg,#16161e,#16161e 12px,#12121a 12px,#12121a 24px)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <span style={{ fontSize: 12, color: "rgba(255,255,255,0.2)", background: "rgba(0,0,0,0.4)", padding: "6px 14px", borderRadius: 8 }}>미디어 없음</span>
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── UX 제안 패널 ──────────────────────────────────────────────────────────
+function UXSuggestionsPanel({ suggestions }: { suggestions: UXSuggestion[] }) {
+  return (
+    <div style={{ position: "absolute", inset: 0, overflowY: "auto", padding: "20px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+      {/* 헤더 */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+        <span style={{ fontSize: 16 }}>💡</span>
+        <div>
+          <p style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.9)", letterSpacing: "-0.3px" }}>AI 개선 제안</p>
+          <p style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", marginTop: 1 }}>테스트 중 발견한 UX 문제점이에요</p>
+        </div>
+      </div>
+
+      {suggestions.map((s, i) => (
+        <div key={i} style={{
+          borderRadius: 10,
+          border: "1px solid rgba(255,255,255,0.07)",
+          background: "rgba(255,255,255,0.03)",
+          padding: "12px 14px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 6,
+        }}>
+          {/* 영역 배지 */}
+          <span style={{
+            display: "inline-block",
+            alignSelf: "flex-start",
+            fontSize: 10,
+            fontWeight: 600,
+            color: "#818cf8",
+            background: "rgba(99,102,241,0.15)",
+            border: "1px solid rgba(99,102,241,0.25)",
+            padding: "2px 8px",
+            borderRadius: 999,
+            letterSpacing: "0.02em",
+          }}>
+            {s.area}
+          </span>
+          {/* 문제점 */}
+          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", lineHeight: 1.6 }}>
+            {s.issue}
+          </p>
+          {/* 제안 */}
+          <div style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
+            <span style={{ fontSize: 11, color: "#6ee7b7", flexShrink: 0, marginTop: 1 }}>→</span>
+            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.8)", lineHeight: 1.6, fontWeight: 500 }}>
+              {s.suggestion}
+            </p>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

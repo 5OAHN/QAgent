@@ -5,7 +5,7 @@ import { chromium } from "playwright";
 import { UIDictionary } from "./parser";
 import { runTest, TestResult } from "./executor";
 import { analyzeFailure } from "./analyzer";
-import { runVisionAgent } from "./vision-agent";
+import { runVisionAgent, analyzeUX } from "./vision-agent";
 
 export interface RunResult {
   runId: string;
@@ -235,6 +235,14 @@ export async function runNaturalLanguagePipeline(
         result.screenshotUrl = `${BASE_URL}/data/screenshots/${runId}_${testId}_fail.png`;
         run.failed++;
         console.log(`\n❌ [${testId}] 실패: ${result.failReason}`);
+      }
+
+      // UX 분석 — 중지되지 않은 경우에만
+      if (!control.isCancelled() && visionResult.steps.length > 0) {
+        console.log(`\n💡 [${testId}] UX 분석 중…`);
+        result.suggestions = await analyzeUX(page, naturalText, visionResult.steps);
+        run.cases = run.cases.map((c) => c.testId === testId ? { ...result } : c);
+        console.log(`  → ${result.suggestions.length}개 제안 생성`);
       }
     } catch (err: any) {
       result.status = "Fail";

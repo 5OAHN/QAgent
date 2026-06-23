@@ -3,6 +3,12 @@ import path from "path";
 import fs from "fs";
 import { UIDictionary, DSLParser } from "./parser";
 
+export interface UXSuggestion {
+  area: string;
+  issue: string;
+  suggestion: string;
+}
+
 export interface TestResult {
   testId: string;
   feature: string;
@@ -12,6 +18,7 @@ export interface TestResult {
   videoUrl: string;
   screenshotUrl: string;
   consoleLogs: string[];
+  suggestions?: UXSuggestion[];
 }
 
 const BASE_URL = process.env.WORKER_BASE_URL || "http://localhost:8001";
