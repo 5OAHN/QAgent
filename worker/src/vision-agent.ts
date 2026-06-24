@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { Page } from "playwright";
 
-const VISION_MODEL = "claude-sonnet-4-6";
+const VISION_MODEL = "claude-haiku-4-5-20251001";
 
 const SYSTEM_PROMPT = `You are a web automation agent controlling a real browser. You will be shown a screenshot and a task.
 Analyze the screenshot carefully and decide the SINGLE next action to take.
