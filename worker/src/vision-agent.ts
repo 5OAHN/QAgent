@@ -1,6 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { Page } from "playwright";
-import { UXSuggestion } from "./executor";
 
 const VISION_MODEL = "claude-sonnet-4-6";
 
@@ -92,71 +91,6 @@ export interface VisionResult {
   steps: VisionStep[];
   failReason?: string;
   summary?: string;
-}
-
-const UX_REVIEW_TOOL = {
-  name: "ux_suggestions",
-  description: "Provide UX improvement suggestions based on what you observed while testing",
-  input_schema: {
-    type: "object" as const,
-    properties: {
-      suggestions: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            area:       { type: "string", description: "어떤 영역/화면인지 (예: 로그인 폼, 네비게이션, 에러 메시지)" },
-            issue:      { type: "string", description: "발견된 UX 문제점을 구체적으로 설명" },
-            suggestion: { type: "string", description: "개선 방향 제안 (구체적으로)" },
-          },
-          required: ["area", "issue", "suggestion"],
-        },
-      },
-    },
-    required: ["suggestions"],
-  },
-};
-
-export async function analyzeUX(
-  page: Page,
-  task: string,
-  steps: VisionStep[]
-): Promise<UXSuggestion[]> {
-  const client = new Anthropic();
-  const screenshot = await page.screenshot({ type: "png" });
-  const base64 = screenshot.toString("base64");
-  const actionSummary = steps
-    .map((s) => `Step ${s.stepNum}: ${s.action} ${s.details} — ${s.thought}`)
-    .join("\n");
-
-  try {
-    const response = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 1024,
-      system: `당신은 시니어 UX 디자이너입니다. 방금 웹 애플리케이션을 자동화 에이전트로서 직접 사용해봤습니다.
-테스트 중 관찰한 내용을 바탕으로 실질적인 UX 개선 제안을 해주세요.
-- 실제로 겪은 불편함이나 문제점만 언급하세요.
-- 추상적인 말보다 구체적인 개선 방법을 제시하세요.
-- 2~5개 사이로 제안하세요.`,
-      tools: [UX_REVIEW_TOOL],
-      tool_choice: { type: "tool", name: "ux_suggestions" },
-      messages: [{
-        role: "user",
-        content: [
-          { type: "image", source: { type: "base64", media_type: "image/png", data: base64 } },
-          { type: "text", text: `테스트 작업: ${task}\n\n수행한 액션 히스토리:\n${actionSummary}\n\n위 테스트를 진행하면서 발견한 UX 문제점과 개선 제안을 해주세요.` },
-        ],
-      }],
-    });
-
-    const toolBlock = response.content.find((b) => b.type === "tool_use");
-    if (!toolBlock || toolBlock.type !== "tool_use") return [];
-    const input = toolBlock.input as any;
-    return Array.isArray(input.suggestions) ? input.suggestions : [];
-  } catch (err: any) {
-    console.warn("UX 분석 실패:", err.message);
-    return [];
-  }
 }
 
 export interface RunControl {
@@ -268,7 +202,7 @@ async function clickByText(page: Page, input: any): Promise<void> {
   const target: string = input.target || "";
   const method: string = input.method || "text";
   const role: string   = input.role || "button";
-  const TIMEOUT = 5000;
+  const TIMEOUT = 2000;
 
   if (!target) throw new Error("click 액션에 target 텍스트가 없습니다.");
 

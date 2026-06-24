@@ -5,7 +5,7 @@ import { chromium } from "playwright";
 import { UIDictionary } from "./parser";
 import { runTest, TestResult } from "./executor";
 import { analyzeFailure } from "./analyzer";
-import { runVisionAgent, analyzeUX } from "./vision-agent";
+import { runVisionAgent } from "./vision-agent";
 
 export interface RunResult {
   runId: string;
@@ -166,103 +166,107 @@ export async function runNaturalLanguagePipeline(
     isPaused: () => pausedRuns.has(runId),
   };
 
-  // 케이스별 순차 실행
+  // 브라우저는 전체 런에서 하나만 유지 — 컨텍스트(세션/녹화)만 케이스별 분리
+  const browser = await chromium.launch({ headless: true });
+
   let sharedStorageState: any;
   let sharedCurrentUrl: string | undefined;
-  for (let i = 0; i < scenarioList.length; i++) {
-    // 케이스 시작 전 중지 확인
-    if (control.isCancelled()) {
-      console.log(`\n🛑 [${runId}] 중지됨 — 남은 케이스 건너뜀`);
-      break;
-    }
-    const naturalText = scenarioList[i];
-    const testId = `V-${String(i + 1).padStart(3, "0")}`;
 
-    const result: TestResult = {
-      testId,
-      feature: "Vision 에이전트",
-      scenario: naturalText.slice(0, 80),
-      status: "Pending",
-      failReason: "",
-      videoUrl: "",
-      screenshotUrl: "",
-      consoleLogs: [],
-    };
+  try {
+    for (let i = 0; i < scenarioList.length; i++) {
+      if (control.isCancelled()) {
+        console.log(`\n🛑 [${runId}] 중지됨 — 남은 케이스 건너뜀`);
+        break;
+      }
 
-    // 실행 전 Pending 상태로 먼저 노출
-    run.cases = [...run.cases.filter((c) => c.testId !== testId), result];
+      // 일시정지 대기 (1초 간격 폴링)
+      while (control.isPaused()) {
+        await new Promise((r) => setTimeout(r, 1000));
+        if (control.isCancelled()) break;
+      }
+      if (control.isCancelled()) break;
 
-    const recordingDir = path.resolve(`data/recordings/${runId}/${testId}`);
-    fs.mkdirSync(recordingDir, { recursive: true });
+      const naturalText = scenarioList[i];
+      const testId = `V-${String(i + 1).padStart(3, "0")}`;
 
-    const browser = await chromium.launch({ headless: true });
-    const context = await browser.newContext({
-      recordVideo: { dir: recordingDir, size: { width: 1280, height: 720 } },
-      viewport: { width: 1280, height: 720 },
-      ...(sharedStorageState ? { storageState: sharedStorageState } : {}),
-    });
-    const page = await context.newPage();
+      const result: TestResult = {
+        testId,
+        feature: "Vision 에이전트",
+        scenario: naturalText.slice(0, 80),
+        status: "Pending",
+        failReason: "",
+        videoUrl: "",
+        screenshotUrl: "",
+        consoleLogs: [],
+      };
 
-    try {
-      const startUrl = sharedCurrentUrl ?? targetUrl;
-      console.log(`\n🤖 [${testId}] Vision 에이전트 시작 → ${startUrl}`);
-      await page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+      // 실행 전 Pending 상태로 먼저 노출
+      run.cases = [...run.cases.filter((c) => c.testId !== testId), result];
 
-      const liveStepLogs: string[] = [];
+      const recordingDir = path.resolve(`data/recordings/${runId}/${testId}`);
+      fs.mkdirSync(recordingDir, { recursive: true });
 
-      const visionResult = await runVisionAgent(page, naturalText, 15, (step) => {
-        liveStepLogs.push(`[Step ${step.stepNum}] ${step.action} ${step.details} — ${step.thought}`);
-        result.consoleLogs = [...liveStepLogs];
-        run.cases = run.cases.map((c) => c.testId === testId ? { ...result } : c);
-      }, control);
+      // 케이스별 컨텍스트 — storageState로 이전 세션 이어받음
+      const context = await browser.newContext({
+        recordVideo: { dir: recordingDir, size: { width: 1280, height: 720 } },
+        viewport: { width: 1280, height: 720 },
+        ...(sharedStorageState ? { storageState: sharedStorageState } : {}),
+      });
+      const page = await context.newPage();
 
-      result.consoleLogs = visionResult.steps.map(
-        (s) => `[Step ${s.stepNum}] ${s.action} ${s.details} — ${s.thought}`
-      );
+      try {
+        const startUrl = sharedCurrentUrl ?? targetUrl;
+        console.log(`\n🤖 [${testId}] Vision 에이전트 시작 → ${startUrl}`);
+        await page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
 
-      if (visionResult.success) {
-        result.status = "Pass";
-        if (visionResult.summary) result.consoleLogs.push(`✅ ${visionResult.summary}`);
-        sharedStorageState = await context.storageState();
-        sharedCurrentUrl = page.url();
-        run.passed++;
-        console.log(`\n✅ [${testId}] 완료`);
-      } else {
+        const liveStepLogs: string[] = [];
+
+        const visionResult = await runVisionAgent(page, naturalText, 15, (step) => {
+          liveStepLogs.push(`[Step ${step.stepNum}] ${step.action} ${step.details} — ${step.thought}`);
+          result.consoleLogs = [...liveStepLogs];
+          run.cases = run.cases.map((c) => c.testId === testId ? { ...result } : c);
+        }, control);
+
+        result.consoleLogs = visionResult.steps.map(
+          (s) => `[Step ${s.stepNum}] ${s.action} ${s.details} — ${s.thought}`
+        );
+
+        if (visionResult.success) {
+          result.status = "Pass";
+          if (visionResult.summary) result.consoleLogs.push(`✅ ${visionResult.summary}`);
+          // Pass 시 세션 상태 저장 — 다음 케이스로 전달
+          sharedStorageState = await context.storageState();
+          sharedCurrentUrl = page.url();
+          run.passed++;
+          console.log(`\n✅ [${testId}] 완료`);
+        } else {
+          result.status = "Fail";
+          result.failReason = visionResult.failReason || "알 수 없는 오류";
+          const shotPath = path.join(screenshotDir, `${runId}_${testId}_fail.png`);
+          await page.screenshot({ path: shotPath, fullPage: true });
+          result.screenshotUrl = `${BASE_URL}/data/screenshots/${runId}_${testId}_fail.png`;
+          run.failed++;
+          console.log(`\n❌ [${testId}] 실패: ${result.failReason}`);
+        }
+      } catch (err: any) {
         result.status = "Fail";
-        result.failReason = visionResult.failReason || "알 수 없는 오류";
-        const shotPath = path.join(screenshotDir, `${runId}_${testId}_fail.png`);
-        await page.screenshot({ path: shotPath, fullPage: true });
-        result.screenshotUrl = `${BASE_URL}/data/screenshots/${runId}_${testId}_fail.png`;
+        result.failReason = err.message;
         run.failed++;
-        console.log(`\n❌ [${testId}] 실패: ${result.failReason}`);
-      }
-
-      // UX 분석 — 중지되지 않은 경우에만
-      if (!control.isCancelled() && visionResult.steps.length > 0) {
-        console.log(`\n💡 [${testId}] UX 분석 중…`);
-        result.suggestions = await analyzeUX(page, naturalText, visionResult.steps);
+        console.error(`\n❌ [${testId}] 오류:`, err.message);
+      } finally {
+        const video = page.video();
+        await context.close(); // 컨텍스트만 닫음 — 브라우저는 유지
+        if (video) {
+          try {
+            const videoPath = await video.path();
+            result.videoUrl = `${BASE_URL}/data/recordings/${runId}/${testId}/${path.basename(videoPath)}`;
+          } catch { /* 녹화 없음 */ }
+        }
         run.cases = run.cases.map((c) => c.testId === testId ? { ...result } : c);
-        console.log(`  → ${result.suggestions.length}개 제안 생성`);
       }
-    } catch (err: any) {
-      result.status = "Fail";
-      result.failReason = err.message;
-      run.failed++;
-      console.error(`\n❌ [${testId}] 오류:`, err.message);
-    } finally {
-      const video = page.video();
-      await context.close();
-      if (video) {
-        try {
-          const videoPath = await video.path();
-          result.videoUrl = `${BASE_URL}/data/recordings/${runId}/${testId}/${path.basename(videoPath)}`;
-        } catch { /* 녹화 없음 */ }
-      }
-      await browser.close();
-
-      // 최종 결과 반영
-      run.cases = run.cases.map((c) => c.testId === testId ? { ...result } : c);
     }
+  } finally {
+    await browser.close(); // 모든 케이스 완료 후 브라우저 한 번만 종료
   }
 
   cancelledRuns.delete(runId);
