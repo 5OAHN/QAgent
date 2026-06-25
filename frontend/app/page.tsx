@@ -262,23 +262,67 @@ function EmptyState() {
         첫 테스트 생성하기
       </Link>
 
-      <p style={{ fontSize: 12, color: A.inkMuted, marginTop: 16 }}>
-        자연어로 시나리오 작성 또는 엑셀 업로드로 시작
-      </p>
-
-      <div style={{ display: "flex", gap: 10, marginTop: 36 }}>
-        {["로그인 플로우 테스트", "회원가입 시나리오", "결제 프로세스 검증"].map((text, i) => (
-          <div key={i} style={{
-            background: A.canvas, border: `1px solid ${A.hairline}`,
-            borderRadius: 10, padding: "9px 14px",
-            fontSize: 12, color: A.inkMuted, fontWeight: 500,
-            opacity: 0.5 + i * 0.2,
-            transform: `rotate(${(i - 1) * 1.5}deg)`,
-          }}>
-            {text}
-          </div>
-        ))}
+      {/* 템플릿 빠른 시작 */}
+      <div style={{ marginTop: 40, display: "flex", flexDirection: "column", alignItems: "center", gap: 12, width: "100%", maxWidth: 480 }}>
+        <p style={{ fontSize: 11, fontWeight: 600, color: A.inkMuted, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+          템플릿으로 빠르게 시작
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
+          {TEMPLATES.map(({ label, icon, scenario }) => (
+            <Link
+              key={label}
+              href={`/new?scenarios=${encodeURIComponent(scenario)}`}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "12px 16px", borderRadius: 10,
+                background: A.canvas, border: `1px solid ${A.hairline}`,
+                textDecoration: "none", cursor: "pointer",
+                transition: "border-color .12s, background .12s",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = A.blue; e.currentTarget.style.background = "rgba(0,102,204,0.03)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = A.hairline; e.currentTarget.style.background = A.canvas; }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 16 }}>{icon}</span>
+                <span style={{ fontSize: 13, fontWeight: 500, color: A.ink }}>{label}</span>
+              </div>
+              <svg width="14" height="14" fill="none" stroke={A.blue} strokeWidth="1.8" viewBox="0 0 24 24">
+                <path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </Link>
+          ))}
+        </div>
       </div>
     </div>
   );
 }
+
+const TEMPLATES = [
+  {
+    label: "로그인 플로우 테스트",
+    icon: "🔐",
+    scenario: `1. 로그인 페이지로 이동한다
+2. 아이디 입력칸에 테스트 계정을 입력한다
+3. 비밀번호 입력칸에 비밀번호를 입력한다
+4. 로그인 버튼을 클릭한다
+5. 로그인 후 메인 화면이 표시되는지 확인한다`,
+  },
+  {
+    label: "회원가입 시나리오",
+    icon: "✍️",
+    scenario: `1. 회원가입 페이지로 이동한다
+2. 이름, 이메일, 비밀번호를 입력한다
+3. 이용약관 동의 체크박스를 클릭한다
+4. 가입하기 버튼을 클릭한다
+5. 가입 완료 메시지 또는 이메일 인증 안내가 표시되는지 확인한다`,
+  },
+  {
+    label: "결제 프로세스 검증",
+    icon: "💳",
+    scenario: `1. 상품 목록 페이지로 이동한다
+2. 상품을 하나 선택하여 장바구니에 추가한다
+3. 장바구니 페이지로 이동한다
+4. 결제하기 버튼을 클릭한다
+5. 결제 정보 입력 화면이 표시되는지 확인한다`,
+  },
+];
