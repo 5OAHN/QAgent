@@ -641,11 +641,30 @@ function TerminalPanel({ tc, isPaused }: { tc: TestCase | null; isPaused: boolea
               <span style={{ color: C.textLight }}>로그 없음</span>
             )}
             {tc.consoleLogs?.map((log, i) => {
-              const isErr = /error|fail|timeout|못했습니다|실패|오류|찾지 못|찾을 수 없/i.test(log);
+              const isErr = /error|fail|timeout|못했습니다|실패|오류|찾지 못|찾을 수 없|❌/i.test(log);
+              const isPass = /✅/.test(log);
+              const lines = log.split("\n");
               return (
-                <div key={i} style={{ display: "flex", gap: 10, padding: "2px 0", lineHeight: 1.6, background: isErr ? C.redBg : "transparent", borderRadius: isErr ? 4 : 0, paddingLeft: isErr ? 4 : 0 }}>
-                  <span style={{ color: isErr ? C.red : C.textFaint, flexShrink: 0, userSelect: "none" }}>{String(i + 1).padStart(2, "0")}</span>
-                  <span style={{ color: isErr ? C.red : C.textMid }}>{log}</span>
+                <div key={i} style={{
+                  padding: "5px 8px", marginBottom: 2, lineHeight: 1.6,
+                  background: isErr ? C.redBg : isPass ? C.greenBg : i % 2 === 0 ? "#fafafa" : "transparent",
+                  borderRadius: 6,
+                  borderLeft: isErr ? `3px solid ${C.red}` : isPass ? `3px solid ${C.green}` : "3px solid transparent",
+                }}>
+                  {lines.map((line, j) => (
+                    <div key={j} style={{
+                      display: "flex", gap: 10,
+                      paddingLeft: j > 0 ? 8 : 0,
+                    }}>
+                      {j === 0 && <span style={{ color: C.textFaint, flexShrink: 0, userSelect: "none", fontSize: 10, marginTop: 2 }}>{String(i + 1).padStart(2, "0")}</span>}
+                      {j > 0 && <span style={{ width: 18, flexShrink: 0 }} />}
+                      <span style={{
+                        color: isErr ? C.red : isPass ? C.green : j > 0 ? C.textMid : C.text,
+                        fontStyle: j > 0 ? "italic" : "normal",
+                        fontSize: j > 0 ? 11 : 12,
+                      }}>{line}</span>
+                    </div>
+                  ))}
                 </div>
               );
             })}

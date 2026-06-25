@@ -2,8 +2,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import fs from "fs";
 
 // 실패 분석은 빠른 Sonnet, DSL 변환은 정확한 Opus 사용
-const ANALYSIS_MODEL = "claude-haiku-4-5-20251001";
-const CONVERSION_MODEL = "claude-haiku-4-5-20251001";
+const ANALYSIS_MODEL = "claude-haiku-4-5";
+const CONVERSION_MODEL = "claude-haiku-4-5";
 
 function getClient(): Anthropic {
   if (!process.env.ANTHROPIC_API_KEY) {

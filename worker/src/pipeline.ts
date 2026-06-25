@@ -5,7 +5,7 @@ import { chromium } from "playwright";
 import { UIDictionary } from "./parser";
 import { runTest, TestResult } from "./executor";
 import { analyzeFailure } from "./analyzer";
-import { runVisionAgent, analyzeUX } from "./vision-agent";
+import { runVisionAgent } from "./vision-agent";
 
 export interface RunResult {
   runId: string;
@@ -160,6 +160,7 @@ export async function runNaturalLanguagePipeline(
   fs.mkdirSync(screenshotDir, { recursive: true });
 
   const BASE_URL = process.env.WORKER_BASE_URL || "http://localhost:8001";
+  void BASE_URL; // 실패 스크린샷 URL에서만 사용
 
   const control = {
     isCancelled: () => cancelledRuns.has(runId),
@@ -192,12 +193,8 @@ export async function runNaturalLanguagePipeline(
     // 실행 전 Pending 상태로 먼저 노출
     run.cases = [...run.cases.filter((c) => c.testId !== testId), result];
 
-    const recordingDir = path.resolve(`data/recordings/${runId}/${testId}`);
-    fs.mkdirSync(recordingDir, { recursive: true });
-
     const browser = await chromium.launch({ headless: true });
     const context = await browser.newContext({
-      recordVideo: { dir: recordingDir, size: { width: 1280, height: 720 } },
       viewport: { width: 1280, height: 720 },
       ...(sharedStorageState ? { storageState: sharedStorageState } : {}),
     });
@@ -210,15 +207,17 @@ export async function runNaturalLanguagePipeline(
 
       const liveStepLogs: string[] = [];
 
-      const visionResult = await runVisionAgent(page, naturalText, 15, (step) => {
-        liveStepLogs.push(`[Step ${step.stepNum}] ${step.action} ${step.details} — ${step.thought}`);
+      const visionResult = await runVisionAgent(page, naturalText, 20, (step) => {
+        const icon = step.action === "done" ? "✅" : step.action === "failed" ? "❌" : `[${step.stepNum}]`;
+        liveStepLogs.push(`${icon} ${step.action.toUpperCase()} ${step.details}\n    💭 ${step.thought}`);
         result.consoleLogs = [...liveStepLogs];
         run.cases = run.cases.map((c) => c.testId === testId ? { ...result } : c);
       }, control);
 
-      result.consoleLogs = visionResult.steps.map(
-        (s) => `[Step ${s.stepNum}] ${s.action} ${s.details} — ${s.thought}`
-      );
+      result.consoleLogs = visionResult.steps.map((s) => {
+        const icon = s.action === "done" ? "✅" : s.action === "failed" ? "❌" : `[${s.stepNum}]`;
+        return `${icon} ${s.action.toUpperCase()} ${s.details}\n    💭 ${s.thought}`;
+      });
 
       if (visionResult.success) {
         result.status = "Pass";
@@ -237,27 +236,13 @@ export async function runNaturalLanguagePipeline(
         console.log(`\n❌ [${testId}] 실패: ${result.failReason}`);
       }
 
-      // UX 분석 — 중지되지 않은 경우에만
-      if (!control.isCancelled() && visionResult.steps.length > 0) {
-        console.log(`\n💡 [${testId}] UX 분석 중…`);
-        result.suggestions = await analyzeUX(page, naturalText, visionResult.steps);
-        run.cases = run.cases.map((c) => c.testId === testId ? { ...result } : c);
-        console.log(`  → ${result.suggestions.length}개 제안 생성`);
-      }
     } catch (err: any) {
       result.status = "Fail";
       result.failReason = err.message;
       run.failed++;
       console.error(`\n❌ [${testId}] 오류:`, err.message);
     } finally {
-      const video = page.video();
       await context.close();
-      if (video) {
-        try {
-          const videoPath = await video.path();
-          result.videoUrl = `${BASE_URL}/data/recordings/${runId}/${testId}/${path.basename(videoPath)}`;
-        } catch { /* 녹화 없음 */ }
-      }
       await browser.close();
 
       // 최종 결과 반영
@@ -268,6 +253,6 @@ export async function runNaturalLanguagePipeline(
   cancelledRuns.delete(runId);
   pausedRuns.delete(runId);
   run.paused = false;
-  run.status = "completed";
+  run.status = run.total > 0 && run.failed === run.total ? "failed" : "completed";
   return run;
 }

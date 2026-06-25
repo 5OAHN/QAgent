@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { Page } from "playwright";
 import { UXSuggestion } from "./executor";
 
-const VISION_MODEL = "claude-sonnet-4-6";
+const VISION_MODEL = "claude-haiku-4-5";
 
 const SYSTEM_PROMPT = `You are a web automation agent controlling a real browser. You will be shown a screenshot and a task.
 Analyze the screenshot carefully and decide the SINGLE next action to take.
@@ -167,7 +167,7 @@ export interface RunControl {
 export async function runVisionAgent(
   page: Page,
   task: string,
-  maxSteps = 15,
+  maxSteps = 20,
   onStep?: (step: VisionStep) => void,
   control?: RunControl
 ): Promise<VisionResult> {
@@ -187,7 +187,7 @@ export async function runVisionAgent(
       }
     }
 
-    const screenshot = await page.screenshot({ type: "png" });
+    const screenshot = await page.screenshot({ type: "jpeg", quality: 40 });
     const base64 = screenshot.toString("base64");
 
     const historyText = actionHistory.length
@@ -204,7 +204,7 @@ export async function runVisionAgent(
         {
           role: "user",
           content: [
-            { type: "image", source: { type: "base64", media_type: "image/png", data: base64 } },
+            { type: "image", source: { type: "base64", media_type: "image/jpeg", data: base64 } },
             { type: "text", text: `Task: ${task}${historyText}\n\n다음 액션을 결정하세요. 좌표 클릭은 절대 사용하지 마세요.` },
           ],
         },
@@ -236,7 +236,7 @@ export async function runVisionAgent(
       actionHistory[actionHistory.length - 1] += ` [실패: ${err.message}]`;
     }
 
-    await page.waitForTimeout(600);
+    await page.waitForLoadState("networkidle", { timeout: 2000 }).catch(() => {});
   }
 
   return { success: false, steps, failReason: `${maxSteps}단계 내에 완료하지 못했습니다.` };
@@ -268,7 +268,7 @@ async function clickByText(page: Page, input: any): Promise<void> {
   const target: string = input.target || "";
   const method: string = input.method || "text";
   const role: string   = input.role || "button";
-  const TIMEOUT = 5000;
+  const TIMEOUT = 2000;
 
   if (!target) throw new Error("click 액션에 target 텍스트가 없습니다.");
 
