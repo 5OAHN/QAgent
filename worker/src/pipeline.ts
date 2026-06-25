@@ -167,11 +167,13 @@ export async function runNaturalLanguagePipeline(
     isPaused: () => pausedRuns.has(runId),
   };
 
-  // 브라우저는 런 전체에서 하나만 — 컨텍스트(세션)만 케이스별 분리
+  // 브라우저 + 컨텍스트 + 페이지를 런 전체에서 공유 — 세션이 끊기지 않음
   const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+  const page = await context.newPage();
 
-  let sharedStorageState: any;
-  let sharedCurrentUrl: string | undefined;
+  // 첫 페이지 로드
+  await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
 
   try {
     for (let i = 0; i < scenarioList.length; i++) {
@@ -203,16 +205,8 @@ export async function runNaturalLanguagePipeline(
 
       run.cases = [...run.cases.filter((c) => c.testId !== testId), result];
 
-      const context = await browser.newContext({
-        viewport: { width: 1280, height: 720 },
-        ...(sharedStorageState ? { storageState: sharedStorageState } : {}),
-      });
-      const page = await context.newPage();
-
       try {
-        const startUrl = sharedCurrentUrl ?? targetUrl;
-        console.log(`\n🤖 [${testId}] Vision 에이전트 시작 → ${startUrl}`);
-        await page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+        console.log(`\n🤖 [${testId}] Vision 에이전트 시작 → ${page.url()}`);
 
         const liveStepLogs: string[] = [];
 
@@ -231,10 +225,8 @@ export async function runNaturalLanguagePipeline(
         if (visionResult.success) {
           result.status = "Pass";
           if (visionResult.summary) result.consoleLogs.push(`✅ ${visionResult.summary}`);
-          sharedStorageState = await context.storageState();
-          sharedCurrentUrl = page.url();
           run.passed++;
-          console.log(`\n✅ [${testId}] 완료`);
+          console.log(`\n✅ [${testId}] 완료 (현재 URL: ${page.url()})`);
         } else {
           result.status = "Fail";
           result.failReason = visionResult.failReason || "알 수 없는 오류";
@@ -250,11 +242,11 @@ export async function runNaturalLanguagePipeline(
         run.failed++;
         console.error(`\n❌ [${testId}] 오류:`, err.message);
       } finally {
-        await context.close();
         run.cases = run.cases.map((c) => c.testId === testId ? { ...result } : c);
       }
     }
   } finally {
+    await context.close();
     await browser.close();
   }
 
