@@ -117,7 +117,7 @@ export default function GlobalNav() {
           href="/new"
           title={collapsed ? "새 테스트" : undefined}
           style={{
-            display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "flex-start",
+            display: "flex", alignItems: "center", justifyContent: "center",
             gap: 7,
             padding: collapsed ? "9px" : "9px 12px",
             borderRadius: 8,
