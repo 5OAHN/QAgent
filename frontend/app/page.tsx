@@ -71,25 +71,7 @@ export default function HomePage() {
           <span style={{ fontSize: 12, color: "#4338ca", fontWeight: 600 }}>대시보드</span>
         </div>
 
-        {/* 새 테스트 버튼 */}
-        <Link
-          href="/new"
-          style={{
-            display: "inline-flex", alignItems: "center", gap: 6,
-            padding: "7px 16px", borderRadius: 8,
-            background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
-            color: "#fff", fontSize: 13, fontWeight: 600, textDecoration: "none",
-            boxShadow: "0 2px 10px rgba(99,102,241,0.3)",
-            transition: "opacity .15s",
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.88")}
-          onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
-        >
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
-          </svg>
-          새 테스트
-        </Link>
+        <div />
       </header>
 
       {/* ── 메인 컨텐츠 ─────────────────────────────────────────── */}

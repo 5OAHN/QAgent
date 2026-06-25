@@ -16,15 +16,6 @@ const NAV_ITEMS = [
     ),
   },
   {
-    label: "새 테스트",
-    href: "/new",
-    icon: (
-      <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-        <path d="M12 5v14M5 12h14" strokeLinecap="round"/>
-      </svg>
-    ),
-  },
-  {
     label: "테스트 이력",
     href: "/history",
     icon: (
@@ -67,13 +58,13 @@ export default function GlobalNav() {
         display: "flex",
         flexDirection: "column",
         transition: "width 0.22s cubic-bezier(0.4,0,0.2,1)",
-        overflow: "hidden",
+        overflow: "visible",
         background: "#ffffff",
         borderRight: "1px solid #e0e0e0",
         zIndex: 10,
       }}
     >
-      {/* 로고 + 토글 버튼 */}
+      {/* 로고 + 접기 버튼 */}
       <div style={{
         padding: collapsed ? "14px 0" : "14px 16px",
         borderBottom: "1px solid #f0f0f0",
@@ -82,8 +73,9 @@ export default function GlobalNav() {
         justifyContent: collapsed ? "center" : "space-between",
         flexShrink: 0,
         height: 56,
+        position: "relative",
+        overflow: "hidden",
       }}>
-        {/* 로고 마크 */}
         <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0, overflow: "hidden" }}>
           <div style={{
             width: 28, height: 28, borderRadius: 8, flexShrink: 0,
@@ -100,45 +92,56 @@ export default function GlobalNav() {
           )}
         </div>
 
-        {/* 접기/펼치기 버튼 */}
         {!collapsed && (
           <button
             onClick={() => setCollapsed(true)}
-            title="사이드바 접기"
+            title="접기"
             style={{
               width: 24, height: 24, borderRadius: 6, border: "1px solid #e0e0e0",
               background: "transparent", display: "flex", alignItems: "center", justifyContent: "center",
               cursor: "pointer", color: "#6b7280", flexShrink: 0,
             }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "#f5f5f7"; e.currentTarget.style.color = "#1d1d1f"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#6b7280"; }}
           >
             <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 12 12">
               <path d="M8 2L4 6l4 4" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </button>
         )}
+      </div>
 
-        {collapsed && (
-          <button
-            onClick={() => setCollapsed(false)}
-            title="사이드바 펼치기"
-            style={{
-              position: "absolute", right: -12, top: 20,
-              width: 22, height: 22, borderRadius: "50%",
-              background: "#ffffff", border: "1px solid #e0e0e0",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              cursor: "pointer", color: "#6b7280",
-              zIndex: 20,
-            }}
-          >
-            <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 12 12">
-              <path d="M4 2l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
-        )}
+      {/* 새 테스트 버튼 */}
+      <div style={{ padding: collapsed ? "10px 8px" : "10px 10px", borderBottom: "1px solid #f0f0f0", flexShrink: 0 }}>
+        <Link
+          href="/new"
+          title={collapsed ? "새 테스트" : undefined}
+          style={{
+            display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "flex-start",
+            gap: 7,
+            padding: collapsed ? "9px" : "9px 12px",
+            borderRadius: 8,
+            background: "#0066cc",
+            color: "#ffffff",
+            textDecoration: "none",
+            fontSize: 14,
+            fontWeight: 600,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            transition: "background .12s",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "#0055b3"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "#0066cc"; }}
+        >
+          <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+            <path d="M12 5v14M5 12h14" strokeLinecap="round"/>
+          </svg>
+          {!collapsed && "새 테스트"}
+        </Link>
       </div>
 
       {/* 메뉴 */}
-      <nav style={{ flex: 1, padding: collapsed ? "10px 6px" : "10px 10px", display: "flex", flexDirection: "column", gap: 2, overflowY: "auto" }}>
+      <nav style={{ flex: 1, padding: collapsed ? "10px 6px" : "10px 10px", display: "flex", flexDirection: "column", gap: 2, overflowY: "auto", overflowX: "hidden" }}>
         {NAV_ITEMS.map(({ label, href, icon }) => {
           const active = isActive(href);
           return (
@@ -171,6 +174,29 @@ export default function GlobalNav() {
           );
         })}
       </nav>
+
+      {/* 펼치기 버튼 (접힌 상태) */}
+      {collapsed && (
+        <button
+          onClick={() => setCollapsed(false)}
+          title="펼치기"
+          style={{
+            position: "absolute", right: -16, top: 16,
+            width: 32, height: 32, borderRadius: "50%",
+            background: "#0066cc", border: "none",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer", color: "#ffffff",
+            boxShadow: "0 2px 8px rgba(0,102,204,0.35)",
+            zIndex: 20,
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "#0055b3"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "#0066cc"; }}
+        >
+          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 12 12">
+            <path d="M4 2l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
+      )}
 
       {/* 하단 프로필 */}
       <div style={{ padding: collapsed ? "10px 6px" : "10px 10px", borderTop: "1px solid #f0f0f0", flexShrink: 0 }}>
