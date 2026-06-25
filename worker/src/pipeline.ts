@@ -167,87 +167,95 @@ export async function runNaturalLanguagePipeline(
     isPaused: () => pausedRuns.has(runId),
   };
 
-  // 케이스별 순차 실행
+  // 브라우저는 런 전체에서 하나만 — 컨텍스트(세션)만 케이스별 분리
+  const browser = await chromium.launch({ headless: true });
+
   let sharedStorageState: any;
   let sharedCurrentUrl: string | undefined;
-  for (let i = 0; i < scenarioList.length; i++) {
-    // 케이스 시작 전 중지 확인
-    if (control.isCancelled()) {
-      console.log(`\n🛑 [${runId}] 중지됨 — 남은 케이스 건너뜀`);
-      break;
-    }
-    const naturalText = scenarioList[i];
-    const testId = `V-${String(i + 1).padStart(3, "0")}`;
 
-    const result: TestResult = {
-      testId,
-      feature: "Vision 에이전트",
-      scenario: naturalText.slice(0, 80),
-      status: "Pending",
-      failReason: "",
-      videoUrl: "",
-      screenshotUrl: "",
-      consoleLogs: [],
-    };
-
-    // 실행 전 Pending 상태로 먼저 노출
-    run.cases = [...run.cases.filter((c) => c.testId !== testId), result];
-
-    const browser = await chromium.launch({ headless: true });
-    const context = await browser.newContext({
-      viewport: { width: 1280, height: 720 },
-      ...(sharedStorageState ? { storageState: sharedStorageState } : {}),
-    });
-    const page = await context.newPage();
-
-    try {
-      const startUrl = sharedCurrentUrl ?? targetUrl;
-      console.log(`\n🤖 [${testId}] Vision 에이전트 시작 → ${startUrl}`);
-      await page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
-
-      const liveStepLogs: string[] = [];
-
-      const visionResult = await runVisionAgent(page, naturalText, 20, (step) => {
-        const icon = step.action === "done" ? "✅" : step.action === "failed" ? "❌" : `[${step.stepNum}]`;
-        liveStepLogs.push(`${icon} ${step.action.toUpperCase()} ${step.details}\n    💭 ${step.thought}`);
-        result.consoleLogs = [...liveStepLogs];
-        run.cases = run.cases.map((c) => c.testId === testId ? { ...result } : c);
-      }, control);
-
-      result.consoleLogs = visionResult.steps.map((s) => {
-        const icon = s.action === "done" ? "✅" : s.action === "failed" ? "❌" : `[${s.stepNum}]`;
-        return `${icon} ${s.action.toUpperCase()} ${s.details}\n    💭 ${s.thought}`;
-      });
-
-      if (visionResult.success) {
-        result.status = "Pass";
-        if (visionResult.summary) result.consoleLogs.push(`✅ ${visionResult.summary}`);
-        sharedStorageState = await context.storageState();
-        sharedCurrentUrl = page.url();
-        run.passed++;
-        console.log(`\n✅ [${testId}] 완료`);
-      } else {
-        result.status = "Fail";
-        result.failReason = visionResult.failReason || "알 수 없는 오류";
-        const shotPath = path.join(screenshotDir, `${runId}_${testId}_fail.png`);
-        await page.screenshot({ path: shotPath, fullPage: true });
-        result.screenshotUrl = `${BASE_URL}/data/screenshots/${runId}_${testId}_fail.png`;
-        run.failed++;
-        console.log(`\n❌ [${testId}] 실패: ${result.failReason}`);
+  try {
+    for (let i = 0; i < scenarioList.length; i++) {
+      if (control.isCancelled()) {
+        console.log(`\n🛑 [${runId}] 중지됨 — 남은 케이스 건너뜀`);
+        break;
       }
 
-    } catch (err: any) {
-      result.status = "Fail";
-      result.failReason = err.message;
-      run.failed++;
-      console.error(`\n❌ [${testId}] 오류:`, err.message);
-    } finally {
-      await context.close();
-      await browser.close();
+      // 일시정지 대기
+      while (control.isPaused()) {
+        await new Promise((r) => setTimeout(r, 1000));
+        if (control.isCancelled()) break;
+      }
+      if (control.isCancelled()) break;
 
-      // 최종 결과 반영
-      run.cases = run.cases.map((c) => c.testId === testId ? { ...result } : c);
+      const naturalText = scenarioList[i];
+      const testId = `V-${String(i + 1).padStart(3, "0")}`;
+
+      const result: TestResult = {
+        testId,
+        feature: "Vision 에이전트",
+        scenario: naturalText.slice(0, 80),
+        status: "Pending",
+        failReason: "",
+        videoUrl: "",
+        screenshotUrl: "",
+        consoleLogs: [],
+      };
+
+      run.cases = [...run.cases.filter((c) => c.testId !== testId), result];
+
+      const context = await browser.newContext({
+        viewport: { width: 1280, height: 720 },
+        ...(sharedStorageState ? { storageState: sharedStorageState } : {}),
+      });
+      const page = await context.newPage();
+
+      try {
+        const startUrl = sharedCurrentUrl ?? targetUrl;
+        console.log(`\n🤖 [${testId}] Vision 에이전트 시작 → ${startUrl}`);
+        await page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+
+        const liveStepLogs: string[] = [];
+
+        const visionResult = await runVisionAgent(page, naturalText, 20, (step) => {
+          const icon = step.action === "done" ? "✅" : step.action === "failed" ? "❌" : `[${step.stepNum}]`;
+          liveStepLogs.push(`${icon} ${step.action.toUpperCase()} ${step.details}\n    💭 ${step.thought}`);
+          result.consoleLogs = [...liveStepLogs];
+          run.cases = run.cases.map((c) => c.testId === testId ? { ...result } : c);
+        }, control);
+
+        result.consoleLogs = visionResult.steps.map((s) => {
+          const icon = s.action === "done" ? "✅" : s.action === "failed" ? "❌" : `[${s.stepNum}]`;
+          return `${icon} ${s.action.toUpperCase()} ${s.details}\n    💭 ${s.thought}`;
+        });
+
+        if (visionResult.success) {
+          result.status = "Pass";
+          if (visionResult.summary) result.consoleLogs.push(`✅ ${visionResult.summary}`);
+          sharedStorageState = await context.storageState();
+          sharedCurrentUrl = page.url();
+          run.passed++;
+          console.log(`\n✅ [${testId}] 완료`);
+        } else {
+          result.status = "Fail";
+          result.failReason = visionResult.failReason || "알 수 없는 오류";
+          const shotPath = path.join(screenshotDir, `${runId}_${testId}_fail.png`);
+          await page.screenshot({ path: shotPath, fullPage: true });
+          result.screenshotUrl = `${BASE_URL}/data/screenshots/${runId}_${testId}_fail.png`;
+          run.failed++;
+          console.log(`\n❌ [${testId}] 실패: ${result.failReason}`);
+        }
+      } catch (err: any) {
+        result.status = "Fail";
+        result.failReason = err.message;
+        run.failed++;
+        console.error(`\n❌ [${testId}] 오류:`, err.message);
+      } finally {
+        await context.close();
+        run.cases = run.cases.map((c) => c.testId === testId ? { ...result } : c);
+      }
     }
+  } finally {
+    await browser.close();
   }
 
   cancelledRuns.delete(runId);
