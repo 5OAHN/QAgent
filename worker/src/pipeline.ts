@@ -225,6 +225,9 @@ export async function runNaturalLanguagePipeline(
         if (visionResult.success) {
           result.status = "Pass";
           if (visionResult.summary) result.consoleLogs.push(`✅ ${visionResult.summary}`);
+          const shotPath = path.join(screenshotDir, `${runId}_${testId}_pass.png`);
+          await page.screenshot({ path: shotPath, fullPage: true });
+          result.screenshotUrl = `${BASE_URL}/data/screenshots/${runId}_${testId}_pass.png`;
           run.passed++;
           console.log(`\n✅ [${testId}] 완료 (현재 URL: ${page.url()})`);
         } else {
