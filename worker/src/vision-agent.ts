@@ -120,7 +120,7 @@ export async function analyzeUX(
   page: Page,
   task: string,
   steps: VisionStep[]
-): Promise<UXSuggestion[]> {
+): Promise<{ area: string; issue: string; suggestion: string }[]> {
   const client = new Anthropic();
   const screenshot = await page.screenshot({ type: "png" });
   const base64 = screenshot.toString("base64");
