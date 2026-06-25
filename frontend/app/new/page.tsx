@@ -4,7 +4,7 @@ import { useState, useRef, DragEvent, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
-type Mode = "excel" | "natural";
+type Mode = "natural" | "excel";
 interface ScenarioCard { id: number; text: string; }
 
 const CARD_PLACEHOLDER = `테스트 시나리오를 자유롭게 작성하세요.
@@ -19,17 +19,30 @@ const CARD_PLACEHOLDER = `테스트 시나리오를 자유롭게 작성하세요
 const EXECUTOR_CHIPS = ["기획", "디자인", "프론트엔드", "백엔드", "QA"];
 let nextId = 2;
 
-/* ─── 공통 스타일 ─────────────────────────────────────────────── */
+/* ─── Apple design tokens ───────────────────────────────────────── */
+const A = {
+  blue:      "#0066cc",
+  blueDark:  "#0055b3",
+  blueFocus: "#0071e3",
+  ink:       "#1d1d1f",
+  inkMuted:  "#6b7280",
+  hairline:  "#e0e0e0",
+  divider:   "#f0f0f0",
+  canvas:    "#ffffff",
+  parchment: "#f5f5f7",
+};
+
 const inputStyle: React.CSSProperties = {
   width: "100%",
   borderRadius: 10,
-  border: "1px solid rgba(209,213,219,0.8)",
-  background: "rgba(255,255,255,0.75)",
+  border: `1px solid ${A.hairline}`,
+  background: A.canvas,
   padding: "10px 14px",
   fontSize: 14,
-  color: "#111827",
+  color: A.ink,
   outline: "none",
   transition: "border-color .15s, box-shadow .15s",
+  boxSizing: "border-box",
 };
 
 export default function NewPage() {
@@ -102,47 +115,41 @@ function NewTestForm() {
 
   return (
     <>
-      {/* 상단 헤더 (글래스) */}
+      {/* 헤더 */}
       <header style={{
-        background: "rgba(255,255,255,0.45)",
-        backdropFilter: "blur(20px)",
-        WebkitBackdropFilter: "blur(20px)",
-        borderBottom: "1px solid rgba(255,255,255,0.6)",
+        background: A.canvas,
+        borderBottom: `1px solid ${A.divider}`,
         padding: "0 28px",
         height: 54,
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
         flexShrink: 0,
-        boxShadow: "0 4px 20px rgba(99,102,241,0.06)",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: 12, color: "#a5b4fc", fontWeight: 500 }}>QAgent</span>
-          <span style={{ fontSize: 12, color: "#d1d5db" }}>/</span>
-          <span style={{ fontSize: 12, color: "#4338ca", fontWeight: 600 }}>새 테스트</span>
+          <span style={{ fontSize: 12, color: A.inkMuted, fontWeight: 500 }}>QAgent</span>
+          <span style={{ fontSize: 12, color: A.hairline }}>/</span>
+          <span style={{ fontSize: 12, color: A.blue, fontWeight: 600 }}>새 테스트</span>
         </div>
-        <Link href="/dashboard/demo" style={{ fontSize: 12, color: "#9ca3af", textDecoration: "none" }}>UI 미리보기 →</Link>
+        <Link href="/dashboard/demo" style={{ fontSize: 12, color: A.inkMuted, textDecoration: "none" }}>UI 미리보기 →</Link>
       </header>
 
-      {/* 폼 영역 */}
-      <main style={{ flex: 1, overflowY: "auto", display: "flex", justifyContent: "center", alignItems: "flex-start", padding: "36px 24px" }}>
+      {/* 폼 */}
+      <main style={{ flex: 1, overflowY: "auto", display: "flex", justifyContent: "center", alignItems: "flex-start", padding: "36px 24px", background: A.parchment }}>
         <div style={{ width: "100%", maxWidth: 520, display: "flex", flexDirection: "column", gap: 18 }}>
 
           {/* 제목 */}
           <div style={{ textAlign: "center", marginBottom: 4 }}>
-            <h1 style={{ fontSize: 28, fontWeight: 700, color: "#1e1b4b", letterSpacing: "-1px", marginBottom: 6 }}>새 테스트 실행</h1>
-            <p style={{ fontSize: 13, color: "#9ca3af" }}>AI가 화면을 보며 시나리오를 자동으로 수행합니다</p>
+            <h1 style={{ fontSize: 28, fontWeight: 600, color: A.ink, letterSpacing: "-0.5px", marginBottom: 6 }}>새 테스트 실행</h1>
+            <p style={{ fontSize: 13, color: A.inkMuted }}>AI가 화면을 보며 시나리오를 자동으로 수행합니다</p>
           </div>
 
           {/* 폼 카드 */}
           <div style={{
-            background: "rgba(255,255,255,0.75)",
-            backdropFilter: "blur(16px)",
-            WebkitBackdropFilter: "blur(16px)",
-            border: "1px solid rgba(255,255,255,0.8)",
+            background: A.canvas,
+            border: `1px solid ${A.hairline}`,
             borderRadius: 18,
-            boxShadow: "0 8px 40px rgba(99,102,241,0.10)",
-            padding: "28px 28px",
+            padding: "28px",
             display: "flex",
             flexDirection: "column",
             gap: 20,
@@ -150,15 +157,15 @@ function NewTestForm() {
 
             {/* ① URL */}
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", letterSpacing: "0.08em", textTransform: "uppercase" }}>테스트 대상 URL</label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: A.inkMuted, letterSpacing: "0.08em", textTransform: "uppercase" }}>테스트 대상 URL</label>
               <div style={{ position: "relative" }}>
                 <input
                   type="url" value={targetUrl}
                   onChange={(e) => { setTargetUrl(e.target.value); setError(""); }}
                   placeholder="https://your-service.com"
                   style={{ ...inputStyle, paddingRight: 40 }}
-                  onFocus={(e) => { e.target.style.borderColor = "#818cf8"; e.target.style.boxShadow = "0 0 0 3px rgba(99,102,241,0.1)"; }}
-                  onBlur={(e) => { e.target.style.borderColor = "rgba(209,213,219,0.8)"; e.target.style.boxShadow = "none"; }}
+                  onFocus={(e) => { e.target.style.borderColor = A.blue; e.target.style.boxShadow = `0 0 0 3px rgba(0,102,204,0.1)`; }}
+                  onBlur={(e) => { e.target.style.borderColor = A.hairline; e.target.style.boxShadow = "none"; }}
                 />
                 {/^https?:\/\/.+\..+/.test(targetUrl.trim()) && (
                   <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "#16a34a" }}>
@@ -173,20 +180,20 @@ function NewTestForm() {
 
             {/* ② 시나리오 */}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", letterSpacing: "0.08em", textTransform: "uppercase" }}>테스트 시나리오</label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: A.inkMuted, letterSpacing: "0.08em", textTransform: "uppercase" }}>테스트 시나리오</label>
 
-              {/* 모드 탭 */}
-              <div style={{ display: "flex", gap: 4, background: "rgba(241,243,249,0.8)", borderRadius: 10, padding: 4, border: "1px solid rgba(229,231,235,0.6)" }}>
-                {(["excel", "natural"] as Mode[]).map((m) => (
+              {/* 모드 탭 — 자연어 입력이 첫 번째 */}
+              <div style={{ display: "flex", gap: 4, background: A.parchment, borderRadius: 10, padding: 4, border: `1px solid ${A.hairline}` }}>
+                {(["natural", "excel"] as Mode[]).map((m) => (
                   <button key={m} onClick={() => { setMode(m); setError(""); }}
                     style={{
                       flex: 1, padding: "8px 14px", borderRadius: 8, fontSize: 13, fontWeight: 500,
                       border: "none", cursor: "pointer", transition: "all .15s",
-                      background: mode === m ? "#fff" : "transparent",
-                      color: mode === m ? "#4338ca" : "#9ca3af",
-                      boxShadow: mode === m ? "0 1px 6px rgba(99,102,241,0.12)" : "none",
+                      background: mode === m ? A.canvas : "transparent",
+                      color: mode === m ? A.blue : A.inkMuted,
+                      boxShadow: mode === m ? `0 1px 4px rgba(0,0,0,0.08)` : "none",
                     }}>
-                    {m === "excel" ? "엑셀 업로드" : "자연어 입력"}
+                    {m === "natural" ? "자연어 입력" : "엑셀 업로드"}
                   </button>
                 ))}
               </div>
@@ -199,23 +206,23 @@ function NewTestForm() {
                   onDragLeave={() => setIsDragging(false)}
                   onDrop={onDrop}
                   style={{
-                    cursor: "pointer", borderRadius: 14, padding: "36px 24px", textAlign: "center",
-                    border: `2px dashed ${isDragging ? "#818cf8" : "rgba(209,213,219,0.7)"}`,
-                    background: isDragging ? "rgba(238,242,255,0.6)" : "rgba(249,250,251,0.5)",
+                    cursor: "pointer", borderRadius: 12, padding: "36px 24px", textAlign: "center",
+                    border: `2px dashed ${isDragging ? A.blue : A.hairline}`,
+                    background: isDragging ? "rgba(0,102,204,0.04)" : A.parchment,
                     transition: "all .15s",
                   }}
                 >
                   <input ref={fileRef} type="file" accept=".xlsx" style={{ display: "none" }} onChange={(e) => { setFile(e.target.files?.[0] || null); setError(""); }} />
                   {file ? (
                     <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "center" }}>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>{file.name}</p>
-                      <p style={{ fontSize: 12, color: "#9ca3af" }}>{(file.size / 1024).toFixed(1)} KB</p>
-                      <button onClick={(e) => { e.stopPropagation(); setFile(null); }} style={{ marginTop: 6, fontSize: 12, color: "#6366f1", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>파일 변경</button>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: A.ink }}>{file.name}</p>
+                      <p style={{ fontSize: 12, color: A.inkMuted }}>{(file.size / 1024).toFixed(1)} KB</p>
+                      <button onClick={(e) => { e.stopPropagation(); setFile(null); }} style={{ marginTop: 6, fontSize: 12, color: A.blue, background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>파일 변경</button>
                     </div>
                   ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "center" }}>
-                      <div style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(238,242,255,0.8)", border: "1px solid rgba(199,210,254,0.6)", display: "flex", alignItems: "center", justifyContent: "center", color: "#818cf8" }}>↑</div>
-                      <p style={{ fontSize: 13, color: "#6b7280" }}>xlsx 파일을 드래그하거나 클릭해서 업로드</p>
+                      <div style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(0,102,204,0.08)", border: `1px solid rgba(0,102,204,0.15)`, display: "flex", alignItems: "center", justifyContent: "center", color: A.blue }}>↑</div>
+                      <p style={{ fontSize: 13, color: A.inkMuted }}>xlsx 파일을 드래그하거나 클릭해서 업로드</p>
                       <p style={{ fontSize: 11, color: "#9ca3af" }}>컬럼: 구분 · 테스트ID · 기능 · 시나리오 · 전제조건 · 입력값/동작 · 기대결과</p>
                     </div>
                   )}
@@ -226,36 +233,36 @@ function NewTestForm() {
               {mode === "natural" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {cards.map((card, idx) => (
-                    <div key={card.id} style={{ borderRadius: 12, border: "1px solid rgba(209,213,219,0.7)", background: "rgba(255,255,255,0.7)", overflow: "hidden", transition: "border-color .15s" }}
-                      onFocusCapture={(e) => e.currentTarget.style.borderColor = "#818cf8"}
-                      onBlurCapture={(e) => e.currentTarget.style.borderColor = "rgba(209,213,219,0.7)"}
+                    <div key={card.id} style={{ borderRadius: 10, border: `1px solid ${A.hairline}`, background: A.canvas, overflow: "hidden", transition: "border-color .15s" }}
+                      onFocusCapture={(e) => e.currentTarget.style.borderColor = A.blue}
+                      onBlurCapture={(e) => e.currentTarget.style.borderColor = A.hairline}
                     >
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 14px 4px" }}>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: "#9ca3af" }}>케이스 {idx + 1}</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: A.inkMuted }}>케이스 {idx + 1}</span>
                         {cards.length > 1 && (
-                          <button onClick={() => removeCard(card.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 2 }}
+                          <button onClick={() => removeCard(card.id)} style={{ background: "none", border: "none", cursor: "pointer", color: A.hairline, padding: 2 }}
                             onMouseEnter={(e) => (e.currentTarget.style.color = "#ef4444")}
-                            onMouseLeave={(e) => (e.currentTarget.style.color = "#d1d5db")}
+                            onMouseLeave={(e) => (e.currentTarget.style.color = A.hairline)}
                           >
                             <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3.5h10M5.5 3.5V2.5a.5.5 0 01.5-.5h2a.5.5 0 01.5.5v1M5.5 6v4M8.5 6v4M3 3.5l.7 7.2a.5.5 0 00.5.3h5.6a.5.5 0 00.5-.3L11 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                           </button>
                         )}
                       </div>
                       <textarea value={card.text} onChange={(e) => updateCard(card.id, e.target.value)} placeholder={CARD_PLACEHOLDER} rows={6}
-                        style={{ width: "100%", resize: "none", background: "transparent", padding: "4px 14px 12px", fontSize: 13, color: "#111827", outline: "none", border: "none" }} />
+                        style={{ width: "100%", resize: "none", background: "transparent", padding: "4px 14px 12px", fontSize: 13, color: A.ink, outline: "none", border: "none", boxSizing: "border-box" }} />
                     </div>
                   ))}
                   <button onClick={addCard} style={{
-                    width: "100%", borderRadius: 12, padding: "11px", fontSize: 13, color: "#818cf8", fontWeight: 500,
-                    border: "1.5px dashed rgba(129,140,248,0.4)", background: "transparent", cursor: "pointer", transition: "all .15s",
+                    width: "100%", borderRadius: 10, padding: "11px", fontSize: 13, color: A.blue, fontWeight: 500,
+                    border: `1.5px dashed rgba(0,102,204,0.3)`, background: "transparent", cursor: "pointer", transition: "all .15s",
                   }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(238,242,255,0.5)"; e.currentTarget.style.borderColor = "#818cf8"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "rgba(129,140,248,0.4)"; }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(0,102,204,0.04)"; e.currentTarget.style.borderColor = A.blue; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "rgba(0,102,204,0.3)"; }}
                   >
                     + 테스트 케이스 추가
                   </button>
-                  <p style={{ fontSize: 11, color: "#9ca3af", display: "flex", gap: 5, alignItems: "flex-start" }}>
-                    <span style={{ color: "#818cf8", flexShrink: 0, marginTop: 1 }}>i</span>
+                  <p style={{ fontSize: 11, color: A.inkMuted, display: "flex", gap: 5, alignItems: "flex-start" }}>
+                    <span style={{ color: A.blue, flexShrink: 0, marginTop: 1 }}>i</span>
                     각 카드는 독립된 테스트 케이스로 실행됩니다. Claude가 화면을 보며 직접 조작합니다.
                   </p>
                 </div>
@@ -264,23 +271,23 @@ function NewTestForm() {
 
             {/* ③ 실행자 */}
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", letterSpacing: "0.08em", textTransform: "uppercase" }}>실행자 정보</label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: A.inkMuted, letterSpacing: "0.08em", textTransform: "uppercase" }}>실행자 정보</label>
               <input
                 type="text" value={executor}
                 onChange={(e) => setExecutor(e.target.value)}
                 placeholder="담당자 이름 또는 직무"
                 style={inputStyle}
-                onFocus={(e) => { e.target.style.borderColor = "#818cf8"; e.target.style.boxShadow = "0 0 0 3px rgba(99,102,241,0.1)"; }}
-                onBlur={(e) => { e.target.style.borderColor = "rgba(209,213,219,0.8)"; e.target.style.boxShadow = "none"; }}
+                onFocus={(e) => { e.target.style.borderColor = A.blue; e.target.style.boxShadow = `0 0 0 3px rgba(0,102,204,0.1)`; }}
+                onBlur={(e) => { e.target.style.borderColor = A.hairline; e.target.style.boxShadow = "none"; }}
               />
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {EXECUTOR_CHIPS.map((chip) => (
                   <button key={chip} onClick={() => setExecutor((prev) => prev === chip ? "" : chip)}
                     style={{
                       borderRadius: 99, padding: "4px 12px", fontSize: 12, fontWeight: 500, cursor: "pointer",
-                      border: executor === chip ? "1.5px solid #818cf8" : "1px solid rgba(209,213,219,0.8)",
-                      background: executor === chip ? "rgba(238,242,255,0.9)" : "rgba(255,255,255,0.6)",
-                      color: executor === chip ? "#4338ca" : "#6b7280",
+                      border: executor === chip ? `1.5px solid ${A.blue}` : `1px solid ${A.hairline}`,
+                      background: executor === chip ? "rgba(0,102,204,0.06)" : A.canvas,
+                      color: executor === chip ? A.blue : A.inkMuted,
                       transition: "all .12s",
                     }}>
                     {chip}
@@ -289,9 +296,9 @@ function NewTestForm() {
               </div>
             </div>
 
-            {/* 오류 메시지 */}
+            {/* 오류 */}
             {error && (
-              <div style={{ borderRadius: 10, background: "rgba(254,242,242,0.9)", border: "1px solid #fecaca", padding: "10px 14px", fontSize: 13, color: "#dc2626" }}>
+              <div style={{ borderRadius: 10, background: "#fff5f5", border: "1px solid #fecaca", padding: "10px 14px", fontSize: 13, color: "#dc2626" }}>
                 {error}
               </div>
             )}
@@ -302,17 +309,14 @@ function NewTestForm() {
               disabled={!isReady || isLoading}
               style={{
                 width: "100%", borderRadius: 12, padding: "13px",
-                fontSize: 14, fontWeight: 700, letterSpacing: "-0.2px",
+                fontSize: 14, fontWeight: 600, letterSpacing: "-0.2px",
                 border: "none", cursor: isReady && !isLoading ? "pointer" : "not-allowed",
-                background: isReady && !isLoading
-                  ? "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)"
-                  : "rgba(209,213,219,0.5)",
-                color: isReady && !isLoading ? "#fff" : "#9ca3af",
-                boxShadow: isReady && !isLoading ? "0 4px 16px rgba(99,102,241,0.3)" : "none",
-                transition: "all .15s",
+                background: isReady && !isLoading ? A.blue : A.parchment,
+                color: isReady && !isLoading ? "#fff" : A.inkMuted,
+                transition: "background .15s",
               }}
-              onMouseEnter={(e) => { if (isReady && !isLoading) e.currentTarget.style.opacity = "0.9"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
+              onMouseEnter={(e) => { if (isReady && !isLoading) e.currentTarget.style.background = A.blueDark; }}
+              onMouseLeave={(e) => { if (isReady && !isLoading) e.currentTarget.style.background = A.blue; }}
             >
               {isLoading
                 ? "실행 중…"
