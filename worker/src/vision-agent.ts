@@ -1,6 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { Page } from "playwright";
-import { UXSuggestion } from "./executor";
 
 const VISION_MODEL = "claude-haiku-4-5";
 
