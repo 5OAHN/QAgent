@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 
@@ -34,30 +34,36 @@ const card: React.CSSProperties = {
   borderRadius: 14,
 };
 
-export default function HomePage() {
-  const router = useRouter();
+type Period = "today" | "7d" | "30d" | "all";
+const PERIODS: { key: Period; label: string }[] = [
+  { key: "today", label: "오늘" },
+  { key: "7d",    label: "7일" },
+  { key: "30d",   label: "30일" },
+  { key: "all",   label: "전체" },
+];
 
-  const { data: runs = [], isLoading, mutate } = useSWR<RunSummary[]>(
+function filterByPeriod(runs: RunSummary[], period: Period): RunSummary[] {
+  if (period === "all") return runs;
+  const now = Date.now();
+  const ranges: Record<Exclude<Period, "all">, number> = {
+    today: 1000 * 60 * 60 * 24,
+    "7d":  1000 * 60 * 60 * 24 * 7,
+    "30d": 1000 * 60 * 60 * 24 * 30,
+  };
+  const cutoff = now - ranges[period];
+  return runs.filter((r) => new Date(r.createdAt).getTime() >= cutoff);
+}
+
+export default function HomePage() {
+  const [period, setPeriod] = useState<Period>("all");
+
+  const { data: runs = [], isLoading } = useSWR<RunSummary[]>(
     "/api/history",
     fetcher,
     { refreshInterval: 5000 }
   );
 
-  const handleDelete = async (runId: string) => {
-    if (!confirm("이 테스트 이력을 삭제하시겠습니까? 되돌릴 수 없습니다.")) return;
-    mutate((prev) => (prev ?? []).filter((r) => r.runId !== runId), { revalidate: false });
-    try {
-      const res = await fetch(`/api/run/${runId}`, { method: "DELETE" });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        alert(data.error || "삭제에 실패했습니다.");
-        mutate();
-      }
-    } catch {
-      alert("Worker에 연결할 수 없습니다.");
-      mutate();
-    }
-  };
+  const filteredRuns = filterByPeriod(runs, period);
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -85,45 +91,34 @@ export default function HomePage() {
       <main style={{ flex: 1, padding: "28px", overflowY: "auto", background: A.parchment }}>
         {isLoading ? (
           <LoadingState />
+        ) : runs.length === 0 ? (
+          <EmptyState />
         ) : (
           <>
-            {/* 통계 카드 — 데이터 유무와 상관없이 항상 노출 */}
-            <StatsRow runs={runs} />
+            {/* 기간 선택 */}
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14 }}>
+              <div style={{ display: "flex", gap: 4, background: A.canvas, borderRadius: 9, padding: 4, border: `1px solid ${A.hairline}` }}>
+                {PERIODS.map(({ key, label }) => (
+                  <button key={key} onClick={() => setPeriod(key)}
+                    style={{
+                      padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 500,
+                      border: "none", cursor: "pointer", transition: "all .15s",
+                      background: period === key ? A.blue : "transparent",
+                      color: period === key ? "#fff" : A.inkMuted,
+                    }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-            {runs.length === 0 ? (
-              <EmptyState />
-            ) : (
-              <>
-                {/* 섹션 타이틀 */}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                  <h2 style={{ fontSize: 13, fontWeight: 600, color: A.ink, letterSpacing: "0.04em", textTransform: "uppercase" }}>최근 실행 이력</h2>
-                  <span style={{ fontSize: 12, color: A.inkMuted }}>{runs.length}개 항목</span>
-                </div>
+            {/* 통계 카드 */}
+            <StatsRow runs={filteredRuns} />
 
-                {/* 이력 테이블 */}
-                <div style={{ ...card, overflow: "hidden" }}>
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "130px 1fr 110px 100px 130px 90px 40px",
-                    padding: "11px 22px",
-                    background: A.parchment,
-                    borderBottom: `1px solid ${A.hairline}`,
-                  }}>
-                    {["상태", "프로젝트 (URL)", "실행자", "결과 요약", "실행 일시", "모드", ""].map((h, i) => (
-                      <span key={i} style={{ fontSize: 11, fontWeight: 600, color: A.inkMuted, letterSpacing: "0.05em", textTransform: "uppercase" }}>{h}</span>
-                    ))}
-                  </div>
-                  {runs.map((run, i) => (
-                    <HistoryRow
-                      key={run.runId}
-                      run={run}
-                      isLast={i === runs.length - 1}
-                      onClick={() => router.push(`/dashboard/${run.runId}`)}
-                      onDelete={() => handleDelete(run.runId)}
-                    />
-                  ))}
-                </div>
-              </>
+            {filteredRuns.length === 0 && (
+              <div style={{ ...card, padding: "40px 0", textAlign: "center" }}>
+                <p style={{ fontSize: 13, color: A.inkMuted }}>선택한 기간에는 실행 이력이 없습니다.</p>
+              </div>
             )}
           </>
         )}
@@ -148,103 +143,6 @@ function StatsRow({ runs }: { runs: RunSummary[] }) {
           <p style={{ fontSize: 28, fontWeight: 600, color: isEmpty ? A.inkMuted : color, letterSpacing: "-0.8px", lineHeight: 1 }}>{value}</p>
         </div>
       ))}
-    </div>
-  );
-}
-
-function HistoryRow({ run, isLast, onClick, onDelete }: { run: RunSummary; isLast: boolean; onClick: () => void; onDelete: () => void }) {
-  const passRate = run.total > 0 ? `${run.passed}/${run.total}` : "—";
-  const allPass  = run.passed === run.total && run.total > 0;
-  const hasFail  = run.failed > 0;
-
-  const badge = (() => {
-    if (run.status === "running") return { label: "실행 중",   bg: "#eff6ff", color: "#0066cc", border: "#bfdbfe", dot: true };
-    if (hasFail)                  return { label: "Fail 포함", bg: "#fef2f2", color: "#dc2626", border: "#fecaca", dot: false };
-    if (run.status === "failed")  return { label: "오류",      bg: "#fef2f2", color: "#dc2626", border: "#fecaca", dot: false };
-    return                               { label: "Pass",      bg: "#f0fdf4", color: "#16a34a", border: "#bbf7d0", dot: false };
-  })();
-
-  const hostname = (() => {
-    try { return new URL(run.targetUrl || "").hostname; } catch { return run.targetUrl || "—"; }
-  })();
-
-  return (
-    <div
-      onClick={onClick}
-      style={{
-        display: "grid",
-        gridTemplateColumns: "130px 1fr 110px 100px 130px 90px 40px",
-        padding: "14px 22px",
-        alignItems: "center",
-        borderBottom: isLast ? "none" : `1px solid ${A.divider}`,
-        cursor: "pointer",
-        transition: "background .12s",
-      }}
-      onMouseEnter={(e) => (e.currentTarget.style.background = A.parchment)}
-      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-    >
-      <div>
-        <span style={{
-          display: "inline-flex", alignItems: "center", gap: 5,
-          fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 99,
-          background: badge.bg, color: badge.color, border: `1px solid ${badge.border}`,
-        }}>
-          {badge.dot && (
-            <span style={{ width: 5, height: 5, borderRadius: "50%", background: badge.color, animation: "pulse 1.4s ease-in-out infinite", display: "inline-block" }} />
-          )}
-          {badge.label}
-        </span>
-      </div>
-
-      <div style={{ minWidth: 0, paddingRight: 16 }}>
-        <p style={{ fontSize: 13, color: A.ink, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{hostname}</p>
-        {run.targetUrl && (
-          <p style={{ fontSize: 11, color: A.inkMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 2 }}>{run.targetUrl}</p>
-        )}
-      </div>
-
-      <div>
-        {run.executor
-          ? <span style={{ fontSize: 12, color: A.ink, background: A.parchment, padding: "2px 8px", borderRadius: 6, border: `1px solid ${A.hairline}` }}>{run.executor}</span>
-          : <span style={{ fontSize: 12, color: A.inkMuted }}>—</span>}
-      </div>
-
-      <div>
-        <span style={{ fontSize: 14, fontWeight: 700, color: hasFail ? "#dc2626" : allPass ? "#16a34a" : A.inkMuted }}>{passRate}</span>
-        {run.total > 0 && <span style={{ fontSize: 11, color: A.inkMuted, marginLeft: 4 }}>Pass</span>}
-      </div>
-
-      <div>
-        <p style={{ fontSize: 12, color: A.ink, fontWeight: 500 }}>
-          {new Date(run.createdAt).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" })}
-        </p>
-        <p style={{ fontSize: 11, color: A.inkMuted, marginTop: 2 }}>
-          {new Date(run.createdAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}
-        </p>
-      </div>
-
-      <div>
-        <span style={{
-          fontSize: 11, color: A.blue, background: "rgba(0,102,204,0.07)",
-          padding: "2px 8px", borderRadius: 6, border: "1px solid rgba(0,102,204,0.15)", fontWeight: 500,
-        }}>
-          {run.mode === "natural" ? "자연어" : "엑셀"}
-        </span>
-      </div>
-
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        {run.status !== "running" && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onDelete(); }}
-            title="삭제"
-            style={{ background: "none", border: "none", cursor: "pointer", color: A.hairline, padding: 4, borderRadius: 6 }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = "#ef4444"; e.currentTarget.style.background = "rgba(239,68,68,0.08)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = A.hairline; e.currentTarget.style.background = "transparent"; }}
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3.5h10M5.5 3.5V2.5a.5.5 0 01.5-.5h2a.5.5 0 01.5.5v1M5.5 6v4M8.5 6v4M3 3.5l.7 7.2a.5.5 0 00.5.3h5.6a.5.5 0 00.5-.3L11 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          </button>
-        )}
-      </div>
     </div>
   );
 }
