@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import useSWR from "swr";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line,
@@ -17,35 +17,33 @@ const COLOR = {
   hairline: "#e0e0e0",
 };
 
-/* ─── Mock 데이터 — 추후 /api/history 집계 결과로 교체 예정 ───────── */
-const TREND_DATA = [
-  { date: "06.20", pass: 8,  fail: 1 },
-  { date: "06.21", pass: 11, fail: 2 },
-  { date: "06.22", pass: 6,  fail: 0 },
-  { date: "06.23", pass: 14, fail: 3 },
-  { date: "06.24", pass: 9,  fail: 1 },
-  { date: "06.25", pass: 12, fail: 2 },
-  { date: "06.26", pass: 10, fail: 1 },
-];
+/* ─── 워커가 저장하는 RunResult / TestResult 형태 ─────────────────── */
+interface TestResult {
+  testId: string;
+  feature: string;
+  scenario: string;
+  status: "Pass" | "Fail" | "Pending";
+  failReason: string;
+  consoleLogs: string[];
+  durationMs?: number;
+  completedAt?: string;
+}
 
-const RECENT_FAILURES = [
-  { runId: "mock-1", testId: "V-003", scenario: "로그인 후 결제 페이지 진입 확인", failedAt: "2026-06-26T03:12:00Z", reason: "로그인 버튼 탐색 실패" },
-  { runId: "mock-2", testId: "V-001", scenario: "회원가입 약관 동의 체크박스 클릭", failedAt: "2026-06-25T11:40:00Z", reason: "체크박스 요소를 찾지 못함" },
-  { runId: "mock-3", testId: "N-002", scenario: "장바구니 상품 수량 변경 후 합계 확인", failedAt: "2026-06-25T08:05:00Z", reason: "합계 텍스트 불일치" },
-  { runId: "mock-4", testId: "V-005", scenario: "검색 결과 필터 적용 확인", failedAt: "2026-06-24T15:50:00Z", reason: "페이지 로딩 타임아웃" },
-];
+interface RunResult {
+  runId: string;
+  status: "running" | "completed" | "failed";
+  total: number;
+  passed: number;
+  failed: number;
+  cases: TestResult[];
+  createdAt: string;
+}
 
-const EXEC_TIME_TREND = [
-  { i: 1, seconds: 102 }, { i: 2, seconds: 95 }, { i: 3, seconds: 110 },
-  { i: 4, seconds: 88 },  { i: 5, seconds: 91 }, { i: 6, seconds: 80 },
-  { i: 7, seconds: 84 },
-];
-const AVG_EXEC_SECONDS = 84;
-const AVG_EXEC_CHANGE_PCT = -12; // 음수 = 개선(시간 감소)
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 function formatDuration(totalSeconds: number): string {
   const m = Math.floor(totalSeconds / 60);
-  const s = totalSeconds % 60;
+  const s = Math.round(totalSeconds % 60);
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
@@ -57,22 +55,144 @@ function formatRelativeTime(iso: string): string {
   return `${Math.floor(hours / 24)}일 전`;
 }
 
+function dateKey(iso: string): string {
+  const d = new Date(iso);
+  return `${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
+}
+
 const cardClass = "bg-white rounded-xl shadow-sm border border-gray-100";
 
+/* ─── 집계 로직 ───────────────────────────────────────────────────── */
+interface CaseWithRun extends TestResult {
+  runId: string;
+  runCreatedAt: string;
+}
+
+function flattenCases(runs: RunResult[]): CaseWithRun[] {
+  return runs.flatMap((run) =>
+    (run.cases || []).map((c) => ({ ...c, runId: run.runId, runCreatedAt: run.createdAt }))
+  );
+}
+
+function caseTimestamp(c: CaseWithRun): string {
+  return c.completedAt || c.runCreatedAt;
+}
+
+function buildTrend(cases: CaseWithRun[]) {
+  const days: { date: string; pass: number; fail: number }[] = [];
+  const now = new Date();
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - i);
+    days.push({ date: dateKey(d.toISOString()), pass: 0, fail: 0 });
+  }
+  const cutoff = new Date(now);
+  cutoff.setDate(now.getDate() - 6);
+  cutoff.setHours(0, 0, 0, 0);
+
+  for (const c of cases) {
+    if (c.status === "Pending") continue;
+    const ts = caseTimestamp(c);
+    const t = new Date(ts);
+    if (t < cutoff) continue;
+    const key = dateKey(ts);
+    const bucket = days.find((d) => d.date === key);
+    if (!bucket) continue;
+    if (c.status === "Pass") bucket.pass++;
+    else if (c.status === "Fail") bucket.fail++;
+  }
+  return days;
+}
+
+function buildRecentFailures(cases: CaseWithRun[]) {
+  return cases
+    .filter((c) => c.status === "Fail")
+    .sort((a, b) => new Date(caseTimestamp(b)).getTime() - new Date(caseTimestamp(a)).getTime())
+    .slice(0, 4)
+    .map((c) => ({
+      runId: c.runId,
+      testId: c.testId,
+      scenario: c.scenario,
+      failedAt: caseTimestamp(c),
+      reason: c.failReason || "알 수 없는 오류",
+    }));
+}
+
+function buildExecTime(cases: CaseWithRun[]) {
+  const timed = cases.filter((c) => typeof c.durationMs === "number");
+
+  const byDay = new Map<string, { totalMs: number; count: number; sortKey: number }>();
+  for (const c of timed) {
+    const ts = caseTimestamp(c);
+    const key = dateKey(ts);
+    const entry = byDay.get(key) || { totalMs: 0, count: 0, sortKey: new Date(ts).getTime() };
+    entry.totalMs += c.durationMs!;
+    entry.count += 1;
+    entry.sortKey = Math.max(entry.sortKey, new Date(ts).getTime());
+    byDay.set(key, entry);
+  }
+  const trend = Array.from(byDay.entries())
+    .sort((a, b) => a[1].sortKey - b[1].sortKey)
+    .slice(-7)
+    .map(([date, v], i) => ({ i: i + 1, date, seconds: Math.round(v.totalMs / v.count / 1000) }));
+
+  const now = Date.now();
+  const sevenDaysMs = 1000 * 60 * 60 * 24 * 7;
+  const recent = timed.filter((c) => now - new Date(caseTimestamp(c)).getTime() <= sevenDaysMs);
+  const prior = timed.filter((c) => {
+    const age = now - new Date(caseTimestamp(c)).getTime();
+    return age > sevenDaysMs && age <= sevenDaysMs * 2;
+  });
+
+  const avg = (arr: CaseWithRun[]) =>
+    arr.length ? arr.reduce((sum, c) => sum + (c.durationMs || 0), 0) / arr.length / 1000 : null;
+
+  const avgSeconds = avg(recent);
+  const priorAvgSeconds = avg(prior);
+  const changePct =
+    avgSeconds !== null && priorAvgSeconds !== null && priorAvgSeconds > 0
+      ? Math.round(((avgSeconds - priorAvgSeconds) / priorAvgSeconds) * 100)
+      : null;
+
+  return { trend, avgSeconds, changePct, hasData: timed.length > 0 };
+}
+
 export default function DashboardAnalytics() {
+  const { data: runs, isLoading } = useSWR<RunResult[]>("/api/history", fetcher, {
+    refreshInterval: 15000,
+  });
+
+  const cases = flattenCases(runs || []);
+  const trendData = buildTrend(cases);
+  const recentFailures = buildRecentFailures(cases);
+  const execTime = buildExecTime(cases);
+  const hasAnyCases = cases.length > 0;
+
   return (
     <div className="mt-8 grid grid-cols-3 gap-4">
-      <TrendWidget />
-      <RecentFailuresWidget />
-      <AvgExecTimeWidget />
+      <TrendWidget data={trendData} loading={isLoading} hasData={hasAnyCases} />
+      <RecentFailuresWidget failures={recentFailures} loading={isLoading} />
+      <AvgExecTimeWidget
+        avgSeconds={execTime.avgSeconds}
+        changePct={execTime.changePct}
+        trend={execTime.trend}
+        loading={isLoading}
+        hasData={execTime.hasData}
+      />
     </div>
   );
 }
 
 /* ── 위젯 1: 일자별 Pass/Fail 트렌드 ───────────────────────────── */
-function TrendWidget() {
-  const [range, setRange] = useState<"7d">("7d");
-
+function TrendWidget({
+  data,
+  loading,
+  hasData,
+}: {
+  data: { date: string; pass: number; fail: number }[];
+  loading: boolean;
+  hasData: boolean;
+}) {
   return (
     <div className={`${cardClass} col-span-2 row-span-2 p-5 flex flex-col`}>
       <div className="flex items-center justify-between mb-3">
@@ -80,36 +200,41 @@ function TrendWidget() {
           <p className="text-[13px] font-semibold text-gray-900">일자별 테스트 성공률 트렌드</p>
           <p className="text-[11px] text-gray-400 mt-0.5">Pass / Fail 비율 변화</p>
         </div>
-        <button
-          onClick={() => setRange("7d")}
+        <span
           className="text-[11px] font-medium px-2.5 py-1 rounded-full"
           style={{ background: "rgba(0,102,204,0.08)", color: COLOR.blue, border: `1px solid rgba(0,102,204,0.15)` }}
         >
           최근 7일
-        </button>
+        </span>
       </div>
 
-      <div className="flex-1 min-h-[220px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={TREND_DATA} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-            <defs>
-              <linearGradient id="passGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={COLOR.green} stopOpacity={0.28} />
-                <stop offset="100%" stopColor={COLOR.green} stopOpacity={0.02} />
-              </linearGradient>
-              <linearGradient id="failGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={COLOR.red} stopOpacity={0.28} />
-                <stop offset="100%" stopColor={COLOR.red} stopOpacity={0.02} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid stroke="#f0f0f0" vertical={false} />
-            <XAxis dataKey="date" tick={{ fontSize: 11, fill: COLOR.inkMuted }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 11, fill: COLOR.inkMuted }} axisLine={false} tickLine={false} width={28} />
-            <Tooltip content={<TrendTooltip />} />
-            <Area type="monotone" dataKey="pass" name="Pass" stroke={COLOR.green} strokeWidth={2} fill="url(#passGradient)" />
-            <Area type="monotone" dataKey="fail" name="Fail" stroke={COLOR.red} strokeWidth={2} fill="url(#failGradient)" />
-          </AreaChart>
-        </ResponsiveContainer>
+      <div className="flex-1 min-h-[220px] flex items-center justify-center">
+        {loading ? (
+          <p className="text-[12px] text-gray-400">불러오는 중…</p>
+        ) : !hasData ? (
+          <p className="text-[12px] text-gray-400">아직 실행 이력이 없습니다.</p>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+              <defs>
+                <linearGradient id="passGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={COLOR.green} stopOpacity={0.28} />
+                  <stop offset="100%" stopColor={COLOR.green} stopOpacity={0.02} />
+                </linearGradient>
+                <linearGradient id="failGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={COLOR.red} stopOpacity={0.28} />
+                  <stop offset="100%" stopColor={COLOR.red} stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid stroke="#f0f0f0" vertical={false} />
+              <XAxis dataKey="date" tick={{ fontSize: 11, fill: COLOR.inkMuted }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: COLOR.inkMuted }} axisLine={false} tickLine={false} width={28} />
+              <Tooltip content={<TrendTooltip />} />
+              <Area type="monotone" dataKey="pass" name="Pass" stroke={COLOR.green} strokeWidth={2} fill="url(#passGradient)" />
+              <Area type="monotone" dataKey="fail" name="Fail" stroke={COLOR.red} strokeWidth={2} fill="url(#failGradient)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
       </div>
     </div>
   );
@@ -132,18 +257,30 @@ function TrendTooltip({ active, payload, label }: any) {
 }
 
 /* ── 위젯 3: 요주의 실패 시나리오 리스트 ────────────────────────── */
-function RecentFailuresWidget() {
+function RecentFailuresWidget({
+  failures,
+  loading,
+}: {
+  failures: { runId: string; testId: string; scenario: string; failedAt: string; reason: string }[];
+  loading: boolean;
+}) {
   const router = useRouter();
 
   return (
     <div className={`${cardClass} col-span-1 p-5`}>
       <p className="text-[13px] font-semibold text-gray-900 mb-1">요주의 실패 시나리오</p>
-      <p className="text-[11px] text-gray-400 mb-3">최근 Fail 발생 {RECENT_FAILURES.length}건</p>
+      <p className="text-[11px] text-gray-400 mb-3">
+        {loading ? "불러오는 중…" : `최근 Fail 발생 ${failures.length}건`}
+      </p>
+
+      {!loading && failures.length === 0 && (
+        <p className="text-[12px] text-gray-400 py-4 text-center">실패한 테스트가 없습니다.</p>
+      )}
 
       <div className="flex flex-col gap-1.5">
-        {RECENT_FAILURES.map((f) => (
+        {failures.map((f) => (
           <button
-            key={f.runId}
+            key={`${f.runId}-${f.testId}`}
             onClick={() => router.push(`/dashboard/${f.runId}`)}
             className="w-full text-left rounded-lg px-2.5 py-2 transition-colors hover:bg-gray-50"
           >
@@ -166,28 +303,53 @@ function RecentFailuresWidget() {
 }
 
 /* ── 위젯 4: 평균 시나리오 소요 시간 ────────────────────────────── */
-function AvgExecTimeWidget() {
-  const improved = AVG_EXEC_CHANGE_PCT < 0;
+function AvgExecTimeWidget({
+  avgSeconds,
+  changePct,
+  trend,
+  loading,
+  hasData,
+}: {
+  avgSeconds: number | null;
+  changePct: number | null;
+  trend: { i: number; seconds: number }[];
+  loading: boolean;
+  hasData: boolean;
+}) {
+  const improved = (changePct ?? 0) < 0;
 
   return (
     <div className={`${cardClass} col-span-1 p-5 flex flex-col`}>
       <p className="text-[13px] font-semibold text-gray-900 mb-1">평균 시나리오 소요 시간</p>
-      <p className="text-[28px] font-semibold mt-1" style={{ color: COLOR.ink, letterSpacing: "-0.5px" }}>
-        {formatDuration(AVG_EXEC_SECONDS)}
-      </p>
-      <p className="text-[12px] font-medium mt-0.5" style={{ color: improved ? COLOR.green : COLOR.red }}>
-        {improved ? "↓" : "↑"} {Math.abs(AVG_EXEC_CHANGE_PCT)}% {improved ? "개선됨" : "증가함"}
-      </p>
 
-      <div className="flex-1 min-h-[60px] mt-2">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={EXEC_TIME_TREND}>
-            <XAxis dataKey="i" hide />
-            <YAxis hide domain={["dataMin - 10", "dataMax + 10"]} />
-            <Line type="monotone" dataKey="seconds" stroke={COLOR.blue} strokeWidth={2} dot={false} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+      {loading ? (
+        <p className="text-[12px] text-gray-400 mt-2">불러오는 중…</p>
+      ) : !hasData ? (
+        <p className="text-[12px] text-gray-400 mt-2">아직 측정된 실행 시간이 없습니다.</p>
+      ) : (
+        <>
+          <p className="text-[28px] font-semibold mt-1" style={{ color: COLOR.ink, letterSpacing: "-0.5px" }}>
+            {formatDuration(avgSeconds ?? 0)}
+          </p>
+          {changePct !== null ? (
+            <p className="text-[12px] font-medium mt-0.5" style={{ color: improved ? COLOR.green : COLOR.red }}>
+              {improved ? "↓" : "↑"} {Math.abs(changePct)}% {improved ? "개선됨" : "증가함"}
+            </p>
+          ) : (
+            <p className="text-[12px] text-gray-400 mt-0.5">전주 대비 데이터 부족</p>
+          )}
+
+          <div className="flex-1 min-h-[60px] mt-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={trend}>
+                <XAxis dataKey="i" hide />
+                <YAxis hide domain={["dataMin - 10", "dataMax + 10"]} />
+                <Line type="monotone" dataKey="seconds" stroke={COLOR.blue} strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </>
+      )}
     </div>
   );
 }

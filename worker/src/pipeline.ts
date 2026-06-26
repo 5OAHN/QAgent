@@ -266,6 +266,7 @@ export async function runNaturalLanguagePipeline(
 
       run.cases = [...run.cases.filter((c) => c.testId !== testId), result];
 
+      const caseStartedAt = Date.now();
       try {
         console.log(`\n🤖 [${testId}] Vision 에이전트 시작 → ${page.url()}`);
 
@@ -306,6 +307,8 @@ export async function runNaturalLanguagePipeline(
         run.failed++;
         console.error(`\n❌ [${testId}] 오류:`, err.message);
       } finally {
+        result.durationMs = Date.now() - caseStartedAt;
+        result.completedAt = new Date().toISOString();
         run.cases = run.cases.map((c) => c.testId === testId ? { ...result } : c);
         saveRun(run);
       }

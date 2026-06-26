@@ -12,6 +12,8 @@ export interface TestResult {
   videoUrl: string;
   screenshotUrl: string;
   consoleLogs: string[];
+  durationMs?: number;
+  completedAt?: string;
 }
 
 const BASE_URL = process.env.WORKER_BASE_URL || "http://localhost:8001";
@@ -60,6 +62,7 @@ export async function runTest(
 
   const parser = new DSLParser(dictionary);
   let outgoingStorageState: any;
+  const startedAt = Date.now();
 
   try {
     await parser.execute(page, testCase.actions);
@@ -84,6 +87,8 @@ export async function runTest(
       try { result.videoUrl = toUrl(await video.path()); } catch { /* 녹화 없음 */ }
     }
     await browser.close();
+    result.durationMs = Date.now() - startedAt;
+    result.completedAt = new Date().toISOString();
   }
 
   return { result, storageState: outgoingStorageState };
