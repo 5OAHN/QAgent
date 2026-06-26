@@ -80,8 +80,7 @@ export default function GlobalNav() {
           <img src="/logo.svg" alt="QAgent" style={{ height: 24, width: "auto", flexShrink: 0 }} />
           {!collapsed && (
             <div style={{ minWidth: 0, overflow: "hidden" }}>
-              <p style={{ fontSize: 15, fontWeight: 600, color: "#1d1d1f", letterSpacing: "-0.4px", lineHeight: 1.2, whiteSpace: "nowrap" }}>QAgent</p>
-              <p style={{ fontSize: 11, color: "#6b7280", whiteSpace: "nowrap", letterSpacing: "-0.1px" }}>QA Automation</p>
+              <p style={{ fontSize: 18, fontWeight: 600, color: "#1d1d1f", letterSpacing: "-0.4px", lineHeight: 1.2, whiteSpace: "nowrap" }}>QAgent</p>
             </div>
           )}
         </div>
