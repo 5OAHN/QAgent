@@ -87,6 +87,38 @@ function NewTestForm() {
   const removeCard = (id: number) => setCards((p) => p.length > 1 ? p.filter((c) => c.id !== id) : p);
   const updateCard = (id: number, text: string) => { setCards((p) => p.map((c) => c.id === id ? { ...c, text } : c)); setError(""); };
 
+  // 줄바꿈(Enter) 시 다음 줄 시작에 자동으로 번호를 붙여준다 (1. 2. 3. ...)
+  const handleScenarioKeyDown = (id: number, e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key !== "Enter" || e.shiftKey) return;
+    const textarea = e.currentTarget;
+    const { selectionStart, value } = textarea;
+    const before = value.slice(0, selectionStart);
+    const after = value.slice(selectionStart);
+
+    // 지금까지 입력한 줄 중 "N. " 형태로 시작하는 줄의 개수로 다음 번호를 추정
+    const numberedLines = before.match(/^\s*\d+\.\s/gm) || [];
+    if (numberedLines.length === 0) return; // 아직 번호 매기기를 시작하지 않았으면 기본 줄바꿈 동작 유지
+
+    e.preventDefault();
+    const nextNum = numberedLines.length + 1;
+    const insertion = `\n${nextNum}. `;
+    updateCard(id, before + insertion + after);
+
+    requestAnimationFrame(() => {
+      const pos = before.length + insertion.length;
+      textarea.selectionStart = textarea.selectionEnd = pos;
+    });
+  };
+
+  // 빈 칸에서 첫 글자를 입력하면 "1. "을 자동으로 붙여준다
+  const handleScenarioChange = (id: number, prevText: string, nextValue: string) => {
+    if (prevText === "" && nextValue !== "" && !/^\s*\d+\.\s/.test(nextValue)) {
+      updateCard(id, `1. ${nextValue}`);
+    } else {
+      updateCard(id, nextValue);
+    }
+  };
+
   /* ── 로그인 필드 핸들러 ── */
   const addLoginField = () => setLoginFields((p) => [...p, { id: nextFieldId++, label: "테넌시 ID", value: "", isPassword: false }]);
   const removeLoginField = (id: number) => setLoginFields((p) => p.length > 1 ? p.filter((f) => f.id !== id) : p);
@@ -434,7 +466,11 @@ function NewTestForm() {
                           </button>
                         )}
                       </div>
-                      <textarea value={card.text} onChange={(e) => updateCard(card.id, e.target.value)} placeholder={CARD_PLACEHOLDER} rows={6}
+                      <textarea
+                        value={card.text}
+                        onChange={(e) => handleScenarioChange(card.id, card.text, e.target.value)}
+                        onKeyDown={(e) => handleScenarioKeyDown(card.id, e)}
+                        placeholder={CARD_PLACEHOLDER} rows={6}
                         style={{ width: "100%", resize: "none", background: "transparent", padding: "8px 14px 12px", fontSize: 13, color: A.ink, outline: "none", border: "none", boxSizing: "border-box" }} />
                     </div>
                   ))}
