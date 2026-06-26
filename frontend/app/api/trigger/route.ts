@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const WORKER_URL = process.env.WORKER_URL || "http://localhost:8001";
+const WORKER_API_KEY = process.env.WORKER_API_KEY || "";
 
 export async function POST(req: NextRequest) {
   const contentType = req.headers.get("content-type") || "";
@@ -11,7 +12,7 @@ export async function POST(req: NextRequest) {
       const body = await req.json();
       const res = await fetch(`${WORKER_URL}/trigger/natural`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-qagent-key": WORKER_API_KEY },
         body: JSON.stringify(body),
       });
       return NextResponse.json(await res.json(), { status: res.status });
@@ -31,6 +32,7 @@ export async function POST(req: NextRequest) {
 
     const res = await fetch(`${WORKER_URL}/trigger/excel`, {
       method: "POST",
+      headers: { "x-qagent-key": WORKER_API_KEY },
       body: workerForm,
     });
     return NextResponse.json(await res.json(), { status: res.status });

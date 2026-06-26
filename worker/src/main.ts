@@ -1,14 +1,50 @@
-import express, { Request, Response } from "express";
+import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { runExcelPipeline, runNaturalLanguagePipeline, getRunResult, getAllRuns, cancelRun, pauseRun, resumeRun, deleteRunResult } from "./pipeline";
+import { verifyPassword, changePassword } from "./auth";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use("/data", express.static(path.resolve("data")));
+
+// ── 서비스 간 공유 시크릿 검증 — 프론트엔드 프록시만 통과 가능 ──────
+const WORKER_API_KEY = process.env.WORKER_API_KEY;
+if (WORKER_API_KEY) {
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.path === "/health") return next();
+    if (req.headers["x-qagent-key"] !== WORKER_API_KEY) {
+      return res.status(401).json({ error: "unauthorized" });
+    }
+    next();
+  });
+}
+
+// ── 사용자 비밀번호 인증 ──────────────────────────────────────────────
+app.post("/auth/login", (req: Request, res: Response) => {
+  const { password } = req.body as { password?: string };
+  if (!password || !verifyPassword(password)) {
+    return res.status(401).json({ error: "비밀번호가 올바르지 않습니다." });
+  }
+  res.json({ ok: true });
+});
+
+app.post("/auth/change-password", (req: Request, res: Response) => {
+  const { currentPassword, newPassword } = req.body as { currentPassword?: string; newPassword?: string };
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: "현재 비밀번호와 새 비밀번호가 필요합니다." });
+  }
+  if (newPassword.length < 4) {
+    return res.status(400).json({ error: "새 비밀번호는 4자 이상이어야 합니다." });
+  }
+  if (!changePassword(currentPassword, newPassword)) {
+    return res.status(401).json({ error: "현재 비밀번호가 올바르지 않습니다." });
+  }
+  res.json({ ok: true });
+});
 
 const storage = multer.diskStorage({
   destination: (_, __, cb) => {

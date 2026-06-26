@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const WORKER_URL = process.env.WORKER_URL || "http://localhost:8001";
+const WORKER_API_KEY = process.env.WORKER_API_KEY || "";
 
 export async function POST(
   req: NextRequest,
@@ -14,6 +15,7 @@ export async function POST(
   try {
     const res = await fetch(`${WORKER_URL}/run/${params.runId}/${action}`, {
       method: "POST",
+      headers: { "x-qagent-key": WORKER_API_KEY },
     });
     return NextResponse.json(await res.json(), { status: res.status });
   } catch {
