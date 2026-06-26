@@ -25,7 +25,6 @@ const DEFAULT_LOGIN_FIELDS = (): LoginField[] => [
 let nextCardId = 2;
 let nextFieldId = 3;
 
-const LS_KEY = (hostname: string) => `qagent_login_${hostname}`;
 
 /* ─── Apple design tokens ───────────────────────────────────────── */
 const A = {
@@ -67,28 +66,10 @@ function NewTestForm() {
   const [error, setError]               = useState("");
   const [loginOpen, setLoginOpen]       = useState(false);
   const [loginFields, setLoginFields]   = useState<LoginField[]>(DEFAULT_LOGIN_FIELDS());
-  const [savedHost, setSavedHost]       = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // URL 바뀌면 해당 도메인의 저장된 로그인 정보 불러오기
-  useEffect(() => {
-    try {
-      const hostname = new URL(targetUrl).hostname;
-      const saved = localStorage.getItem(LS_KEY(hostname));
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        setLoginFields(parsed);
-        setLoginOpen(true);
-        setSavedHost(hostname);
-      } else {
-        setSavedHost(null);
-      }
-    } catch {
-      setSavedHost(null);
-    }
-  }, [targetUrl]);
 
   useEffect(() => {
     const url = searchParams.get("url");
@@ -113,21 +94,6 @@ function NewTestForm() {
   const updateLoginField = (id: number, key: keyof LoginField, val: string | boolean) =>
     setLoginFields((p) => p.map((f) => f.id === id ? { ...f, [key]: val } : f));
 
-  const saveLoginCredentials = () => {
-    try {
-      const hostname = new URL(targetUrl).hostname;
-      localStorage.setItem(LS_KEY(hostname), JSON.stringify(loginFields));
-      setSavedHost(hostname);
-    } catch {}
-  };
-  const clearLoginCredentials = () => {
-    try {
-      const hostname = new URL(targetUrl).hostname;
-      localStorage.removeItem(LS_KEY(hostname));
-      setSavedHost(null);
-      setLoginFields(DEFAULT_LOGIN_FIELDS());
-    } catch {}
-  };
 
   const onDrop = (e: DragEvent) => {
     e.preventDefault(); setIsDragging(false);
@@ -258,11 +224,6 @@ function NewTestForm() {
                   <span style={{ fontSize: 12, fontWeight: 600, color: hasLogin ? A.blue : A.inkMuted }}>
                     로그인 정보
                   </span>
-                  {savedHost && (
-                    <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 99, background: "rgba(22,163,74,0.08)", color: "#16a34a", border: "1px solid rgba(22,163,74,0.2)" }}>
-                      저장됨
-                    </span>
-                  )}
                   {!hasLogin && (
                     <span style={{ fontSize: 11, color: A.inkMuted, fontWeight: 400 }}>선택사항 — 로그인이 필요한 테스트에 사용</span>
                   )}
@@ -371,25 +332,6 @@ function NewTestForm() {
                     >
                       + 필드 추가
                     </button>
-                    {/^https?:\/\/.+\..+/.test(targetUrl.trim()) && (
-                      <button onClick={saveLoginCredentials} style={{
-                        padding: "7px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600,
-                        background: savedHost ? "rgba(22,163,74,0.08)" : "rgba(0,102,204,0.06)",
-                        color: savedHost ? "#16a34a" : A.blue,
-                        border: `1px solid ${savedHost ? "rgba(22,163,74,0.25)" : "rgba(0,102,204,0.2)"}`,
-                        cursor: "pointer",
-                      }}>
-                        {savedHost ? "저장됨 ✓" : "이 URL에 저장"}
-                      </button>
-                    )}
-                    {savedHost && (
-                      <button onClick={clearLoginCredentials} style={{
-                        padding: "7px 10px", borderRadius: 8, fontSize: 12, color: "#ef4444",
-                        background: "transparent", border: `1px solid #fecaca`, cursor: "pointer",
-                      }}>
-                        초기화
-                      </button>
-                    )}
                   </div>
                   <p style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>
                     ⚠ 로그인 정보는 이 브라우저의 로컬에만 저장됩니다. 서버로 전송되어 테스트에 사용됩니다.
