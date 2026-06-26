@@ -231,7 +231,7 @@ function LoadingState() {
 
 function EmptyState() {
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "48vh", textAlign: "center" }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "56px 0 40px", textAlign: "center" }}>
 
       <div style={{
         width: 80, height: 80, borderRadius: 20,
