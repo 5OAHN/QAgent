@@ -196,31 +196,36 @@ export async function runNaturalLanguagePipeline(
   const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
   const page = await context.newPage();
 
-  // 첫 페이지 로드
-  await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
-
-  // 로그인 선행 작업
-  if (loginConfig && loginConfig.fields.some((f) => f.value.trim())) {
-    const credLines = loginConfig.fields
-      .filter((f) => f.value.trim())
-      .map((f) => `- ${f.label || "필드"}: ${f.isPassword ? "(비밀번호 입력됨)" : f.value}`);
-    const loginTask = [
-      "[로그인 선행 작업 — 아래 정보로 로그인 후 완료(done)하세요]",
-      ...loginConfig.fields.filter((f) => f.value.trim()).map((f) => `- ${f.label || "필드"}: ${f.value}`),
-      "",
-      "로그인 폼을 찾아 위 정보를 입력하고 로그인 버튼을 클릭하세요. 로그인이 완료되면 done 액션을 사용하세요.",
-    ].join("\n");
-
-    console.log(`\n🔑 [${runId}] 로그인 선행 작업 시작\n${credLines.join("\n")}`);
-    const loginResult = await runVisionAgent(page, loginTask, 15, undefined, control);
-    if (loginResult.success) {
-      console.log(`\n✅ [${runId}] 로그인 완료 (현재 URL: ${page.url()})`);
-    } else {
-      console.warn(`\n⚠️ [${runId}] 로그인 실패: ${loginResult.failReason} — 계속 진행합니다`);
-    }
-  }
-
   try {
+    // 첫 페이지 로드
+    await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+
+    // 로그인 선행 작업 — 실패해도 시나리오 실행은 계속 진행하므로, 예외도 여기서 흡수해야
+    // 아래 for-loop와 종료 상태(run.status) 설정까지 도달할 수 있다.
+    if (loginConfig && loginConfig.fields.some((f) => f.value.trim())) {
+      try {
+        const credLines = loginConfig.fields
+          .filter((f) => f.value.trim())
+          .map((f) => `- ${f.label || "필드"}: ${f.isPassword ? "(비밀번호 입력됨)" : f.value}`);
+        const loginTask = [
+          "[로그인 선행 작업 — 아래 정보로 로그인 후 완료(done)하세요]",
+          ...loginConfig.fields.filter((f) => f.value.trim()).map((f) => `- ${f.label || "필드"}: ${f.value}`),
+          "",
+          "로그인 폼을 찾아 위 정보를 입력하고 로그인 버튼을 클릭하세요. 로그인이 완료되면 done 액션을 사용하세요.",
+        ].join("\n");
+
+        console.log(`\n🔑 [${runId}] 로그인 선행 작업 시작\n${credLines.join("\n")}`);
+        const loginResult = await runVisionAgent(page, loginTask, 15, undefined, control);
+        if (loginResult.success) {
+          console.log(`\n✅ [${runId}] 로그인 완료 (현재 URL: ${page.url()})`);
+        } else {
+          console.warn(`\n⚠️ [${runId}] 로그인 실패: ${loginResult.failReason} — 계속 진행합니다`);
+        }
+      } catch (err: any) {
+        console.warn(`\n⚠️ [${runId}] 로그인 선행 작업 중 오류: ${err.message} — 계속 진행합니다`);
+      }
+    }
+
     for (let i = 0; i < scenarioList.length; i++) {
       if (control.isCancelled()) {
         console.log(`\n🛑 [${runId}] 중지됨 — 남은 케이스 건너뜀`);
@@ -310,9 +315,33 @@ export async function runNaturalLanguagePipeline(
         saveRun(run);
       }
     }
+  } catch (err: any) {
+    // 첫 페이지 로드 등 루프 진입 전 단계에서 예외가 나도 종료 상태 처리까지 도달해야 한다.
+    run.error = err.message;
+    console.error(`\n❌ [${runId}] 파이프라인 오류:`, err.message);
   } finally {
     await context.close();
     await browser.close();
+  }
+
+  // 루프가 취소/예외로 일찍 끝나면 일부 시나리오는 case 객체가 전혀 생성되지 않을 수 있다.
+  // 이 상태로 status를 종료 상태로 바꾸면 프론트엔드는 누락된 항목을 영구히 "Pending"으로 표시하게 된다 —
+  // 모든 시나리오에 대해 종료 상태의 case가 반드시 존재하도록 보정한다.
+  const wasCancelled = cancelledRuns.has(runId);
+  for (let i = 0; i < scenarioList.length; i++) {
+    const testId = `V-${String(i + 1).padStart(3, "0")}`;
+    if (run.cases.some((c) => c.testId === testId)) continue;
+    run.cases.push({
+      testId,
+      feature: "Vision 에이전트",
+      scenario: scenarioList[i].slice(0, 80),
+      status: "Fail",
+      failReason: wasCancelled ? "실행이 중지되어 처리되지 않음" : "실행이 중단되어 처리되지 않음",
+      videoUrl: "",
+      screenshotUrl: "",
+      consoleLogs: [],
+    });
+    run.failed++;
   }
 
   cancelledRuns.delete(runId);
