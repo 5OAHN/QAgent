@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
+import DashboardAnalytics from "@/components/DashboardAnalytics";
 
 interface RunSummary {
   runId: string;
@@ -120,6 +121,9 @@ export default function HomePage() {
                 <p style={{ fontSize: 13, color: A.inkMuted }}>선택한 기간에는 실행 이력이 없습니다.</p>
               </div>
             )}
+
+            {/* 분석 위젯 */}
+            <DashboardAnalytics />
           </>
         )}
       </main>
