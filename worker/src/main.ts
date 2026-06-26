@@ -32,6 +32,13 @@ app.post("/auth/login", (req: Request, res: Response) => {
   res.json({ ok: true });
 });
 
+// 비밀번호 파일을 초기화 — 다음 요청 시 INITIAL_APP_PASSWORD(또는 기본값)로 재생성됨
+app.post("/auth/reset", (_req: Request, res: Response) => {
+  const authPath = process.env.AUTH_PATH || path.resolve("data/auth.json");
+  try { fs.unlinkSync(authPath); } catch {}
+  res.json({ ok: true });
+});
+
 app.post("/auth/change-password", (req: Request, res: Response) => {
   const { currentPassword, newPassword } = req.body as { currentPassword?: string; newPassword?: string };
   if (!currentPassword || !newPassword) {
