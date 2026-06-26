@@ -6,18 +6,25 @@ import Link from "next/link";
 
 type Mode = "natural" | "excel";
 interface ScenarioCard { id: number; text: string; precondition: string; }
+interface LoginField { id: number; label: string; value: string; isPassword: boolean; }
 
 const CARD_PLACEHOLDER = `테스트 시나리오를 자유롭게 작성하세요.
 
 예시)
-1. 로그인 페이지로 이동한다
-2. 병원코드 입력칸에 'H001'을 입력한다
-3. 비밀번호 입력칸에 'pass1234'를 입력한다
-4. 로그인 버튼을 클릭한다
-5. 메인 대시보드가 표시되는지 확인한다`;
+1. 메인 대시보드가 표시되는지 확인한다
+2. 사용자 관리 메뉴를 클릭한다
+3. 새 사용자 추가 버튼을 클릭한다
+4. 이름과 이메일을 입력하고 저장한다`;
 
 const EXECUTOR_CHIPS = ["기획", "디자인", "프론트엔드", "백엔드", "QA"];
-let nextId = 2;
+const DEFAULT_LOGIN_FIELDS = (): LoginField[] => [
+  { id: 1, label: "아이디 / 이메일", value: "", isPassword: false },
+  { id: 2, label: "비밀번호", value: "", isPassword: true },
+];
+let nextCardId = 2;
+let nextFieldId = 3;
+
+const LS_KEY = (hostname: string) => `qagent_login_${hostname}`;
 
 /* ─── Apple design tokens ───────────────────────────────────────── */
 const A = {
@@ -50,17 +57,38 @@ export default function NewPage() {
 }
 
 function NewTestForm() {
-  const [targetUrl, setTargetUrl]   = useState("");
-  const [mode, setMode]             = useState<Mode>("natural");
-  const [file, setFile]             = useState<File | null>(null);
-  const [cards, setCards]           = useState<ScenarioCard[]>([{ id: 1, text: "", precondition: "" }]);
-  const [executor, setExecutor]     = useState("");
-  const [isDragging, setIsDragging] = useState(false);
-  const [isLoading, setIsLoading]   = useState(false);
-  const [error, setError]           = useState("");
+  const [targetUrl, setTargetUrl]       = useState("");
+  const [mode, setMode]                 = useState<Mode>("natural");
+  const [file, setFile]                 = useState<File | null>(null);
+  const [cards, setCards]               = useState<ScenarioCard[]>([{ id: 1, text: "", precondition: "" }]);
+  const [executor, setExecutor]         = useState("");
+  const [isDragging, setIsDragging]     = useState(false);
+  const [isLoading, setIsLoading]       = useState(false);
+  const [error, setError]               = useState("");
+  const [loginOpen, setLoginOpen]       = useState(false);
+  const [loginFields, setLoginFields]   = useState<LoginField[]>(DEFAULT_LOGIN_FIELDS());
+  const [savedHost, setSavedHost]       = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // URL 바뀌면 해당 도메인의 저장된 로그인 정보 불러오기
+  useEffect(() => {
+    try {
+      const hostname = new URL(targetUrl).hostname;
+      const saved = localStorage.getItem(LS_KEY(hostname));
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setLoginFields(parsed);
+        setLoginOpen(true);
+        setSavedHost(hostname);
+      } else {
+        setSavedHost(null);
+      }
+    } catch {
+      setSavedHost(null);
+    }
+  }, [targetUrl]);
 
   useEffect(() => {
     const url = searchParams.get("url");
@@ -72,12 +100,36 @@ function NewTestForm() {
   }, []);
 
   const filledCards = cards.filter((c) => c.text.trim().length > 0);
+  const hasLogin = loginFields.some((f) => f.value.trim() !== "");
   const isReady = targetUrl.trim() !== "" && (mode === "excel" ? !!file : filledCards.length > 0);
 
-  const addCard    = () => setCards((p) => [...p, { id: nextId++, text: "", precondition: "" }]);
+  /* ── 카드 핸들러 ── */
+  const addCard    = () => setCards((p) => [...p, { id: nextCardId++, text: "", precondition: "" }]);
   const removeCard = (id: number) => setCards((p) => p.length > 1 ? p.filter((c) => c.id !== id) : p);
   const updateCard = (id: number, text: string) => { setCards((p) => p.map((c) => c.id === id ? { ...c, text } : c)); setError(""); };
   const updatePrecondition = (id: number, precondition: string) => setCards((p) => p.map((c) => c.id === id ? { ...c, precondition } : c));
+
+  /* ── 로그인 필드 핸들러 ── */
+  const addLoginField = () => setLoginFields((p) => [...p, { id: nextFieldId++, label: "", value: "", isPassword: false }]);
+  const removeLoginField = (id: number) => setLoginFields((p) => p.length > 1 ? p.filter((f) => f.id !== id) : p);
+  const updateLoginField = (id: number, key: keyof LoginField, val: string | boolean) =>
+    setLoginFields((p) => p.map((f) => f.id === id ? { ...f, [key]: val } : f));
+
+  const saveLoginCredentials = () => {
+    try {
+      const hostname = new URL(targetUrl).hostname;
+      localStorage.setItem(LS_KEY(hostname), JSON.stringify(loginFields));
+      setSavedHost(hostname);
+    } catch {}
+  };
+  const clearLoginCredentials = () => {
+    try {
+      const hostname = new URL(targetUrl).hostname;
+      localStorage.removeItem(LS_KEY(hostname));
+      setSavedHost(null);
+      setLoginFields(DEFAULT_LOGIN_FIELDS());
+    } catch {}
+  };
 
   const onDrop = (e: DragEvent) => {
     e.preventDefault(); setIsDragging(false);
@@ -91,6 +143,10 @@ function NewTestForm() {
     setIsLoading(true); setError("");
     try {
       let res: Response;
+      const loginConfig = hasLogin
+        ? { fields: loginFields.map(({ label, value, isPassword }) => ({ label, value, isPassword })) }
+        : undefined;
+
       if (mode === "excel") {
         const form = new FormData();
         form.append("excel", file!);
@@ -101,7 +157,14 @@ function NewTestForm() {
         res = await fetch("/api/trigger", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mode: "natural", url: targetUrl, scenarios: filledCards.map((c) => c.text.trim()), preconditions: filledCards.map((c) => c.precondition.trim()), executor: executor.trim() || undefined }),
+          body: JSON.stringify({
+            mode: "natural",
+            url: targetUrl,
+            scenarios: filledCards.map((c) => c.text.trim()),
+            preconditions: filledCards.map((c) => c.precondition.trim()),
+            loginConfig,
+            executor: executor.trim() || undefined,
+          }),
         });
       }
       const data = await res.json();
@@ -179,11 +242,135 @@ function NewTestForm() {
               </div>
             </div>
 
-            {/* ② 시나리오 */}
+            {/* ② 로그인 설정 */}
+            <div style={{ borderRadius: 12, border: `1px solid ${A.hairline}`, overflow: "hidden" }}>
+              {/* 헤더 */}
+              <button
+                onClick={() => setLoginOpen((p) => !p)}
+                style={{
+                  width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "10px 14px", background: loginOpen ? A.parchment : A.canvas,
+                  border: "none", cursor: "pointer", borderBottom: loginOpen ? `1px solid ${A.hairline}` : "none",
+                  transition: "background .12s",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <svg width="14" height="14" fill="none" stroke={hasLogin ? A.blue : A.inkMuted} strokeWidth="1.8" viewBox="0 0 24 24">
+                    <rect x="3" y="11" width="18" height="11" rx="2"/>
+                    <path d="M7 11V7a5 5 0 0110 0v4" strokeLinecap="round"/>
+                  </svg>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: hasLogin ? A.blue : A.inkMuted }}>
+                    로그인 정보
+                  </span>
+                  {savedHost && (
+                    <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 99, background: "rgba(22,163,74,0.08)", color: "#16a34a", border: "1px solid rgba(22,163,74,0.2)" }}>
+                      저장됨
+                    </span>
+                  )}
+                  {!hasLogin && (
+                    <span style={{ fontSize: 11, color: A.inkMuted, fontWeight: 400 }}>선택사항 — 로그인이 필요한 테스트에 사용</span>
+                  )}
+                </div>
+                <svg width="12" height="12" fill="none" stroke={A.inkMuted} strokeWidth="2" viewBox="0 0 12 12"
+                  style={{ transform: loginOpen ? "rotate(180deg)" : "none", transition: "transform .2s" }}>
+                  <path d="M2 4l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+
+              {/* 로그인 필드 목록 */}
+              {loginOpen && (
+                <div style={{ padding: "14px", display: "flex", flexDirection: "column", gap: 10 }}>
+                  {loginFields.map((field, idx) => (
+                    <div key={field.id} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      {/* 라벨 */}
+                      <input
+                        type="text"
+                        value={field.label}
+                        onChange={(e) => updateLoginField(field.id, "label", e.target.value)}
+                        placeholder={idx === 0 ? "아이디 / 이메일" : idx === 1 ? "비밀번호" : "필드 이름"}
+                        style={{ ...inputStyle, width: 130, flexShrink: 0, fontSize: 12, padding: "8px 10px" }}
+                        onFocus={(e) => { e.target.style.borderColor = A.blue; e.target.style.boxShadow = `0 0 0 3px rgba(0,102,204,0.1)`; }}
+                        onBlur={(e) => { e.target.style.borderColor = A.hairline; e.target.style.boxShadow = "none"; }}
+                      />
+                      {/* 값 */}
+                      <div style={{ position: "relative", flex: 1 }}>
+                        <input
+                          type={field.isPassword ? "password" : "text"}
+                          value={field.value}
+                          onChange={(e) => updateLoginField(field.id, "value", e.target.value)}
+                          placeholder="값 입력"
+                          style={{ ...inputStyle, fontSize: 13, padding: "8px 34px 8px 10px" }}
+                          onFocus={(e) => { e.target.style.borderColor = A.blue; e.target.style.boxShadow = `0 0 0 3px rgba(0,102,204,0.1)`; }}
+                          onBlur={(e) => { e.target.style.borderColor = A.hairline; e.target.style.boxShadow = "none"; }}
+                        />
+                        {/* 마스킹 토글 */}
+                        <button
+                          onClick={() => updateLoginField(field.id, "isPassword", !field.isPassword)}
+                          title={field.isPassword ? "값 보기" : "값 숨기기"}
+                          style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: A.inkMuted, padding: 2 }}
+                        >
+                          {field.isPassword
+                            ? <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23" strokeLinecap="round"/></svg>
+                            : <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                          }
+                        </button>
+                      </div>
+                      {/* 삭제 */}
+                      {loginFields.length > 1 && (
+                        <button onClick={() => removeLoginField(field.id)}
+                          style={{ background: "none", border: "none", cursor: "pointer", color: A.hairline, padding: 4, flexShrink: 0 }}
+                          onMouseEnter={(e) => (e.currentTarget.style.color = "#ef4444")}
+                          onMouseLeave={(e) => (e.currentTarget.style.color = A.hairline)}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3.5h10M5.5 6v4M8.5 6v4M3 3.5l.7 7.2a.5.5 0 00.5.3h5.6a.5.5 0 00.5-.3L11 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        </button>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* 필드 추가 + 저장 */}
+                  <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
+                    <button onClick={addLoginField} style={{
+                      flex: 1, padding: "7px", borderRadius: 8, fontSize: 12, color: A.blue, fontWeight: 500,
+                      border: `1.5px dashed rgba(0,102,204,0.3)`, background: "transparent", cursor: "pointer",
+                    }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(0,102,204,0.04)"; e.currentTarget.style.borderColor = A.blue; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "rgba(0,102,204,0.3)"; }}
+                    >
+                      + 필드 추가
+                    </button>
+                    {/^https?:\/\/.+\..+/.test(targetUrl.trim()) && (
+                      <button onClick={saveLoginCredentials} style={{
+                        padding: "7px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600,
+                        background: savedHost ? "rgba(22,163,74,0.08)" : "rgba(0,102,204,0.06)",
+                        color: savedHost ? "#16a34a" : A.blue,
+                        border: `1px solid ${savedHost ? "rgba(22,163,74,0.25)" : "rgba(0,102,204,0.2)"}`,
+                        cursor: "pointer",
+                      }}>
+                        {savedHost ? "저장됨 ✓" : "이 URL에 저장"}
+                      </button>
+                    )}
+                    {savedHost && (
+                      <button onClick={clearLoginCredentials} style={{
+                        padding: "7px 10px", borderRadius: 8, fontSize: 12, color: "#ef4444",
+                        background: "transparent", border: `1px solid #fecaca`, cursor: "pointer",
+                      }}>
+                        초기화
+                      </button>
+                    )}
+                  </div>
+                  <p style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>
+                    ⚠ 로그인 정보는 이 브라우저의 로컬에만 저장됩니다. 서버로 전송되어 테스트에 사용됩니다.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* ③ 시나리오 */}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <label style={{ fontSize: 11, fontWeight: 700, color: A.inkMuted, letterSpacing: "0.08em", textTransform: "uppercase" }}>테스트 시나리오</label>
 
-              {/* 모드 탭 — 자연어 입력이 첫 번째 */}
+              {/* 모드 탭 */}
               <div style={{ display: "flex", gap: 4, background: A.parchment, borderRadius: 10, padding: 4, border: `1px solid ${A.hairline}` }}>
                 {(["natural", "excel"] as Mode[]).map((m) => (
                   <button key={m} onClick={() => { setMode(m); setError(""); }}
@@ -238,14 +425,14 @@ function NewTestForm() {
                       onFocusCapture={(e) => e.currentTarget.style.borderColor = A.blue}
                       onBlurCapture={(e) => e.currentTarget.style.borderColor = A.hairline}
                     >
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 14px 4px", borderBottom: `1px solid ${A.divider}` }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 14px 6px", borderBottom: `1px solid ${A.divider}` }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
                           <span style={{ fontSize: 11, fontWeight: 600, color: A.inkMuted, flexShrink: 0 }}>케이스 {idx + 1}</span>
                           <input
                             type="text"
                             value={card.precondition}
                             onChange={(e) => updatePrecondition(card.id, e.target.value)}
-                            placeholder="선행 조건 (선택): 예) 로그인 상태"
+                            placeholder="추가 선행 조건 (선택)"
                             style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", fontSize: 11, color: A.inkMuted }}
                           />
                         </div>
@@ -273,13 +460,13 @@ function NewTestForm() {
                   </button>
                   <p style={{ fontSize: 11, color: A.inkMuted, display: "flex", gap: 5, alignItems: "flex-start" }}>
                     <span style={{ color: A.blue, flexShrink: 0, marginTop: 1 }}>i</span>
-                    각 카드는 독립된 테스트 케이스로 실행됩니다. Claude가 화면을 보며 직접 조작합니다.
+                    각 카드는 독립된 테스트 케이스로 실행됩니다. 로그인이 설정된 경우 모든 케이스 전에 자동 로그인합니다.
                   </p>
                 </div>
               )}
             </div>
 
-            {/* ③ 실행자 */}
+            {/* ④ 실행자 */}
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <label style={{ fontSize: 11, fontWeight: 700, color: A.inkMuted, letterSpacing: "0.08em", textTransform: "uppercase" }}>실행자 정보</label>
               <input

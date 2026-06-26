@@ -39,7 +39,13 @@ app.post("/trigger/excel", upload.single("excel"), (req: Request, res: Response)
 
 // ── 자연어 모드 트리거 ───────────────────────────────────────────────
 app.post("/trigger/natural", (req: Request, res: Response) => {
-  const { url, scenarios, executor, preconditions } = req.body as { url: string; scenarios: string | string[]; executor?: string; preconditions?: string[] };
+  const { url, scenarios, executor, preconditions, loginConfig } = req.body as {
+    url: string;
+    scenarios: string | string[];
+    executor?: string;
+    preconditions?: string[];
+    loginConfig?: { fields: { label: string; value: string; isPassword: boolean }[] };
+  };
 
   if (!url || !scenarios) {
     return res.status(400).json({ error: "url과 scenarios가 필요합니다." });
@@ -57,7 +63,7 @@ app.post("/trigger/natural", (req: Request, res: Response) => {
 
   console.log(`\n🚀 [${runId}] 자연어 파이프라인 시작 → ${url} (케이스 ${scenarioList.length}개)${executor ? ` by ${executor}` : ""}`);
 
-  runNaturalLanguagePipeline(runId, url, scenarioList, executor, preconditions).catch((err) =>
+  runNaturalLanguagePipeline(runId, url, scenarioList, executor, preconditions, loginConfig).catch((err) =>
     console.error(`[${runId}] 오류:`, err.message)
   );
 

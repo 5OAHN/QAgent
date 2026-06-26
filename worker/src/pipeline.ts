@@ -129,12 +129,17 @@ export async function runExcelPipeline(
 }
 
 // ── 자연어 파이프라인 (Vision 에이전트) ──────────────────────────────
+export interface LoginConfig {
+  fields: { label: string; value: string; isPassword: boolean }[];
+}
+
 export async function runNaturalLanguagePipeline(
   runId: string,
   targetUrl: string,
   scenarioList: string[],
   executor?: string,
-  preconditions?: string[]
+  preconditions?: string[],
+  loginConfig?: LoginConfig
 ): Promise<RunResult> {
   if (!process.env.ANTHROPIC_API_KEY) {
     const run: RunResult = {
@@ -175,6 +180,27 @@ export async function runNaturalLanguagePipeline(
 
   // 첫 페이지 로드
   await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+
+  // 로그인 선행 작업
+  if (loginConfig && loginConfig.fields.some((f) => f.value.trim())) {
+    const credLines = loginConfig.fields
+      .filter((f) => f.value.trim())
+      .map((f) => `- ${f.label || "필드"}: ${f.isPassword ? "(비밀번호 입력됨)" : f.value}`);
+    const loginTask = [
+      "[로그인 선행 작업 — 아래 정보로 로그인 후 완료(done)하세요]",
+      ...loginConfig.fields.filter((f) => f.value.trim()).map((f) => `- ${f.label || "필드"}: ${f.value}`),
+      "",
+      "로그인 폼을 찾아 위 정보를 입력하고 로그인 버튼을 클릭하세요. 로그인이 완료되면 done 액션을 사용하세요.",
+    ].join("\n");
+
+    console.log(`\n🔑 [${runId}] 로그인 선행 작업 시작\n${credLines.join("\n")}`);
+    const loginResult = await runVisionAgent(page, loginTask, 15, undefined, control);
+    if (loginResult.success) {
+      console.log(`\n✅ [${runId}] 로그인 완료 (현재 URL: ${page.url()})`);
+    } else {
+      console.warn(`\n⚠️ [${runId}] 로그인 실패: ${loginResult.failReason} — 계속 진행합니다`);
+    }
+  }
 
   try {
     for (let i = 0; i < scenarioList.length; i++) {
