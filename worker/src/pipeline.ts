@@ -6,6 +6,7 @@ import { UIDictionary } from "./parser";
 import { runTest, TestResult } from "./executor";
 import { analyzeFailure } from "./analyzer";
 import { runVisionAgent } from "./vision-agent";
+import { saveRun, loadAllRuns } from "./db";
 
 export interface RunResult {
   runId: string;
@@ -32,6 +33,11 @@ export function getAllRuns(): RunResult[] {
 const activeRuns = new Map<string, RunResult>();
 const cancelledRuns = new Set<string>();
 const pausedRuns = new Set<string>();
+
+// 디스크(SQLite)에 저장된 과거 이력을 메모리로 복원 — 재배포 후에도 이력 유지
+for (const run of loadAllRuns()) {
+  activeRuns.set(run.runId, run);
+}
 
 export function getRunResult(runId: string): RunResult | undefined {
   return activeRuns.get(runId);
@@ -76,6 +82,7 @@ async function executeTestCases(
     }
     run.cases.push(result);
     result.status === "Pass" ? run.passed++ : run.failed++;
+    saveRun(run);
   }
 }
 
@@ -115,6 +122,7 @@ export async function runExcelPipeline(
     executor,
   };
   activeRuns.set(runId, run);
+  saveRun(run);
 
   try {
     await executeTestCases(run, testCases, dictionary);
@@ -125,6 +133,7 @@ export async function runExcelPipeline(
     run.error = err.message;
   }
 
+  saveRun(run);
   return run;
 }
 
@@ -149,6 +158,7 @@ export async function runNaturalLanguagePipeline(
       error: "ANTHROPIC_API_KEY가 필요합니다.",
     };
     activeRuns.set(runId, run);
+    saveRun(run);
     return run;
   }
 
@@ -161,6 +171,7 @@ export async function runNaturalLanguagePipeline(
     executor,
   };
   activeRuns.set(runId, run);
+  saveRun(run);
 
   const screenshotDir = path.resolve("data/screenshots");
   fs.mkdirSync(screenshotDir, { recursive: true });
@@ -289,6 +300,7 @@ export async function runNaturalLanguagePipeline(
         console.error(`\n❌ [${testId}] 오류:`, err.message);
       } finally {
         run.cases = run.cases.map((c) => c.testId === testId ? { ...result } : c);
+        saveRun(run);
       }
     }
   } finally {
@@ -300,5 +312,6 @@ export async function runNaturalLanguagePipeline(
   pausedRuns.delete(runId);
   run.paused = false;
   run.status = run.total > 0 && run.failed === run.total ? "failed" : "completed";
+  saveRun(run);
   return run;
 }
