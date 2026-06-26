@@ -93,6 +93,39 @@ const glass = (extra?: React.CSSProperties): React.CSSProperties => ({
   ...extra,
 });
 
+// 아직 시작되지 않은 시나리오도 Pending 상태로 미리 채워서 항상 전체 목록을 보여준다
+function buildDisplayCases(data: RunResult): TestCase[] {
+  if (data.total === 0) return data.cases;
+
+  const scenarioTexts = data.mode === "natural" && data.scenarios
+    ? data.scenarios.split("\n\n---\n\n")
+    : [];
+
+  const result: TestCase[] = [];
+  for (let i = 0; i < data.total; i++) {
+    const testId = data.mode === "natural" ? `V-${String(i + 1).padStart(3, "0")}` : undefined;
+    const existing = testId
+      ? data.cases.find((c) => c.testId === testId)
+      : data.cases[i];
+
+    if (existing) {
+      result.push(existing);
+    } else {
+      result.push({
+        testId: testId || `pending-${i}`,
+        feature: data.mode === "natural" ? "Vision 에이전트" : "",
+        scenario: scenarioTexts[i]?.trim().slice(0, 80) || `케이스 ${i + 1}`,
+        status: "Pending",
+        failReason: "",
+        videoUrl: "",
+        screenshotUrl: "",
+        consoleLogs: [],
+      });
+    }
+  }
+  return result;
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 export function RunDashboard({ runId }: { runId: string }) {
   const router = useRouter();
@@ -115,8 +148,8 @@ export function RunDashboard({ runId }: { runId: string }) {
     if (running) {
       setActiveId(running.testId);
     } else if (!activeId) {
-      const done = data.cases.find((c) => c.status !== "Pending");
-      if (done) setActiveId(done.testId);
+      const firstDisplay = buildDisplayCases(data)[0];
+      if (firstDisplay) setActiveId(firstDisplay.testId);
     }
     const next = new Map<string, CaseStatus>();
     data.cases.forEach((c) => next.set(c.testId, c.status));
@@ -138,7 +171,8 @@ export function RunDashboard({ runId }: { runId: string }) {
   const done = data.passed + data.failed;
   const progress = data.total > 0 ? Math.round((done / data.total) * 100) : 0;
   const isTerminal = TERMINAL.includes(data.status);
-  const activeCase = data.cases.find((c) => c.testId === activeId) ?? null;
+  const displayCases = buildDisplayCases(data);
+  const activeCase = displayCases.find((c) => c.testId === activeId) ?? null;
 
   return (
     <div style={{ display: "flex", flex: 1, minHeight: 0, overflow: "hidden", fontFamily: "-apple-system, BlinkMacSystemFont, 'Geist', sans-serif" }}>
@@ -205,20 +239,20 @@ export function RunDashboard({ runId }: { runId: string }) {
           <span style={{ fontSize: 11, fontWeight: 700, color: C.textMid, letterSpacing: "0.05em", textTransform: "uppercase" }}>
             시나리오
             <span style={{ marginLeft: 6, background: C.indigoBg, color: C.indigo, borderRadius: 999, padding: "1px 7px", fontSize: 10.5, fontWeight: 600 }}>
-              {data.cases.length}
+              {data.total}
             </span>
           </span>
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", padding: "0 10px 12px" }}>
-          {data.cases.length === 0 ? (
+          {displayCases.length === 0 ? (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 100, color: C.textLight, fontSize: 13 }}>
               {!isTerminal
                 ? <span style={{ display: "flex", alignItems: "center", gap: 8 }}><PulsingDot color={C.indigo} /> 준비 중…</span>
                 : "케이스 없음"}
             </div>
           ) : (
-            data.cases.map((tc) => (
+            displayCases.map((tc) => (
               <ScenarioCard
                 key={tc.testId}
                 tc={tc}
