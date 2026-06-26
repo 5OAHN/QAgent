@@ -77,13 +77,7 @@ export default function GlobalNav() {
         overflow: "hidden",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0, overflow: "hidden" }}>
-          <div style={{
-            width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-            background: "#0066cc",
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
-            <span style={{ color: "#fff", fontWeight: 700, fontSize: 14, letterSpacing: "-0.5px" }}>Q</span>
-          </div>
+          <img src="/logo.svg" alt="QAgent" style={{ height: 24, width: "auto", flexShrink: 0 }} />
           {!collapsed && (
             <div style={{ minWidth: 0, overflow: "hidden" }}>
               <p style={{ fontSize: 15, fontWeight: 600, color: "#1d1d1f", letterSpacing: "-0.4px", lineHeight: 1.2, whiteSpace: "nowrap" }}>QAgent</p>
