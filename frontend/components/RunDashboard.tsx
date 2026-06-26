@@ -170,8 +170,10 @@ export function RunDashboard({ runId }: { runId: string }) {
 
   const done = data.passed + data.failed;
   const progress = data.total > 0 ? Math.round((done / data.total) * 100) : 0;
-  const isTerminal = TERMINAL.includes(data.status);
   const displayCases = buildDisplayCases(data);
+  const hasPendingCase = displayCases.some((c) => c.status === "Pending");
+  // run.status가 완료로 바뀌었어도 케이스가 아직 Pending이면 컨트롤은 계속 노출
+  const isTerminal = TERMINAL.includes(data.status) && !hasPendingCase;
   const activeCase = displayCases.find((c) => c.testId === activeId) ?? null;
 
   return (
@@ -263,27 +265,25 @@ export function RunDashboard({ runId }: { runId: string }) {
               />
             ))
           )}
-        </div>
 
-        {/* Retry / edit */}
-        {data.mode === "natural" && data.targetUrl && data.scenarios && (isTerminal || data.paused) && (
-          <div style={{ padding: "10px 14px", borderTop: `1px solid ${C.border}` }}>
+          {/* Retry / edit — 마지막 시나리오 카드 바로 아래 */}
+          {data.mode === "natural" && data.targetUrl && data.scenarios && (isTerminal || data.paused) && (
             <button
               onClick={() => {
                 const params = new URLSearchParams({ url: data.targetUrl!, scenarios: data.scenarios! });
                 router.push(`/new?${params.toString()}`);
               }}
               style={{
-                width: "100%", padding: "9px 0", borderRadius: 9,
+                width: "100%", marginTop: 8, padding: "9px 0", borderRadius: 9,
                 border: `1px solid ${C.border}`,
                 background: C.indigoBg,
                 color: C.indigo, fontSize: 12, fontWeight: 500, cursor: "pointer",
               }}
             >
-              {data.paused ? "✏️ 시나리오 수정 후 재시도 ↩" : "수정 후 재시도 ↩"}
+              시나리오 수정 후 재시도
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* ── Right: Viewer + Logs ───────────────────────────────────── */}
