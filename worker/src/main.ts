@@ -3,7 +3,7 @@ import cors from "cors";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { runExcelPipeline, runNaturalLanguagePipeline, getRunResult, getAllRuns, cancelRun, pauseRun, resumeRun } from "./pipeline";
+import { runExcelPipeline, runNaturalLanguagePipeline, getRunResult, getAllRuns, cancelRun, pauseRun, resumeRun, deleteRunResult } from "./pipeline";
 
 const app = express();
 app.use(cors());
@@ -96,6 +96,15 @@ app.post("/run/:runId/pause", (req: Request, res: Response) => {
 app.post("/run/:runId/resume", (req: Request, res: Response) => {
   const ok = resumeRun(req.params.runId);
   res.json({ ok, action: "resume" });
+});
+
+// ── 이력 삭제 ─────────────────────────────────────────────────────────
+app.delete("/run/:runId", (req: Request, res: Response) => {
+  const run = getRunResult(req.params.runId);
+  if (!run) return res.status(404).json({ error: "실행 정보를 찾을 수 없습니다." });
+  if (run.status === "running") return res.status(409).json({ error: "실행 중인 테스트는 삭제할 수 없습니다." });
+  deleteRunResult(req.params.runId);
+  res.json({ ok: true });
 });
 
 app.get("/health", (_: Request, res: Response) => res.json({ status: "ok" }));

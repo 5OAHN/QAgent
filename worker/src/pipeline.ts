@@ -6,7 +6,7 @@ import { UIDictionary } from "./parser";
 import { runTest, TestResult } from "./executor";
 import { analyzeFailure } from "./analyzer";
 import { runVisionAgent } from "./vision-agent";
-import { saveRun, loadAllRuns } from "./db";
+import { saveRun, loadAllRuns, deleteRun } from "./db";
 
 export interface RunResult {
   runId: string;
@@ -34,13 +34,20 @@ const activeRuns = new Map<string, RunResult>();
 const cancelledRuns = new Set<string>();
 const pausedRuns = new Set<string>();
 
-// 디스크(SQLite)에 저장된 과거 이력을 메모리로 복원 — 재배포 후에도 이력 유지
+// 디스크(JSON 파일)에 저장된 과거 이력을 메모리로 복원 — 재배포 후에도 이력 유지
 for (const run of loadAllRuns()) {
   activeRuns.set(run.runId, run);
 }
 
 export function getRunResult(runId: string): RunResult | undefined {
   return activeRuns.get(runId);
+}
+
+export function deleteRunResult(runId: string): boolean {
+  const run = activeRuns.get(runId);
+  if (run && run.status === "running") return false; // 실행 중인 런은 삭제 불가
+  activeRuns.delete(runId);
+  return deleteRun(runId);
 }
 
 export function cancelRun(runId: string): boolean {

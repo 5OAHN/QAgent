@@ -37,11 +37,27 @@ const card: React.CSSProperties = {
 export default function HomePage() {
   const router = useRouter();
 
-  const { data: runs = [], isLoading } = useSWR<RunSummary[]>(
+  const { data: runs = [], isLoading, mutate } = useSWR<RunSummary[]>(
     "/api/history",
     fetcher,
     { refreshInterval: 5000 }
   );
+
+  const handleDelete = async (runId: string) => {
+    if (!confirm("이 테스트 이력을 삭제하시겠습니까? 되돌릴 수 없습니다.")) return;
+    mutate((prev) => (prev ?? []).filter((r) => r.runId !== runId), { revalidate: false });
+    try {
+      const res = await fetch(`/api/run/${runId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || "삭제에 실패했습니다.");
+        mutate();
+      }
+    } catch {
+      alert("Worker에 연결할 수 없습니다.");
+      mutate();
+    }
+  };
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -88,13 +104,13 @@ export default function HomePage() {
                 <div style={{ ...card, overflow: "hidden" }}>
                   <div style={{
                     display: "grid",
-                    gridTemplateColumns: "130px 1fr 110px 100px 130px 90px",
+                    gridTemplateColumns: "130px 1fr 110px 100px 130px 90px 40px",
                     padding: "11px 22px",
                     background: A.parchment,
                     borderBottom: `1px solid ${A.hairline}`,
                   }}>
-                    {["상태", "프로젝트 (URL)", "실행자", "결과 요약", "실행 일시", "모드"].map((h) => (
-                      <span key={h} style={{ fontSize: 11, fontWeight: 600, color: A.inkMuted, letterSpacing: "0.05em", textTransform: "uppercase" }}>{h}</span>
+                    {["상태", "프로젝트 (URL)", "실행자", "결과 요약", "실행 일시", "모드", ""].map((h, i) => (
+                      <span key={i} style={{ fontSize: 11, fontWeight: 600, color: A.inkMuted, letterSpacing: "0.05em", textTransform: "uppercase" }}>{h}</span>
                     ))}
                   </div>
                   {runs.map((run, i) => (
@@ -103,6 +119,7 @@ export default function HomePage() {
                       run={run}
                       isLast={i === runs.length - 1}
                       onClick={() => router.push(`/dashboard/${run.runId}`)}
+                      onDelete={() => handleDelete(run.runId)}
                     />
                   ))}
                 </div>
@@ -135,7 +152,7 @@ function StatsRow({ runs }: { runs: RunSummary[] }) {
   );
 }
 
-function HistoryRow({ run, isLast, onClick }: { run: RunSummary; isLast: boolean; onClick: () => void }) {
+function HistoryRow({ run, isLast, onClick, onDelete }: { run: RunSummary; isLast: boolean; onClick: () => void; onDelete: () => void }) {
   const passRate = run.total > 0 ? `${run.passed}/${run.total}` : "—";
   const allPass  = run.passed === run.total && run.total > 0;
   const hasFail  = run.failed > 0;
@@ -156,7 +173,7 @@ function HistoryRow({ run, isLast, onClick }: { run: RunSummary; isLast: boolean
       onClick={onClick}
       style={{
         display: "grid",
-        gridTemplateColumns: "130px 1fr 110px 100px 130px 90px",
+        gridTemplateColumns: "130px 1fr 110px 100px 130px 90px 40px",
         padding: "14px 22px",
         alignItems: "center",
         borderBottom: isLast ? "none" : `1px solid ${A.divider}`,
@@ -213,6 +230,20 @@ function HistoryRow({ run, isLast, onClick }: { run: RunSummary; isLast: boolean
         }}>
           {run.mode === "natural" ? "자연어" : "엑셀"}
         </span>
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        {run.status !== "running" && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            title="삭제"
+            style={{ background: "none", border: "none", cursor: "pointer", color: A.hairline, padding: 4, borderRadius: 6 }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = "#ef4444"; e.currentTarget.style.background = "rgba(239,68,68,0.08)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = A.hairline; e.currentTarget.style.background = "transparent"; }}
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3.5h10M5.5 3.5V2.5a.5.5 0 01.5-.5h2a.5.5 0 01.5.5v1M5.5 6v4M8.5 6v4M3 3.5l.7 7.2a.5.5 0 00.5.3h5.6a.5.5 0 00.5-.3L11 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </button>
+        )}
       </div>
     </div>
   );

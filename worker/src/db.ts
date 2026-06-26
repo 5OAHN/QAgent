@@ -39,3 +39,11 @@ export function loadAllRuns(): RunResult[] {
 export function loadRun(runId: string): RunResult | undefined {
   return readAll()[runId];
 }
+
+export function deleteRun(runId: string): boolean {
+  const all = readAll();
+  if (!(runId in all)) return false;
+  delete all[runId];
+  writeAll(all);
+  return true;
+}
