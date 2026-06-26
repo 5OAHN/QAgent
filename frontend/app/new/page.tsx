@@ -6,7 +6,7 @@ import Link from "next/link";
 
 type Mode = "natural" | "excel";
 interface ScenarioCard { id: number; text: string; precondition: string; }
-interface LoginField { id: number; label: string; value: string; isPassword: boolean; }
+interface LoginField { id: number; label: string; customLabel?: string; value: string; isPassword: boolean; }
 
 const CARD_PLACEHOLDER = `테스트 시나리오를 자유롭게 작성하세요.
 
@@ -15,6 +15,8 @@ const CARD_PLACEHOLDER = `테스트 시나리오를 자유롭게 작성하세요
 2. 사용자 관리 메뉴를 클릭한다
 3. 새 사용자 추가 버튼을 클릭한다
 4. 이름과 이메일을 입력하고 저장한다`;
+
+const LOGIN_LABEL_OPTIONS = ["아이디 / 이메일", "비밀번호", "테넌시 ID", "워크스페이스 코드", "기관 코드", "직접 입력"];
 
 const DEFAULT_LOGIN_FIELDS = (): LoginField[] => [
   { id: 1, label: "아이디 / 이메일", value: "", isPassword: false },
@@ -106,7 +108,7 @@ function NewTestForm() {
   const updatePrecondition = (id: number, precondition: string) => setCards((p) => p.map((c) => c.id === id ? { ...c, precondition } : c));
 
   /* ── 로그인 필드 핸들러 ── */
-  const addLoginField = () => setLoginFields((p) => [...p, { id: nextFieldId++, label: "", value: "", isPassword: false }]);
+  const addLoginField = () => setLoginFields((p) => [...p, { id: nextFieldId++, label: "테넌시 ID", value: "", isPassword: false }]);
   const removeLoginField = (id: number) => setLoginFields((p) => p.length > 1 ? p.filter((f) => f.id !== id) : p);
   const updateLoginField = (id: number, key: keyof LoginField, val: string | boolean) =>
     setLoginFields((p) => p.map((f) => f.id === id ? { ...f, [key]: val } : f));
@@ -274,18 +276,52 @@ function NewTestForm() {
               {/* 로그인 필드 목록 */}
               {loginOpen && (
                 <div style={{ padding: "14px", display: "flex", flexDirection: "column", gap: 10 }}>
-                  {loginFields.map((field, idx) => (
-                    <div key={field.id} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      {/* 라벨 */}
-                      <input
-                        type="text"
-                        value={field.label}
-                        onChange={(e) => updateLoginField(field.id, "label", e.target.value)}
-                        placeholder={idx === 0 ? "아이디 / 이메일" : idx === 1 ? "비밀번호" : "필드 이름"}
-                        style={{ ...inputStyle, width: 130, flexShrink: 0, fontSize: 12, padding: "8px 10px" }}
-                        onFocus={(e) => { e.target.style.borderColor = A.blue; e.target.style.boxShadow = `0 0 0 3px rgba(0,102,204,0.1)`; }}
-                        onBlur={(e) => { e.target.style.borderColor = A.hairline; e.target.style.boxShadow = "none"; }}
-                      />
+                  {loginFields.map((field) => (
+                    <div key={field.id} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                      {/* 라벨 드롭다운 */}
+                      <div style={{ width: 140, flexShrink: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+                        <select
+                          value={field.label === field.customLabel ? "직접 입력" : field.label}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === "직접 입력") {
+                              updateLoginField(field.id, "label", "");
+                              updateLoginField(field.id, "customLabel", "");
+                              updateLoginField(field.id, "isPassword", false);
+                            } else {
+                              updateLoginField(field.id, "label", val);
+                              updateLoginField(field.id, "customLabel", undefined as any);
+                              updateLoginField(field.id, "isPassword", val === "비밀번호");
+                            }
+                          }}
+                          style={{ ...inputStyle, fontSize: 12, padding: "8px 10px", cursor: "pointer", appearance: "none",
+                            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236b7280' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E")`,
+                            backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center",
+                            paddingRight: 28,
+                          }}
+                          onFocus={(e) => { e.target.style.borderColor = A.blue; e.target.style.boxShadow = `0 0 0 3px rgba(0,102,204,0.1)`; }}
+                          onBlur={(e) => { e.target.style.borderColor = A.hairline; e.target.style.boxShadow = "none"; }}
+                        >
+                          {LOGIN_LABEL_OPTIONS.map((opt) => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
+                        {/* 직접 입력 선택 시 텍스트 필드 */}
+                        {(field.label === "" || field.customLabel !== undefined) && (
+                          <input
+                            type="text"
+                            value={field.customLabel ?? ""}
+                            onChange={(e) => {
+                              updateLoginField(field.id, "customLabel", e.target.value);
+                              updateLoginField(field.id, "label", e.target.value);
+                            }}
+                            placeholder="필드 이름 입력"
+                            style={{ ...inputStyle, fontSize: 12, padding: "7px 10px" }}
+                            onFocus={(e) => { e.target.style.borderColor = A.blue; e.target.style.boxShadow = `0 0 0 3px rgba(0,102,204,0.1)`; }}
+                            onBlur={(e) => { e.target.style.borderColor = A.hairline; e.target.style.boxShadow = "none"; }}
+                          />
+                        )}
+                      </div>
                       {/* 값 */}
                       <div style={{ position: "relative", flex: 1 }}>
                         <input
@@ -310,15 +346,17 @@ function NewTestForm() {
                         </button>
                       </div>
                       {/* 삭제 */}
-                      {loginFields.length > 1 && (
-                        <button onClick={() => removeLoginField(field.id)}
-                          style={{ background: "none", border: "none", cursor: "pointer", color: A.hairline, padding: 4, flexShrink: 0 }}
-                          onMouseEnter={(e) => (e.currentTarget.style.color = "#ef4444")}
-                          onMouseLeave={(e) => (e.currentTarget.style.color = A.hairline)}
-                        >
-                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3.5h10M5.5 6v4M8.5 6v4M3 3.5l.7 7.2a.5.5 0 00.5.3h5.6a.5.5 0 00.5-.3L11 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                        </button>
-                      )}
+                      <div style={{ paddingTop: 8 }}>
+                        {loginFields.length > 1 && (
+                          <button onClick={() => removeLoginField(field.id)}
+                            style={{ background: "none", border: "none", cursor: "pointer", color: A.hairline, padding: 4, flexShrink: 0 }}
+                            onMouseEnter={(e) => (e.currentTarget.style.color = "#ef4444")}
+                            onMouseLeave={(e) => (e.currentTarget.style.color = A.hairline)}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3.5h10M5.5 6v4M8.5 6v4M3 3.5l.7 7.2a.5.5 0 00.5.3h5.6a.5.5 0 00.5-.3L11 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
 
