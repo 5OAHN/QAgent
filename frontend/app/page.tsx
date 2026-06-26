@@ -92,8 +92,6 @@ export default function HomePage() {
       <main style={{ flex: 1, padding: "28px", overflowY: "auto", background: A.parchment }}>
         {isLoading ? (
           <LoadingState />
-        ) : runs.length === 0 ? (
-          <EmptyState />
         ) : (
           <>
             {/* 기간 선택 */}
@@ -113,14 +111,16 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* 통계 카드 */}
+            {/* 통계 카드 — 데이터 유무와 상관없이 항상 노출 */}
             <StatsRow runs={filteredRuns} />
 
-            {filteredRuns.length === 0 && (
+            {runs.length === 0 ? (
+              <EmptyState />
+            ) : filteredRuns.length === 0 ? (
               <div style={{ ...card, padding: "40px 0", textAlign: "center" }}>
                 <p style={{ fontSize: 13, color: A.inkMuted }}>선택한 기간에는 실행 이력이 없습니다.</p>
               </div>
-            )}
+            ) : null}
 
             {/* 분석 위젯 */}
             <DashboardAnalytics />
