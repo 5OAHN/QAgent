@@ -69,56 +69,68 @@ export default function HomePage() {
       <main style={{ flex: 1, padding: "28px", overflowY: "auto", background: A.parchment }}>
         {isLoading ? (
           <LoadingState />
-        ) : runs.length === 0 ? (
-          <EmptyState />
         ) : (
           <>
-            {/* 통계 카드 */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 28 }}>
-              {[
-                { label: "전체 실행", value: runs.length,                                          color: A.blue,    bg: "rgba(0,102,204,0.07)" },
-                { label: "완료",      value: runs.filter((r) => r.status === "completed").length,  color: "#16a34a", bg: "rgba(22,163,74,0.07)"  },
-                { label: "Fail 포함", value: runs.filter((r) => r.failed > 0).length,              color: "#dc2626", bg: "rgba(220,38,38,0.07)"  },
-                { label: "진행 중",   value: runs.filter((r) => r.status === "running").length,    color: "#0066cc", bg: "rgba(0,102,204,0.07)"  },
-              ].map(({ label, value, color, bg }) => (
-                <div key={label} style={{ ...card, padding: "18px 20px" }}>
-                  <p style={{ fontSize: 11, fontWeight: 600, color: A.inkMuted, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10 }}>{label}</p>
-                  <p style={{ fontSize: 28, fontWeight: 600, color, letterSpacing: "-0.8px", lineHeight: 1 }}>{value}</p>
+            {/* 통계 카드 — 데이터 유무와 상관없이 항상 노출 */}
+            <StatsRow runs={runs} />
+
+            {runs.length === 0 ? (
+              <EmptyState />
+            ) : (
+              <>
+                {/* 섹션 타이틀 */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                  <h2 style={{ fontSize: 13, fontWeight: 600, color: A.ink, letterSpacing: "0.04em", textTransform: "uppercase" }}>최근 실행 이력</h2>
+                  <span style={{ fontSize: 12, color: A.inkMuted }}>{runs.length}개 항목</span>
                 </div>
-              ))}
-            </div>
 
-            {/* 섹션 타이틀 */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <h2 style={{ fontSize: 13, fontWeight: 600, color: A.ink, letterSpacing: "0.04em", textTransform: "uppercase" }}>최근 실행 이력</h2>
-              <span style={{ fontSize: 12, color: A.inkMuted }}>{runs.length}개 항목</span>
-            </div>
-
-            {/* 이력 테이블 */}
-            <div style={{ ...card, overflow: "hidden" }}>
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "130px 1fr 110px 100px 130px 90px",
-                padding: "11px 22px",
-                background: A.parchment,
-                borderBottom: `1px solid ${A.hairline}`,
-              }}>
-                {["상태", "프로젝트 (URL)", "실행자", "결과 요약", "실행 일시", "모드"].map((h) => (
-                  <span key={h} style={{ fontSize: 11, fontWeight: 600, color: A.inkMuted, letterSpacing: "0.05em", textTransform: "uppercase" }}>{h}</span>
-                ))}
-              </div>
-              {runs.map((run, i) => (
-                <HistoryRow
-                  key={run.runId}
-                  run={run}
-                  isLast={i === runs.length - 1}
-                  onClick={() => router.push(`/dashboard/${run.runId}`)}
-                />
-              ))}
-            </div>
+                {/* 이력 테이블 */}
+                <div style={{ ...card, overflow: "hidden" }}>
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "130px 1fr 110px 100px 130px 90px",
+                    padding: "11px 22px",
+                    background: A.parchment,
+                    borderBottom: `1px solid ${A.hairline}`,
+                  }}>
+                    {["상태", "프로젝트 (URL)", "실행자", "결과 요약", "실행 일시", "모드"].map((h) => (
+                      <span key={h} style={{ fontSize: 11, fontWeight: 600, color: A.inkMuted, letterSpacing: "0.05em", textTransform: "uppercase" }}>{h}</span>
+                    ))}
+                  </div>
+                  {runs.map((run, i) => (
+                    <HistoryRow
+                      key={run.runId}
+                      run={run}
+                      isLast={i === runs.length - 1}
+                      onClick={() => router.push(`/dashboard/${run.runId}`)}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
           </>
         )}
       </main>
+    </div>
+  );
+}
+
+function StatsRow({ runs }: { runs: RunSummary[] }) {
+  const isEmpty = runs.length === 0;
+  const stats = [
+    { label: "전체 실행", value: runs.length,                                          color: A.blue,    bg: "rgba(0,102,204,0.07)" },
+    { label: "완료",      value: runs.filter((r) => r.status === "completed").length,  color: "#16a34a", bg: "rgba(22,163,74,0.07)"  },
+    { label: "Fail 포함", value: runs.filter((r) => r.failed > 0).length,              color: "#dc2626", bg: "rgba(220,38,38,0.07)"  },
+    { label: "진행 중",   value: runs.filter((r) => r.status === "running").length,    color: "#0066cc", bg: "rgba(0,102,204,0.07)"  },
+  ];
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 28 }}>
+      {stats.map(({ label, value, color, bg }) => (
+        <div key={label} style={{ ...card, padding: "18px 20px", opacity: isEmpty ? 0.55 : 1, transition: "opacity .2s" }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: A.inkMuted, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10 }}>{label}</p>
+          <p style={{ fontSize: 28, fontWeight: 600, color: isEmpty ? A.inkMuted : color, letterSpacing: "-0.8px", lineHeight: 1 }}>{value}</p>
+        </div>
+      ))}
     </div>
   );
 }
@@ -219,7 +231,7 @@ function LoadingState() {
 
 function EmptyState() {
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "62vh", textAlign: "center" }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "48vh", textAlign: "center" }}>
 
       <div style={{
         width: 80, height: 80, borderRadius: 20,
