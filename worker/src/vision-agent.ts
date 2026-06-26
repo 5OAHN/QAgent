@@ -227,12 +227,24 @@ export async function runVisionAgent(
     if (input.action === "done")   return { success: true,  steps, summary: input.summary };
     if (input.action === "failed") return { success: false, steps, failReason: input.reason };
 
-    try {
-      await executeAction(page, input);
-    } catch (err: any) {
-      console.warn(`  [Step ${i + 1}] 실행 실패: ${err.message}`);
-      // 실패를 actionHistory에 기록해 AI가 다른 방법을 시도하도록 유도
-      actionHistory[actionHistory.length - 1] += ` [실패: ${err.message}]`;
+    // 액션 실행 — 실패 시 최대 2회 재시도
+    let actionErr: string | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await executeAction(page, input);
+        actionErr = null;
+        break;
+      } catch (err: any) {
+        actionErr = err.message;
+        if (attempt < 2) {
+          console.warn(`  [Step ${i + 1}] 재시도 ${attempt + 1}/2: ${err.message}`);
+          await page.waitForTimeout(500);
+        }
+      }
+    }
+    if (actionErr) {
+      console.warn(`  [Step ${i + 1}] 실행 실패 (3회 시도): ${actionErr}`);
+      actionHistory[actionHistory.length - 1] += ` [실패: ${actionErr}]`;
     }
 
     await page.waitForLoadState("networkidle", { timeout: 2000 }).catch(() => {});

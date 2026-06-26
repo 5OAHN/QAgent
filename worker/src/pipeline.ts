@@ -133,7 +133,8 @@ export async function runNaturalLanguagePipeline(
   runId: string,
   targetUrl: string,
   scenarioList: string[],
-  executor?: string
+  executor?: string,
+  preconditions?: string[]
 ): Promise<RunResult> {
   if (!process.env.ANTHROPIC_API_KEY) {
     const run: RunResult = {
@@ -190,7 +191,23 @@ export async function runNaturalLanguagePipeline(
       if (control.isCancelled()) break;
 
       const naturalText = scenarioList[i];
+      const precondition = preconditions?.[i]?.trim() || "";
+      const taskPrompt = precondition
+        ? `[전제 조건: ${precondition}]\n\n${naturalText}`
+        : naturalText;
       const testId = `V-${String(i + 1).padStart(3, "0")}`;
+
+      // 케이스 시작 전 헬스체크 — 페이지가 오류 상태인지 확인
+      try {
+        const title = await page.title();
+        const isErrorPage = /404|403|500|error|not found/i.test(title);
+        if (isErrorPage) {
+          console.warn(`  [${testId}] 헬스체크: 오류 페이지 감지 (title="${title}") → 대상 URL로 재진입`);
+          await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 15000 });
+        }
+      } catch {
+        // 헬스체크 실패해도 계속 진행
+      }
 
       const result: TestResult = {
         testId,
@@ -210,7 +227,7 @@ export async function runNaturalLanguagePipeline(
 
         const liveStepLogs: string[] = [];
 
-        const visionResult = await runVisionAgent(page, naturalText, 20, (step) => {
+        const visionResult = await runVisionAgent(page, taskPrompt, 20, (step) => {
           const icon = step.action === "done" ? "✅" : step.action === "failed" ? "❌" : `[${step.stepNum}]`;
           liveStepLogs.push(`${icon} ${step.action.toUpperCase()} ${step.details}\n    💭 ${step.thought}`);
           result.consoleLogs = [...liveStepLogs];

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 type Mode = "natural" | "excel";
-interface ScenarioCard { id: number; text: string; }
+interface ScenarioCard { id: number; text: string; precondition: string; }
 
 const CARD_PLACEHOLDER = `테스트 시나리오를 자유롭게 작성하세요.
 
@@ -53,7 +53,7 @@ function NewTestForm() {
   const [targetUrl, setTargetUrl]   = useState("");
   const [mode, setMode]             = useState<Mode>("natural");
   const [file, setFile]             = useState<File | null>(null);
-  const [cards, setCards]           = useState<ScenarioCard[]>([{ id: 1, text: "" }]);
+  const [cards, setCards]           = useState<ScenarioCard[]>([{ id: 1, text: "", precondition: "" }]);
   const [executor, setExecutor]     = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading]   = useState(false);
@@ -67,16 +67,17 @@ function NewTestForm() {
     const sc  = searchParams.get("scenarios");
     const ex  = searchParams.get("executor");
     if (url) setTargetUrl(url);
-    if (sc)  { setMode("natural"); setCards([{ id: 1, text: sc }]); }
+    if (sc)  { setMode("natural"); setCards([{ id: 1, text: sc, precondition: "" }]); }
     if (ex)  setExecutor(ex);
   }, []);
 
   const filledCards = cards.filter((c) => c.text.trim().length > 0);
   const isReady = targetUrl.trim() !== "" && (mode === "excel" ? !!file : filledCards.length > 0);
 
-  const addCard    = () => setCards((p) => [...p, { id: nextId++, text: "" }]);
+  const addCard    = () => setCards((p) => [...p, { id: nextId++, text: "", precondition: "" }]);
   const removeCard = (id: number) => setCards((p) => p.length > 1 ? p.filter((c) => c.id !== id) : p);
   const updateCard = (id: number, text: string) => { setCards((p) => p.map((c) => c.id === id ? { ...c, text } : c)); setError(""); };
+  const updatePrecondition = (id: number, precondition: string) => setCards((p) => p.map((c) => c.id === id ? { ...c, precondition } : c));
 
   const onDrop = (e: DragEvent) => {
     e.preventDefault(); setIsDragging(false);
@@ -100,7 +101,7 @@ function NewTestForm() {
         res = await fetch("/api/trigger", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mode: "natural", url: targetUrl, scenarios: filledCards.map((c) => c.text.trim()), executor: executor.trim() || undefined }),
+          body: JSON.stringify({ mode: "natural", url: targetUrl, scenarios: filledCards.map((c) => c.text.trim()), preconditions: filledCards.map((c) => c.precondition.trim()), executor: executor.trim() || undefined }),
         });
       }
       const data = await res.json();
@@ -237,10 +238,19 @@ function NewTestForm() {
                       onFocusCapture={(e) => e.currentTarget.style.borderColor = A.blue}
                       onBlurCapture={(e) => e.currentTarget.style.borderColor = A.hairline}
                     >
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 14px 4px" }}>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: A.inkMuted }}>케이스 {idx + 1}</span>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 14px 4px", borderBottom: `1px solid ${A.divider}` }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: A.inkMuted, flexShrink: 0 }}>케이스 {idx + 1}</span>
+                          <input
+                            type="text"
+                            value={card.precondition}
+                            onChange={(e) => updatePrecondition(card.id, e.target.value)}
+                            placeholder="선행 조건 (선택): 예) 로그인 상태"
+                            style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", fontSize: 11, color: A.inkMuted }}
+                          />
+                        </div>
                         {cards.length > 1 && (
-                          <button onClick={() => removeCard(card.id)} style={{ background: "none", border: "none", cursor: "pointer", color: A.hairline, padding: 2 }}
+                          <button onClick={() => removeCard(card.id)} style={{ background: "none", border: "none", cursor: "pointer", color: A.hairline, padding: 2, flexShrink: 0 }}
                             onMouseEnter={(e) => (e.currentTarget.style.color = "#ef4444")}
                             onMouseLeave={(e) => (e.currentTarget.style.color = A.hairline)}
                           >
@@ -249,7 +259,7 @@ function NewTestForm() {
                         )}
                       </div>
                       <textarea value={card.text} onChange={(e) => updateCard(card.id, e.target.value)} placeholder={CARD_PLACEHOLDER} rows={6}
-                        style={{ width: "100%", resize: "none", background: "transparent", padding: "4px 14px 12px", fontSize: 13, color: A.ink, outline: "none", border: "none", boxSizing: "border-box" }} />
+                        style={{ width: "100%", resize: "none", background: "transparent", padding: "8px 14px 12px", fontSize: 13, color: A.ink, outline: "none", border: "none", boxSizing: "border-box" }} />
                     </div>
                   ))}
                   <button onClick={addCard} style={{

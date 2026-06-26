@@ -45,6 +45,19 @@ interface RunResult {
 const TERMINAL: RunStatus[] = ["completed", "failed"];
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
+type FailCategory = "UI_BUG" | "LOADING_DELAY" | "SCENARIO_ERROR" | "SERVER_ERROR";
+const CATEGORY_LABELS: Record<FailCategory, string> = {
+  UI_BUG: "UI 버그", LOADING_DELAY: "로딩 지연", SCENARIO_ERROR: "시나리오 오류", SERVER_ERROR: "서버 에러",
+};
+function parseFailReason(raw: string): { category: FailCategory | null; label: string | null; reason: string } {
+  const m = raw?.match(/^\[CATEGORY:(\w+)\]\s*/);
+  if (m) {
+    const c = m[1] as FailCategory;
+    return { category: c, label: CATEGORY_LABELS[c] ?? null, reason: raw.slice(m[0].length) };
+  }
+  return { category: null, label: null, reason: raw };
+}
+
 // ── Apple design tokens ──────────────────────────────────────────────────────
 const C = {
   indigo:      "#0066cc",
@@ -631,12 +644,22 @@ function TerminalPanel({ tc, isPaused }: { tc: TestCase | null; isPaused: boolea
           <span style={{ color: C.textLight }}>시나리오를 선택하면 로그가 표시됩니다.</span>
         ) : (
           <>
-            {tc.failReason && (
-              <div style={{ display: "flex", gap: 8, marginBottom: 8, padding: "6px 10px", borderRadius: 6, background: C.redBg, border: `1px solid rgba(220,38,38,0.2)` }}>
-                <span style={{ color: C.red, flexShrink: 0 }}>✗</span>
-                <span style={{ color: C.red, lineHeight: 1.5 }}>{tc.failReason}</span>
-              </div>
-            )}
+            {tc.failReason && (() => {
+              const { category, label, reason } = parseFailReason(tc.failReason);
+              return (
+                <div style={{ marginBottom: 8, padding: "8px 10px", borderRadius: 6, background: C.redBg, border: `1px solid rgba(220,38,38,0.2)` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: label ? 4 : 0 }}>
+                    <span style={{ color: C.red, flexShrink: 0 }}>✗</span>
+                    {label && (
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 99, background: "rgba(220,38,38,0.12)", color: C.red, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                        {label}
+                      </span>
+                    )}
+                  </div>
+                  <span style={{ color: C.red, lineHeight: 1.5, fontSize: 12 }}>{reason}</span>
+                </div>
+              );
+            })()}
             {(tc.consoleLogs ?? []).length === 0 && !isRunning && (
               <span style={{ color: C.textLight }}>로그 없음</span>
             )}
@@ -686,6 +709,7 @@ function TerminalPanel({ tc, isPaused }: { tc: TestCase | null; isPaused: boolea
 // ── Error report builder ───────────────────────────────────────────────────
 function buildErrorReport(tc: TestCase, targetUrl?: string): string {
   const recentLogs = (tc.consoleLogs ?? []).slice(-5);
+  const { category, label, reason } = parseFailReason(tc.failReason);
   const lines = [
     `## 🚨 QAgent 에러 리포트`,
     ``,
@@ -694,11 +718,12 @@ function buildErrorReport(tc: TestCase, targetUrl?: string): string {
     `| **테스트 ID** | \`${tc.testId}\` |`,
     `| **시나리오** | ${tc.scenario} |`,
     `| **상태** | ❌ Fail |`,
+    ...(label ? [`| **실패 유형** | ${label} (${category}) |`] : []),
     ...(targetUrl ? [`| **진입 URL** | ${targetUrl} |`] : []),
     ``,
     `### ❗ 에러 메시지`,
     `\`\`\``,
-    tc.failReason || "(에러 메시지 없음)",
+    reason || "(에러 메시지 없음)",
     `\`\`\``,
   ];
   if (recentLogs.length > 0) {

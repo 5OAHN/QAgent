@@ -12,6 +12,37 @@ function getClient(): Anthropic {
   return new Anthropic();
 }
 
+export type FailCategory = "UI_BUG" | "LOADING_DELAY" | "SCENARIO_ERROR" | "SERVER_ERROR";
+
+export interface FailAnalysis {
+  category: FailCategory;
+  reason: string;
+}
+
+const CATEGORY_LABELS: Record<FailCategory, string> = {
+  UI_BUG:         "UI 버그",
+  LOADING_DELAY:  "로딩 지연",
+  SCENARIO_ERROR: "시나리오 오류",
+  SERVER_ERROR:   "서버 에러",
+};
+
+const FAIL_ANALYSIS_TOOL = {
+  name: "classify_failure",
+  description: "Classify the QA test failure into a category and provide a concise reason",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      category: {
+        type: "string",
+        enum: ["UI_BUG", "LOADING_DELAY", "SCENARIO_ERROR", "SERVER_ERROR"],
+        description: "UI_BUG=요소없음/레이아웃오류, LOADING_DELAY=타임아웃/응답없음, SCENARIO_ERROR=잘못된시나리오, SERVER_ERROR=서버500/네트워크오류",
+      },
+      reason: { type: "string", description: "3문장 이내 실패 원인 분석 (한국어)" },
+    },
+    required: ["category", "reason"],
+  },
+};
+
 // ── 실패 원인 분석 ────────────────────────────────────────────────────
 export async function analyzeFailure(testCase: any, result: any): Promise<string> {
   if (!process.env.ANTHROPIC_API_KEY) return result.failReason;
@@ -21,11 +52,11 @@ export async function analyzeFailure(testCase: any, result: any): Promise<string
     {
       type: "text",
       text: [
-        "QA 테스트 실패 원인을 간결하게 분석해줘 (3문장 이내).",
+        "QA 테스트 실패 원인을 분석하고 카테고리를 분류해줘.",
         `**시나리오**: ${testCase.scenario}`,
-        `**기대 결과**: ${testCase.expected}`,
+        `**기대 결과**: ${testCase.expected || "(없음)"}`,
         `**에러**: ${result.failReason}`,
-        `**콘솔 로그**:\n${result.consoleLogs.slice(-10).join("\n")}`,
+        `**콘솔 로그**:\n${(result.consoleLogs ?? []).slice(-10).join("\n")}`,
       ].join("\n"),
     },
   ];
@@ -49,13 +80,30 @@ export async function analyzeFailure(testCase: any, result: any): Promise<string
     const res = await client.messages.create({
       model: ANALYSIS_MODEL,
       max_tokens: 400,
+      tools: [FAIL_ANALYSIS_TOOL],
+      tool_choice: { type: "tool", name: "classify_failure" },
       messages: [{ role: "user", content }],
     });
-    const block = res.content[0];
-    return block.type === "text" ? block.text : result.failReason;
+    const toolBlock = res.content.find((b) => b.type === "tool_use");
+    if (toolBlock && toolBlock.type === "tool_use") {
+      const inp = toolBlock.input as FailAnalysis;
+      // category를 JSON 태그로 앞에 붙여 저장 — 프론트에서 파싱
+      return `[CATEGORY:${inp.category}] ${inp.reason}`;
+    }
+    return result.failReason;
   } catch {
     return result.failReason;
   }
+}
+
+/** failReason 문자열에서 category + 순수 reason을 분리 */
+export function parseFailAnalysis(failReason: string): { category: FailCategory | null; label: string | null; reason: string } {
+  const match = failReason?.match(/^\[CATEGORY:(\w+)\]\s*/);
+  if (match) {
+    const category = match[1] as FailCategory;
+    return { category, label: CATEGORY_LABELS[category] ?? null, reason: failReason.slice(match[0].length) };
+  }
+  return { category: null, label: null, reason: failReason };
 }
 
 // ── 자연어 → DSL 변환 (Tool Use로 구조화 출력 보장) ──────────────────
