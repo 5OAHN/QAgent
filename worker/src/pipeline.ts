@@ -117,9 +117,8 @@ export async function runExcelPipeline(
       testId: String(row[1]),
       feature: String(row[2] || ""),
       scenario: String(row[3] || ""),
-      precondition: String(row[4] || ""),
-      actions: String(row[5] || ""),
-      expected: String(row[6] || ""),
+      actions: String(row[4] || ""),
+      expected: String(row[5] || ""),
     }));
 
   const run: RunResult = {
@@ -154,7 +153,6 @@ export async function runNaturalLanguagePipeline(
   targetUrl: string,
   scenarioList: string[],
   executor?: string,
-  preconditions?: string[],
   loginConfig?: LoginConfig
 ): Promise<RunResult> {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -240,10 +238,6 @@ export async function runNaturalLanguagePipeline(
       if (control.isCancelled()) break;
 
       const naturalText = scenarioList[i];
-      const precondition = preconditions?.[i]?.trim() || "";
-      const taskPrompt = precondition
-        ? `[전제 조건: ${precondition}]\n\n${naturalText}`
-        : naturalText;
       const testId = `V-${String(i + 1).padStart(3, "0")}`;
 
       // 케이스 시작 전 헬스체크 — 페이지가 오류 상태인지 확인
@@ -277,7 +271,7 @@ export async function runNaturalLanguagePipeline(
 
         const liveStepLogs: string[] = [];
 
-        const visionResult = await runVisionAgent(page, taskPrompt, 20, (step) => {
+        const visionResult = await runVisionAgent(page, naturalText, 20, (step) => {
           const icon = step.action === "done" ? "✅" : step.action === "failed" ? "❌" : `[${step.stepNum}]`;
           liveStepLogs.push(`${icon} ${step.action.toUpperCase()} ${step.details}\n    💭 ${step.thought}`);
           result.consoleLogs = [...liveStepLogs];

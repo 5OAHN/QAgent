@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 type Mode = "natural" | "excel";
-interface ScenarioCard { id: number; text: string; precondition: string; }
+interface ScenarioCard { id: number; text: string; }
 interface LoginField { id: number; label: string; customLabel?: string; value: string; isPassword: boolean; }
 
 const CARD_PLACEHOLDER = `테스트 시나리오를 자유롭게 작성하세요.
@@ -60,7 +60,7 @@ function NewTestForm() {
   const [targetUrl, setTargetUrl]       = useState("");
   const [mode, setMode]                 = useState<Mode>("natural");
   const [file, setFile]                 = useState<File | null>(null);
-  const [cards, setCards]               = useState<ScenarioCard[]>([{ id: 1, text: "", precondition: "" }]);
+  const [cards, setCards]               = useState<ScenarioCard[]>([{ id: 1, text: "" }]);
   const [isDragging, setIsDragging]     = useState(false);
   const [isLoading, setIsLoading]       = useState(false);
   const [error, setError]               = useState("");
@@ -75,7 +75,7 @@ function NewTestForm() {
     const url = searchParams.get("url");
     const sc  = searchParams.get("scenarios");
     if (url) setTargetUrl(url);
-    if (sc)  { setMode("natural"); setCards([{ id: 1, text: sc, precondition: "" }]); }
+    if (sc)  { setMode("natural"); setCards([{ id: 1, text: sc }]); }
   }, []);
 
   const filledCards = cards.filter((c) => c.text.trim().length > 0);
@@ -83,10 +83,9 @@ function NewTestForm() {
   const isReady = targetUrl.trim() !== "" && (mode === "excel" ? !!file : filledCards.length > 0);
 
   /* ── 카드 핸들러 ── */
-  const addCard    = () => setCards((p) => [...p, { id: nextCardId++, text: "", precondition: "" }]);
+  const addCard    = () => setCards((p) => [...p, { id: nextCardId++, text: "" }]);
   const removeCard = (id: number) => setCards((p) => p.length > 1 ? p.filter((c) => c.id !== id) : p);
   const updateCard = (id: number, text: string) => { setCards((p) => p.map((c) => c.id === id ? { ...c, text } : c)); setError(""); };
-  const updatePrecondition = (id: number, precondition: string) => setCards((p) => p.map((c) => c.id === id ? { ...c, precondition } : c));
 
   /* ── 로그인 필드 핸들러 ── */
   const addLoginField = () => setLoginFields((p) => [...p, { id: nextFieldId++, label: "테넌시 ID", value: "", isPassword: false }]);
@@ -133,7 +132,6 @@ function NewTestForm() {
             mode: "natural",
             url,
             scenarios: filledCards.map((c) => c.text.trim()),
-            preconditions: filledCards.map((c) => c.precondition.trim()),
             loginConfig,
           }),
         });
@@ -371,8 +369,24 @@ function NewTestForm() {
 
               {/* 엑셀 업로드 */}
               {mode === "excel" && (
-                <div
-                  onClick={() => fileRef.current?.click()}
+                <>
+                  <a
+                    href="/templates/qagent_template.xlsx"
+                    download
+                    style={{
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                      padding: "8px", borderRadius: 9, fontSize: 12, fontWeight: 500,
+                      color: A.blue, background: "rgba(0,102,204,0.05)", border: `1px solid rgba(0,102,204,0.15)`,
+                      textDecoration: "none", marginBottom: 4,
+                    }}
+                  >
+                    <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                      <path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    엑셀 양식 다운로드
+                  </a>
+                  <div
+                    onClick={() => fileRef.current?.click()}
                   onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                   onDragLeave={() => setIsDragging(false)}
                   onDrop={onDrop}
@@ -394,10 +408,11 @@ function NewTestForm() {
                     <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "center" }}>
                       <div style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(0,102,204,0.08)", border: `1px solid rgba(0,102,204,0.15)`, display: "flex", alignItems: "center", justifyContent: "center", color: A.blue }}>↑</div>
                       <p style={{ fontSize: 13, color: A.inkMuted }}>xlsx 파일을 드래그하거나 클릭해서 업로드</p>
-                      <p style={{ fontSize: 11, color: "#9ca3af" }}>컬럼: 구분 · 테스트ID · 기능 · 시나리오 · 전제조건 · 입력값/동작 · 기대결과</p>
+                      <p style={{ fontSize: 11, color: "#9ca3af" }}>컬럼: 구분 · 테스트ID · 기능 · 시나리오 · 입력값/동작 · 기대결과</p>
                     </div>
                   )}
-                </div>
+                  </div>
+                </>
               )}
 
               {/* 자연어 입력 */}
@@ -409,16 +424,7 @@ function NewTestForm() {
                       onBlurCapture={(e) => e.currentTarget.style.borderColor = A.hairline}
                     >
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 14px 6px", borderBottom: `1px solid ${A.divider}` }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
-                          <span style={{ fontSize: 11, fontWeight: 600, color: A.inkMuted, flexShrink: 0 }}>케이스 {idx + 1}</span>
-                          <input
-                            type="text"
-                            value={card.precondition}
-                            onChange={(e) => updatePrecondition(card.id, e.target.value)}
-                            placeholder="추가 선행 조건 (선택)"
-                            style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", fontSize: 11, color: A.inkMuted }}
-                          />
-                        </div>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: A.inkMuted }}>케이스 {idx + 1}</span>
                         {cards.length > 1 && (
                           <button onClick={() => removeCard(card.id)} style={{ background: "none", border: "none", cursor: "pointer", color: A.hairline, padding: 2, flexShrink: 0 }}
                             onMouseEnter={(e) => (e.currentTarget.style.color = "#ef4444")}
