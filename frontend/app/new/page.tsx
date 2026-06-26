@@ -95,6 +95,13 @@ function NewTestForm() {
     setLoginFields((p) => p.map((f) => f.id === id ? { ...f, [key]: val } : f));
 
 
+  // http(s):// 프로토콜이 없으면 https://를 자동으로 붙여준다 (로컬 테스트용 http:// 직접 입력은 그대로 존중)
+  const normalizeUrl = (raw: string): string => {
+    const trimmed = raw.trim();
+    if (!trimmed) return trimmed;
+    return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  };
+
   const onDrop = (e: DragEvent) => {
     e.preventDefault(); setIsDragging(false);
     const f = e.dataTransfer.files[0];
@@ -111,10 +118,12 @@ function NewTestForm() {
         ? { fields: loginFields.map(({ label, value, isPassword }) => ({ label, value, isPassword })) }
         : undefined;
 
+      const url = normalizeUrl(targetUrl);
+
       if (mode === "excel") {
         const form = new FormData();
         form.append("excel", file!);
-        form.append("url", targetUrl);
+        form.append("url", url);
         res = await fetch("/api/trigger", { method: "POST", body: form });
       } else {
         res = await fetch("/api/trigger", {
@@ -122,7 +131,7 @@ function NewTestForm() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             mode: "natural",
-            url: targetUrl,
+            url,
             scenarios: filledCards.map((c) => c.text.trim()),
             preconditions: filledCards.map((c) => c.precondition.trim()),
             loginConfig,
@@ -186,14 +195,14 @@ function NewTestForm() {
               <label style={{ fontSize: 11, fontWeight: 700, color: A.inkMuted, letterSpacing: "0.08em", textTransform: "uppercase" }}>테스트 대상 URL</label>
               <div style={{ position: "relative" }}>
                 <input
-                  type="url" value={targetUrl}
+                  type="text" value={targetUrl}
                   onChange={(e) => { setTargetUrl(e.target.value); setError(""); }}
-                  placeholder="https://your-service.com"
+                  placeholder="your-service.com (https:// 생략 가능)"
                   style={{ ...inputStyle, paddingRight: 40 }}
                   onFocus={(e) => { e.target.style.borderColor = A.blue; e.target.style.boxShadow = `0 0 0 3px rgba(0,102,204,0.1)`; }}
                   onBlur={(e) => { e.target.style.borderColor = A.hairline; e.target.style.boxShadow = "none"; }}
                 />
-                {/^https?:\/\/.+\..+/.test(targetUrl.trim()) && (
+                {/^(https?:\/\/)?.+\..+/.test(targetUrl.trim()) && (
                   <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "#16a34a" }}>
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                       <circle cx="8" cy="8" r="7" fill="currentColor" fillOpacity=".12" stroke="currentColor" strokeWidth="1.2"/>
