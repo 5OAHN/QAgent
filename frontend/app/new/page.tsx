@@ -16,7 +16,6 @@ const CARD_PLACEHOLDER = `테스트 시나리오를 자유롭게 작성하세요
 3. 새 사용자 추가 버튼을 클릭한다
 4. 이름과 이메일을 입력하고 저장한다`;
 
-const EXECUTOR_CHIPS = ["기획", "디자인", "프론트엔드", "백엔드", "QA"];
 const DEFAULT_LOGIN_FIELDS = (): LoginField[] => [
   { id: 1, label: "아이디 / 이메일", value: "", isPassword: false },
   { id: 2, label: "비밀번호", value: "", isPassword: true },
@@ -61,7 +60,6 @@ function NewTestForm() {
   const [mode, setMode]                 = useState<Mode>("natural");
   const [file, setFile]                 = useState<File | null>(null);
   const [cards, setCards]               = useState<ScenarioCard[]>([{ id: 1, text: "", precondition: "" }]);
-  const [executor, setExecutor]         = useState("");
   const [isDragging, setIsDragging]     = useState(false);
   const [isLoading, setIsLoading]       = useState(false);
   const [error, setError]               = useState("");
@@ -93,10 +91,8 @@ function NewTestForm() {
   useEffect(() => {
     const url = searchParams.get("url");
     const sc  = searchParams.get("scenarios");
-    const ex  = searchParams.get("executor");
     if (url) setTargetUrl(url);
     if (sc)  { setMode("natural"); setCards([{ id: 1, text: sc, precondition: "" }]); }
-    if (ex)  setExecutor(ex);
   }, []);
 
   const filledCards = cards.filter((c) => c.text.trim().length > 0);
@@ -151,7 +147,6 @@ function NewTestForm() {
         const form = new FormData();
         form.append("excel", file!);
         form.append("url", targetUrl);
-        if (executor.trim()) form.append("executor", executor.trim());
         res = await fetch("/api/trigger", { method: "POST", body: form });
       } else {
         res = await fetch("/api/trigger", {
@@ -163,7 +158,6 @@ function NewTestForm() {
             scenarios: filledCards.map((c) => c.text.trim()),
             preconditions: filledCards.map((c) => c.precondition.trim()),
             loginConfig,
-            executor: executor.trim() || undefined,
           }),
         });
       }
@@ -464,33 +458,6 @@ function NewTestForm() {
                   </p>
                 </div>
               )}
-            </div>
-
-            {/* ④ 실행자 */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: A.inkMuted, letterSpacing: "0.08em", textTransform: "uppercase" }}>실행자 정보</label>
-              <input
-                type="text" value={executor}
-                onChange={(e) => setExecutor(e.target.value)}
-                placeholder="담당자 이름 또는 직무"
-                style={inputStyle}
-                onFocus={(e) => { e.target.style.borderColor = A.blue; e.target.style.boxShadow = `0 0 0 3px rgba(0,102,204,0.1)`; }}
-                onBlur={(e) => { e.target.style.borderColor = A.hairline; e.target.style.boxShadow = "none"; }}
-              />
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {EXECUTOR_CHIPS.map((chip) => (
-                  <button key={chip} onClick={() => setExecutor((prev) => prev === chip ? "" : chip)}
-                    style={{
-                      borderRadius: 99, padding: "4px 12px", fontSize: 12, fontWeight: 500, cursor: "pointer",
-                      border: executor === chip ? `1.5px solid ${A.blue}` : `1px solid ${A.hairline}`,
-                      background: executor === chip ? "rgba(0,102,204,0.06)" : A.canvas,
-                      color: executor === chip ? A.blue : A.inkMuted,
-                      transition: "all .12s",
-                    }}>
-                    {chip}
-                  </button>
-                ))}
-              </div>
             </div>
 
             {/* 오류 */}

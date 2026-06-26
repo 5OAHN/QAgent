@@ -6,14 +6,9 @@ import { useState, useEffect } from "react";
 const KEYS = {
   workerUrl:  "qagent_worker_url",
   apiKey:     "qagent_api_key",
-  members:    "qagent_team_members",
 };
 
 const DEFAULT_WORKER_URL = "http://localhost:8001";
-
-const ROLE_OPTIONS = ["기획", "디자인", "프론트엔드", "백엔드", "QA", "DevOps", "PM"];
-
-interface Member { id: string; name: string; role: string; }
 
 /* ─── 공통 스타일 ────────────────────────────────────────────── */
 const sectionCard: React.CSSProperties = {
@@ -51,11 +46,6 @@ export default function SettingsPage() {
   const [apiKey, setApiKey]         = useState("");
   const [showKey, setShowKey]       = useState(false);
 
-  /* Team members */
-  const [members, setMembers]       = useState<Member[]>([]);
-  const [newName, setNewName]       = useState("");
-  const [newRole, setNewRole]       = useState("프론트엔드");
-
   /* Save feedback */
   const [saved, setSaved]           = useState(false);
 
@@ -63,15 +53,12 @@ export default function SettingsPage() {
   useEffect(() => {
     setWorkerUrl(localStorage.getItem(KEYS.workerUrl) || DEFAULT_WORKER_URL);
     setApiKey(localStorage.getItem(KEYS.apiKey) || "");
-    const raw = localStorage.getItem(KEYS.members);
-    if (raw) { try { setMembers(JSON.parse(raw)); } catch {} }
   }, []);
 
   /* Save all */
   const handleSave = () => {
     localStorage.setItem(KEYS.workerUrl, workerUrl.trim() || DEFAULT_WORKER_URL);
     localStorage.setItem(KEYS.apiKey, apiKey.trim());
-    localStorage.setItem(KEYS.members, JSON.stringify(members));
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -87,15 +74,6 @@ export default function SettingsPage() {
     }
     setTimeout(() => setUrlStatus("idle"), 4000);
   };
-
-  /* Add member */
-  const addMember = () => {
-    if (!newName.trim()) return;
-    const m: Member = { id: crypto.randomUUID(), name: newName.trim(), role: newRole };
-    setMembers((p) => [...p, m]);
-    setNewName("");
-  };
-  const removeMember = (id: string) => setMembers((p) => p.filter((m) => m.id !== id));
 
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
@@ -229,91 +207,6 @@ export default function SettingsPage() {
             <p style={{ fontSize: 11, color: "#9ca3af" }}>
               API 키는 이 브라우저의 로컬스토리지에만 저장되며 외부로 전송되지 않습니다.
             </p>
-          </div>
-        </section>
-
-        {/* ── 3. 팀 멤버 ───────────────────────────────────── */}
-        <section style={sectionCard}>
-          <div style={{ padding: "16px 20px", borderBottom: "1px solid rgba(229,231,235,0.5)", background: "rgba(0,102,204,0.03)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ width: 32, height: 32, borderRadius: 9, background: "rgba(16,163,74,0.08)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <svg width="15" height="15" fill="none" stroke="#16a34a" strokeWidth="1.7" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
-              </div>
-              <div>
-                <p style={{ fontSize: 13, fontWeight: 700, color: "#1d1d1f" }}>팀 멤버 관리</p>
-                <p style={{ fontSize: 11, color: "#9ca3af", marginTop: 1 }}>새 테스트 실행 시 실행자 목록에 표시됩니다</p>
-              </div>
-            </div>
-          </div>
-
-          {/* 멤버 추가 */}
-          <div style={{ padding: "16px 20px", borderBottom: "1px solid rgba(229,231,235,0.4)" }}>
-            <label style={labelStyle}>멤버 추가</label>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                type="text" value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addMember()}
-                placeholder="이름 입력"
-                style={{ ...inputStyle, flex: 1 }}
-                onFocus={(e) => { e.target.style.borderColor = "#0066cc"; e.target.style.boxShadow = "0 0 0 3px rgba(0,102,204,0.1)"; }}
-                onBlur={(e) => { e.target.style.borderColor = "rgba(209,213,219,0.8)"; e.target.style.boxShadow = "none"; }}
-              />
-              <select
-                value={newRole}
-                onChange={(e) => setNewRole(e.target.value)}
-                style={{ ...inputStyle, width: "auto", paddingRight: 28, cursor: "pointer" }}
-              >
-                {ROLE_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
-              </select>
-              <button
-                onClick={addMember}
-                style={{
-                  padding: "9px 16px", borderRadius: 9, fontSize: 13, fontWeight: 600, cursor: "pointer",
-                  border: "none", background: "#0066cc", color: "#fff",
-                  boxShadow: "0 2px 8px rgba(0,102,204,0.25)", whiteSpace: "nowrap", flexShrink: 0,
-                }}
-              >
-                + 추가
-              </button>
-            </div>
-          </div>
-
-          {/* 멤버 목록 */}
-          <div style={{ padding: "10px 16px 14px" }}>
-            {members.length === 0 ? (
-              <div style={{ padding: "20px 0", textAlign: "center" }}>
-                <p style={{ fontSize: 12, color: "#d1d5db" }}>등록된 팀 멤버가 없습니다</p>
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {members.map((m) => (
-                  <div key={m.id} style={{
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    padding: "9px 13px", borderRadius: 9,
-                    background: "rgba(255,255,255,0.7)", border: "1px solid rgba(229,231,235,0.6)",
-                  }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#e8f0fc", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: "#0066cc" }}>{m.name[0]}</span>
-                      </div>
-                      <span style={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>{m.name}</span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 11, color: "#0066cc", background: "rgba(0,102,204,0.08)", padding: "2px 9px", borderRadius: 99, fontWeight: 500, border: "1px solid rgba(0,102,204,0.15)" }}>{m.role}</span>
-                      <button
-                        onClick={() => removeMember(m.id)}
-                        style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 2, borderRadius: 5, transition: "color .15s" }}
-                        onMouseEnter={(e) => (e.currentTarget.style.color = "#dc2626")}
-                        onMouseLeave={(e) => (e.currentTarget.style.color = "#d1d5db")}
-                      >
-                        <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" strokeLinecap="round"/></svg>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         </section>
 
