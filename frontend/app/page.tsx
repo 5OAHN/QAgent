@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import useSWR from "swr";
 import DashboardAnalytics from "@/components/DashboardAnalytics";
 
@@ -114,13 +113,13 @@ export default function HomePage() {
             {/* 통계 카드 — 데이터 유무와 상관없이 항상 노출 */}
             <StatsRow runs={filteredRuns} />
 
-            {runs.length === 0 ? (
-              <EmptyState />
-            ) : filteredRuns.length === 0 ? (
+            {filteredRuns.length === 0 && (
               <div style={{ ...card, padding: "40px 0", textAlign: "center" }}>
-                <p style={{ fontSize: 13, color: A.inkMuted }}>선택한 기간에는 실행 이력이 없습니다.</p>
+                <p style={{ fontSize: 13, color: A.inkMuted }}>
+                  {runs.length === 0 ? "아직 실행된 테스트 이력이 없습니다." : "선택한 기간에는 실행 이력이 없습니다."}
+                </p>
               </div>
-            ) : null}
+            )}
 
             {/* 분석 위젯 */}
             <DashboardAnalytics />
@@ -162,112 +161,3 @@ function LoadingState() {
   );
 }
 
-function EmptyState() {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "56px 0 40px", textAlign: "center" }}>
-
-      <div style={{
-        width: 80, height: 80, borderRadius: 20,
-        background: "rgba(0,102,204,0.06)",
-        border: "1px solid rgba(0,102,204,0.12)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        marginBottom: 24,
-      }}>
-        <svg width="36" height="36" fill="none" stroke={A.blue} strokeWidth="1.5" viewBox="0 0 24 24">
-          <circle cx="11" cy="11" r="7"/>
-          <path d="M16.5 16.5L21 21" strokeLinecap="round" strokeLinejoin="round"/>
-          <path d="M8 11h6M11 8v6" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      </div>
-
-      <h2 style={{ fontSize: 20, fontWeight: 600, color: A.ink, letterSpacing: "-0.5px", marginBottom: 10 }}>
-        아직 실행된 테스트 이력이 없습니다.
-      </h2>
-      <p style={{ fontSize: 14, color: A.inkMuted, lineHeight: 1.7, marginBottom: 28, maxWidth: 360 }}>
-        첫 번째 QA 시나리오를 작성하고<br />
-        자동화 파이프라인을 구축해 보세요.
-      </p>
-
-      <Link
-        href="/new"
-        style={{
-          display: "inline-flex", alignItems: "center", gap: 8,
-          padding: "11px 24px", borderRadius: 9999,
-          background: A.blue,
-          color: "#fff", fontSize: 14, fontWeight: 600,
-          textDecoration: "none", letterSpacing: "-0.2px",
-          transition: "background .15s",
-        }}
-        onMouseEnter={(e) => { e.currentTarget.style.background = "#0055b3"; }}
-        onMouseLeave={(e) => { e.currentTarget.style.background = A.blue; }}
-      >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-        </svg>
-        첫 테스트 생성하기
-      </Link>
-
-      {/* 템플릿 빠른 시작 */}
-      <div style={{ marginTop: 40, display: "flex", flexDirection: "column", alignItems: "center", gap: 12, width: "100%", maxWidth: 480 }}>
-        <p style={{ fontSize: 11, fontWeight: 600, color: A.inkMuted, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-          템플릿으로 빠르게 시작
-        </p>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
-          {TEMPLATES.map(({ label, icon, scenario }) => (
-            <Link
-              key={label}
-              href={`/new?scenarios=${encodeURIComponent(scenario)}`}
-              style={{
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "12px 16px", borderRadius: 10,
-                background: A.canvas, border: `1px solid ${A.hairline}`,
-                textDecoration: "none", cursor: "pointer",
-                transition: "border-color .12s, background .12s",
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = A.blue; e.currentTarget.style.background = "rgba(0,102,204,0.03)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = A.hairline; e.currentTarget.style.background = A.canvas; }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 16 }}>{icon}</span>
-                <span style={{ fontSize: 13, fontWeight: 500, color: A.ink }}>{label}</span>
-              </div>
-              <svg width="14" height="14" fill="none" stroke={A.blue} strokeWidth="1.8" viewBox="0 0 24 24">
-                <path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </Link>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const TEMPLATES = [
-  {
-    label: "로그인 플로우 테스트",
-    icon: "🔐",
-    scenario: `1. 로그인 페이지로 이동한다
-2. 아이디 입력칸에 테스트 계정을 입력한다
-3. 비밀번호 입력칸에 비밀번호를 입력한다
-4. 로그인 버튼을 클릭한다
-5. 로그인 후 메인 화면이 표시되는지 확인한다`,
-  },
-  {
-    label: "회원가입 시나리오",
-    icon: "✍️",
-    scenario: `1. 회원가입 페이지로 이동한다
-2. 이름, 이메일, 비밀번호를 입력한다
-3. 이용약관 동의 체크박스를 클릭한다
-4. 가입하기 버튼을 클릭한다
-5. 가입 완료 메시지 또는 이메일 인증 안내가 표시되는지 확인한다`,
-  },
-  {
-    label: "결제 프로세스 검증",
-    icon: "💳",
-    scenario: `1. 상품 목록 페이지로 이동한다
-2. 상품을 하나 선택하여 장바구니에 추가한다
-3. 장바구니 페이지로 이동한다
-4. 결제하기 버튼을 클릭한다
-5. 결제 정보 입력 화면이 표시되는지 확인한다`,
-  },
-];
