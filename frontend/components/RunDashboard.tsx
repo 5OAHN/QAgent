@@ -40,6 +40,9 @@ interface RunResult {
   targetUrl?: string;
   scenarios?: string;
   error?: string;
+  loginStatus?: "running" | "success" | "fail";
+  loginFailReason?: string;
+  loginSteps?: string[];
 }
 
 const TERMINAL: RunStatus[] = ["completed", "failed"];
@@ -235,6 +238,9 @@ export function RunDashboard({ runId }: { runId: string }) {
             <CtrlButton onClick={() => sendControl("cancel")} variant="danger">■ 중지</CtrlButton>
           </div>
         )}
+
+        {/* 로그인 선행 작업 상태 */}
+        {data.loginStatus && <LoginStatusBanner data={data} />}
 
         {/* Scenario list */}
         <div style={{ padding: "10px 12px 6px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -840,6 +846,47 @@ function CaseStatusBadge({ status }: { status: "Pass" | "Fail" }) {
   return status === "Pass"
     ? <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999, background: C.greenBg, color: C.green, border: "1px solid #bbf7d0" }}>Pass</span>
     : <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999, background: C.redBg,   color: C.red,   border: "1px solid #fecaca" }}>Fail</span>;
+}
+
+function LoginStatusBanner({ data }: { data: RunResult }) {
+  const [expanded, setExpanded] = useState(false);
+  const { loginStatus, loginFailReason, loginSteps } = data;
+
+  const styleByStatus = {
+    running: { bg: C.indigoBg, color: C.indigo, border: "#bfdbfe", label: "로그인 진행 중…" },
+    success: { bg: C.greenBg,  color: C.green,  border: "#bbf7d0", label: "로그인 완료" },
+    fail:    { bg: C.redBg,    color: C.red,     border: "#fecaca", label: "로그인 실패" },
+  } as const;
+  const s = styleByStatus[loginStatus!];
+
+  return (
+    <div style={{ margin: "0 12px 8px", borderRadius: 8, border: `1px solid ${s.border}`, background: s.bg, overflow: "hidden" }}>
+      <button
+        onClick={() => setExpanded((p) => !p)}
+        style={{ width: "100%", display: "flex", alignItems: "center", gap: 6, padding: "7px 10px", background: "none", border: "none", cursor: "pointer" }}
+      >
+        {loginStatus === "running" && <PulsingDot color={s.color} />}
+        <span style={{ fontSize: 12, fontWeight: 600, color: s.color }}>🔑 {s.label}</span>
+        {loginStatus === "fail" && loginFailReason && (
+          <span style={{ fontSize: 11, color: s.color, opacity: 0.8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, textAlign: "left" }}>
+            — {loginFailReason}
+          </span>
+        )}
+        {!!loginSteps?.length && (
+          <svg width="11" height="11" fill="none" stroke={s.color} strokeWidth="2" viewBox="0 0 12 12" style={{ marginLeft: "auto", transform: expanded ? "rotate(180deg)" : "none", flexShrink: 0 }}>
+            <path d="M2 4l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        )}
+      </button>
+      {expanded && !!loginSteps?.length && (
+        <div style={{ padding: "0 10px 8px", display: "flex", flexDirection: "column", gap: 4 }}>
+          {loginSteps.map((s2, i) => (
+            <p key={i} style={{ fontSize: 11, color: C.textMid, whiteSpace: "pre-wrap", lineHeight: 1.4 }}>{s2}</p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function PulsingDot({ color }: { color: string }) {

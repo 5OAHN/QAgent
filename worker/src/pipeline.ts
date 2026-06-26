@@ -22,6 +22,9 @@ export interface RunResult {
   scenarios?: string;
   executor?: string;
   error?: string;
+  loginStatus?: "running" | "success" | "fail";
+  loginFailReason?: string;
+  loginSteps?: string[];
 }
 
 export function getAllRuns(): RunResult[] {
@@ -201,6 +204,10 @@ export async function runNaturalLanguagePipeline(
     // 로그인 선행 작업 — 실패해도 시나리오 실행은 계속 진행하므로, 예외도 여기서 흡수해야
     // 아래 for-loop와 종료 상태(run.status) 설정까지 도달할 수 있다.
     if (loginConfig && loginConfig.fields.some((f) => f.value.trim())) {
+      run.loginStatus = "running";
+      run.loginSteps = [];
+      saveRun(run);
+
       try {
         const credLines = loginConfig.fields
           .filter((f) => f.value.trim())
@@ -213,15 +220,26 @@ export async function runNaturalLanguagePipeline(
         ].join("\n");
 
         console.log(`\n🔑 [${runId}] 로그인 선행 작업 시작\n${credLines.join("\n")}`);
-        const loginResult = await runVisionAgent(page, loginTask, 15, undefined, control);
+        const loginResult = await runVisionAgent(page, loginTask, 15, (step) => {
+          const icon = step.action === "done" ? "✅" : step.action === "failed" ? "❌" : `[${step.stepNum}]`;
+          run.loginSteps!.push(`${icon} ${step.action.toUpperCase()} ${step.details}\n    💭 ${step.thought}`);
+          saveRun(run);
+        }, control);
+
         if (loginResult.success) {
+          run.loginStatus = "success";
           console.log(`\n✅ [${runId}] 로그인 완료 (현재 URL: ${page.url()})`);
         } else {
+          run.loginStatus = "fail";
+          run.loginFailReason = loginResult.failReason || "알 수 없는 오류";
           console.warn(`\n⚠️ [${runId}] 로그인 실패: ${loginResult.failReason} — 계속 진행합니다`);
         }
       } catch (err: any) {
+        run.loginStatus = "fail";
+        run.loginFailReason = err.message;
         console.warn(`\n⚠️ [${runId}] 로그인 선행 작업 중 오류: ${err.message} — 계속 진행합니다`);
       }
+      saveRun(run);
     }
 
     for (let i = 0; i < scenarioList.length; i++) {
