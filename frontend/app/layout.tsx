@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
+import { Outfit } from "next/font/google";
 import "./globals.css";
 import GlobalNav from "@/components/GlobalNav";
+
+const outfit = Outfit({ subsets: ["latin"], variable: "--font-outfit" });
 
 export const metadata: Metadata = {
   title: "QAgent",
@@ -9,7 +12,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ko">
+    <html lang="ko" className={outfit.variable}>
       <body className="h-screen overflow-hidden antialiased" style={{
         background: "#f5f5f7",
         fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Pretendard', sans-serif",
