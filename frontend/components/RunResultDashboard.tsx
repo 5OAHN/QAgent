@@ -82,6 +82,55 @@ function formatDuration(ms?: number): string | null {
   return `${pad(h)}:${pad(m)}:${pad(s)}`;
 }
 
+// 실패한 케이스를 Jira/Slack/GitHub Issue에 바로 붙여넣을 수 있는 Markdown 리포트로 변환
+function buildErrorReportMarkdown(
+  tc: TestCase,
+  meta: { runId: string; targetUrl?: string; createdAt: string }
+): string {
+  const dashboardUrl =
+    typeof window !== "undefined" ? `${window.location.origin}/dashboard/${meta.runId}` : `/dashboard/${meta.runId}`;
+
+  const formattedDate = new Date(meta.createdAt).toLocaleString("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+
+  const recentLogs = (tc.consoleLogs ?? []).slice(-5).join("\n\n");
+
+  return `🚨 **QAgent 에러 리포트**
+
+| 항목 | 내용 |
+|---|---|
+| **테스트 ID** | ${tc.testId} |
+| **시나리오** | ${tc.scenario.replace(/\n/g, " ")} |
+| **상태** | ❌ Fail |
+| **진입 URL** | ${meta.targetUrl ?? "-"} |
+| **발생 일시** | ${formattedDate} (KST) |
+| **환경 정보** | Chromium (Playwright) / 1280x720 |
+
+🔗 **상세 리포트 및 스크린샷 보기:** [대시보드 열기](${dashboardUrl})
+
+---
+
+❗️ **요약된 실패 사유**
+${humanizeFailReason(tc.failReason)}
+
+❗️ **상세 에러 메시지**
+\`\`\`
+${tc.failReason || "상세 에러 메시지가 없습니다."}
+\`\`\`
+
+📋 **최근 실행 로그 (마지막 5단계)**
+\`\`\`
+${recentLogs || "실행 로그가 없습니다."}
+\`\`\`
+`;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // SCENARIO STEP EDITOR — 자연어 시나리오 텍스트 ↔ 단계 배열 변환
 // ─────────────────────────────────────────────────────────────────────────────
@@ -384,7 +433,7 @@ export function RunResultDashboard({ runId }: { runId: string }) {
           {/* ───────────── RIGHT COLUMN (60%) ───────────── */}
           <div className="flex flex-col gap-4 min-h-0" style={{ width: "60%" }}>
             <MediaViewerCard tc={selectedCase} isTerminal={isTerminal} />
-            <TimelineCard tc={selectedCase} />
+            <TimelineCard tc={selectedCase} runId={runId} targetUrl={data.targetUrl} createdAt={data.createdAt} />
           </div>
         </div>
       </div>
@@ -905,12 +954,73 @@ function MediaViewerCard({ tc, isTerminal }: { tc: TestCase | null; isTerminal: 
 // RIGHT: Timeline Card
 // ─────────────────────────────────────────────────────────────────────────────
 
-function TimelineCard({ tc }: { tc: TestCase | null }) {
+function TimelineCard({
+  tc,
+  runId,
+  targetUrl,
+  createdAt,
+}: {
+  tc: TestCase | null;
+  runId: string;
+  targetUrl?: string;
+  createdAt: string;
+}) {
   const logs = tc?.consoleLogs ?? [];
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyReport = async () => {
+    if (!tc) return;
+    const report = buildErrorReportMarkdown(tc, { runId, targetUrl, createdAt });
+    try {
+      await navigator.clipboard.writeText(report);
+    } catch {
+      const el = document.createElement("textarea");
+      el.value = report;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex-1 min-h-0 flex flex-col">
-      <h3 className="text-base font-bold text-gray-900 mb-4 flex-shrink-0">실행 타임라인</h3>
+      <div className="flex items-center justify-between mb-4 flex-shrink-0">
+        <h3 className="text-base font-bold text-gray-900">실행 타임라인</h3>
+        {tc?.status === "Fail" && (
+          <button
+            onClick={handleCopyReport}
+            disabled={copied}
+            className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all duration-200 active:scale-95 ${
+              copied
+                ? "border-green-300 text-green-600 bg-green-50"
+                : "border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700"
+            }`}
+          >
+            {copied ? (
+              <>
+                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                  <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                복사 완료
+              </>
+            ) : (
+              <>
+                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                  />
+                </svg>
+                에러 리포트 복사
+              </>
+            )}
+          </button>
+        )}
+      </div>
 
       {tc?.status === "Fail" && tc.failReason && (
         <div className="mb-5 px-4 py-3 rounded-lg border border-red-300 bg-red-50 flex-shrink-0">
