@@ -245,6 +245,7 @@ export function RunResultDashboard({ runId }: { runId: string }) {
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [editedScenarios, setEditedScenarios] = useState<Record<string, string>>({});
   const [editingTestId, setEditingTestId] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
   const prevCasesRef = useRef<Map<string, CaseStatus>>(new Map());
 
   const { data, error, isLoading, mutate } = useSWR<RunResult>(
@@ -296,16 +297,43 @@ export function RunResultDashboard({ runId }: { runId: string }) {
     setEditingTestId(null);
   };
 
-  const handleRetrySelected = () => {
-    if (!data?.targetUrl || checkedIds.size === 0) return;
+  const handleRetrySelected = async () => {
+    if (!data?.targetUrl || checkedIds.size === 0 || retrying) return;
     const selectedScenarios = displayCases
       .filter((c) => checkedIds.has(c.testId))
       .map((c) => getEffectiveScenario(c).trim());
-    const params = new URLSearchParams({
-      url: data.targetUrl,
-      scenarios: selectedScenarios.join("\n\n---\n\n"),
-    });
-    router.push(`/new?${params.toString()}`);
+    setRetrying(true);
+    try {
+      const res = await fetch("/api/trigger", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: data.targetUrl,
+          scenarios: selectedScenarios,
+          loginConfig: data.loginStatus ? undefined : undefined,
+        }),
+      });
+      const result = await res.json();
+      if (result.run_id) {
+        router.push(`/dashboard/${result.run_id}`);
+      }
+    } catch {
+      /* noop */
+    } finally {
+      setRetrying(false);
+      setCheckedIds(new Set());
+    }
+  };
+
+  const handleSelectAll = (cases: TestCase[], canEdit: boolean) => {
+    if (!canEdit) return;
+    const selectableCases = cases.filter((c) => true); // 모든 케이스 선택 가능
+    const allSelected = selectableCases.every((c) => checkedIds.has(c.testId));
+    if (allSelected) {
+      setCheckedIds(new Set());
+    } else {
+      setCheckedIds(new Set(selectableCases.map((c) => c.testId)));
+    }
   };
 
   if (isLoading) {
@@ -426,6 +454,7 @@ export function RunResultDashboard({ runId }: { runId: string }) {
               canEdit={data.mode === "natural" && !!data.targetUrl && (isTerminal || !!data.paused)}
               checkedIds={checkedIds}
               onToggleChecked={toggleChecked}
+              onSelectAll={() => handleSelectAll(displayCases, data.mode === "natural" && !!data.targetUrl && (isTerminal || !!data.paused))}
               onEditRequest={setEditingTestId}
               getEffectiveScenario={getEffectiveScenario}
             />
@@ -444,6 +473,7 @@ export function RunResultDashboard({ runId }: { runId: string }) {
         count={checkedIds.size}
         onRetry={handleRetrySelected}
         onCancel={() => setCheckedIds(new Set())}
+        retrying={retrying}
       />
 
       {/* ── Scenario Edit Modal ─────────────────────────────────────────────── */}
@@ -657,9 +687,13 @@ function ScenarioListCard({
   canEdit: boolean;
   checkedIds: Set<string>;
   onToggleChecked: (testId: string) => void;
+  onSelectAll: () => void;
   onEditRequest: (testId: string) => void;
   getEffectiveScenario: (tc: TestCase) => string;
 }) {
+  const allChecked = filteredCases.length > 0 && filteredCases.every((c) => checkedIds.has(c.testId));
+  const someChecked = filteredCases.some((c) => checkedIds.has(c.testId));
+
   const tabs = [
     { key: "all" as const, label: "전체", count: cases.length },
     { key: "pass" as const, label: "성공", count: passCount },
@@ -684,11 +718,41 @@ function ScenarioListCard({
         ))}
       </div>
 
-      <div className="flex items-center gap-2 mb-3">
-        <h3 className="text-base font-bold text-gray-900">시나리오</h3>
-        <span className="text-xs font-semibold text-blue-600 bg-blue-50 rounded-full px-2 py-0.5">
-          {filteredCases.length}
-        </span>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <h3 className="text-base font-bold text-gray-900">시나리오</h3>
+          <span className="text-xs font-semibold text-blue-600 bg-blue-50 rounded-full px-2 py-0.5">
+            {filteredCases.length}
+          </span>
+        </div>
+        {canEdit && filteredCases.length > 0 && (
+          <button
+            onClick={onSelectAll}
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all duration-200 active:scale-95"
+            style={{
+              color: allChecked ? "#0066cc" : someChecked ? "#0066cc" : "#6b7280",
+              background: allChecked ? "rgba(0,102,204,0.08)" : someChecked ? "rgba(0,102,204,0.05)" : "#f5f5f7",
+              border: `1px solid ${allChecked || someChecked ? "rgba(0,102,204,0.2)" : "rgba(209,213,219,0.8)"}`,
+            }}
+          >
+            {allChecked ? (
+              <>
+                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                  <polyline points="20 6 9 17 4 12" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                전체 해제
+              </>
+            ) : (
+              <>
+                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/>
+                  <path d="M9 12l2 2 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                전체 선택
+              </>
+            )}
+          </button>
+        )}
       </div>
 
       <div className="flex flex-col gap-3 flex-1 min-h-0 overflow-y-auto pr-1">
@@ -1061,10 +1125,12 @@ function FloatingActionBar({
   count,
   onRetry,
   onCancel,
+  retrying,
 }: {
   count: number;
   onRetry: () => void;
   onCancel: () => void;
+  retrying: boolean;
 }) {
   const visible = count > 0;
 
@@ -1074,26 +1140,37 @@ function FloatingActionBar({
         visible ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-4 pointer-events-none"
       }`}
     >
-      <div className="flex items-center gap-4 bg-gray-800 text-white rounded-full shadow-lg pl-5 pr-2.5 py-2.5">
+      <div className="flex items-center gap-3 bg-gray-900 text-white rounded-full shadow-xl pl-5 pr-2 py-2">
         <span className="text-sm font-medium whitespace-nowrap">{count}개 시나리오 선택됨</span>
         <button
           onClick={onCancel}
-          className="text-xs text-gray-300 hover:text-white px-2 transition-colors duration-200"
+          className="text-xs text-gray-400 hover:text-white px-2 py-1 transition-colors duration-200 whitespace-nowrap"
         >
           선택 해제
         </button>
         <button
           onClick={onRetry}
-          className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-full transition-all duration-200 active:scale-95 whitespace-nowrap"
+          disabled={retrying}
+          className="flex items-center gap-1.5 text-white text-sm font-semibold px-4 py-2 rounded-full transition-all duration-200 active:scale-95 whitespace-nowrap disabled:opacity-60"
+          style={{ background: retrying ? "#0055b3" : "#0066cc" }}
+          onMouseEnter={(e) => { if (!retrying) e.currentTarget.style.background = "#0055b3"; }}
+          onMouseLeave={(e) => { if (!retrying) e.currentTarget.style.background = "#0066cc"; }}
         >
-          선택 시나리오 재시도
-          <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-            />
-          </svg>
+          {retrying ? (
+            <>
+              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="animate-spin">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+              </svg>
+              재시도 중…
+            </>
+          ) : (
+            <>
+              선택 시나리오 재시도
+              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+              </svg>
+            </>
+          )}
         </button>
       </div>
     </div>
