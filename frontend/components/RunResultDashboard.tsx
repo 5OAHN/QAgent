@@ -669,6 +669,7 @@ function ScenarioListCard({
   canEdit,
   checkedIds,
   onToggleChecked,
+  onSelectAll,
   onEditRequest,
   getEffectiveScenario,
 }: {
@@ -689,6 +690,7 @@ function ScenarioListCard({
   onToggleChecked: (testId: string) => void;
   onSelectAll: () => void;
   onEditRequest: (testId: string) => void;
+
   getEffectiveScenario: (tc: TestCase) => string;
 }) {
   const allChecked = filteredCases.length > 0 && filteredCases.every((c) => checkedIds.has(c.testId));
