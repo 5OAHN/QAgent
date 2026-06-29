@@ -94,8 +94,8 @@ Please respond with a JSON object containing:
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              system: {
-                instructions: SYSTEM_PROMPT,
+              systemInstruction: {
+                parts: [{ text: SYSTEM_PROMPT }],
               },
               contents: [
                 {
