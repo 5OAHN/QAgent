@@ -154,6 +154,7 @@ export async function runSmartScenario(
 
   const collected: VisionStep[] = [];
   let stepNum = 0;
+  let fallbackCount = 0;  // 폴백 발생 여부 추적
 
   for (const stepText of steps) {
     if (control?.isCancelled()) {
@@ -183,6 +184,7 @@ export async function runSmartScenario(
       onStep?.(step);
     } catch (err: any) {
       // 이 스텝만 비전 에이전트로 재시도 (전체 시나리오 재시도 아님 — 비용/시간 절약)
+      fallbackCount++;
       console.warn(`  [smart-executor] 스텝 "${stepText}" 룰베이스 실패(${err.message}) — 비전 에이전트로 재시도`);
       const fallbackStep: VisionStep = {
         stepNum, action: "fallback",
@@ -204,5 +206,15 @@ export async function runSmartScenario(
     }
   }
 
-  return { success: true, steps: collected, summary: `${steps.length}개 스텝 모두 완료` };
+  // 폴백이 있었으면 Review 상태로 반환
+  const verificationStatus = fallbackCount > 0 ? "pending" : "approved";
+  const reviewReason = fallbackCount > 0 ? `${fallbackCount}개 스텝이 비전 에이전트로 폴백됨` : undefined;
+
+  return {
+    success: true,
+    steps: collected,
+    summary: `${steps.length}개 스텝 모두 완료`,
+    verificationStatus,
+    reviewReason,
+  };
 }

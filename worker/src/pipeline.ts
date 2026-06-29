@@ -299,6 +299,8 @@ export async function runNaturalLanguagePipeline(
 
         if (visionResult.success) {
           result.status = "Pass";
+          result.verificationStatus = visionResult.verificationStatus || "approved";
+          result.reviewReason = visionResult.reviewReason;
           if (visionResult.summary) result.consoleLogs.push(`✅ ${visionResult.summary}`);
           try {
             const screenshotBuffer = await page.screenshot({ fullPage: true });
@@ -307,7 +309,7 @@ export async function runNaturalLanguagePipeline(
             console.warn(`  [${testId}] 스크린샷 캡처 실패: ${shotErr.message}`);
           }
           run.passed++;
-          console.log(`\n✅ [${testId}] 완료 (현재 URL: ${page.url()})`);
+          console.log(`\n✅ [${testId}] 완료 (현재 URL: ${page.url()})${result.verificationStatus === "pending" ? " ⚠️ (검증 필요)" : ""}`);
         } else {
           result.status = "Fail";
           result.failReason = visionResult.failReason || "알 수 없는 오류";

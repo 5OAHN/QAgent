@@ -15,6 +15,8 @@ export interface TestResult {
   consoleLogs: string[];
   durationMs?: number;
   completedAt?: string;
+  verificationStatus?: "approved" | "rejected" | "pending";
+  reviewReason?: string;
 }
 
 const BASE_URL = process.env.WORKER_BASE_URL || "http://localhost:8001";

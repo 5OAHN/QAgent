@@ -5,6 +5,7 @@ import path from "path";
 import fs from "fs";
 import { runExcelPipeline, runNaturalLanguagePipeline, getRunResult, getAllRuns, cancelRun, pauseRun, resumeRun, deleteRunResult } from "./pipeline";
 import { verifyPassword, changePassword } from "./auth";
+import { saveRun } from "./db";
 
 const app = express();
 app.use(cors());
@@ -147,6 +148,26 @@ app.delete("/run/:runId", (req: Request, res: Response) => {
   if (run.status === "running") return res.status(409).json({ error: "실행 중인 테스트는 삭제할 수 없습니다." });
   deleteRunResult(req.params.runId);
   res.json({ ok: true });
+});
+
+// ── 케이스 검증 상태 업데이트 ──────────────────────────────────────────
+app.put("/run/:runId/case/:testId/verify", (req: Request, res: Response) => {
+  const run = getRunResult(req.params.runId);
+  if (!run) return res.status(404).json({ error: "실행 정보를 찾을 수 없습니다." });
+
+  const { verificationStatus, note } = req.body;
+  if (!verificationStatus || !["approved", "rejected"].includes(verificationStatus)) {
+    return res.status(400).json({ error: "verificationStatus는 'approved' 또는 'rejected'이어야 합니다." });
+  }
+
+  const testCase = run.cases.find((c) => c.testId === req.params.testId);
+  if (!testCase) return res.status(404).json({ error: "테스트 케이스를 찾을 수 없습니다." });
+
+  testCase.verificationStatus = verificationStatus;
+  if (note) testCase.reviewReason = note;
+  saveRun(run);
+
+  res.json({ ok: true, testCase });
 });
 
 app.get("/health", (_: Request, res: Response) => res.json({ status: "ok" }));

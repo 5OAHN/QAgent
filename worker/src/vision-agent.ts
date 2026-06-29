@@ -91,6 +91,8 @@ export interface VisionResult {
   steps: VisionStep[];
   failReason?: string;
   summary?: string;
+  verificationStatus?: "approved" | "pending";
+  reviewReason?: string;
 }
 
 const UX_REVIEW_TOOL = {

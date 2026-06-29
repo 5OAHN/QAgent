@@ -26,6 +26,8 @@ interface TestCase {
   screenshotBase64?: string;
   consoleLogs?: string[];
   suggestions?: UXSuggestion[];
+  verificationStatus?: "approved" | "rejected" | "pending";
+  reviewReason?: string;
 }
 
 interface RunResult {
@@ -134,6 +136,7 @@ function buildDisplayCases(data: RunResult): TestCase[] {
 export function RunDashboard({ runId }: { runId: string }) {
   const router = useRouter();
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [filterStatus, setFilterStatus] = useState<"all" | "pass" | "fail" | "review">("all");
   const prevCasesRef = useRef<Map<string, CaseStatus>>(new Map());
 
   const { data, error, isLoading, mutate } = useSWR<RunResult>(
@@ -179,6 +182,19 @@ export function RunDashboard({ runId }: { runId: string }) {
   // run.status가 완료로 바뀌었어도 케이스가 아직 Pending이면 컨트롤은 계속 노출
   const isTerminal = TERMINAL.includes(data.status) && !hasPendingCase;
   const activeCase = displayCases.find((c) => c.testId === activeId) ?? null;
+
+  // Filter cases by selected tab
+  const passCount = displayCases.filter((c) => c.status === "Pass" && c.verificationStatus !== "rejected").length;
+  const failCount = displayCases.filter((c) => c.status === "Fail").length;
+  const reviewCount = displayCases.filter((c) => c.verificationStatus === "pending").length;
+
+  const filteredCases = displayCases.filter((c) => {
+    if (filterStatus === "all") return true;
+    if (filterStatus === "pass") return c.status === "Pass" && c.verificationStatus !== "rejected";
+    if (filterStatus === "fail") return c.status === "Fail";
+    if (filterStatus === "review") return c.verificationStatus === "pending";
+    return true;
+  });
 
   return (
     <div style={{ display: "flex", flex: 1, minHeight: 0, overflow: "hidden", fontFamily: "-apple-system, BlinkMacSystemFont, 'Geist', sans-serif" }}>
@@ -228,6 +244,29 @@ export function RunDashboard({ runId }: { runId: string }) {
           </div>
         </div>
 
+        {/* Verification tabs */}
+        <div style={{ padding: "8px 12px", borderBottom: `1px solid ${C.border}`, display: "flex", gap: 4 }}>
+          {[
+            { key: "all" as const, label: "전체", count: displayCases.length },
+            { key: "pass" as const, label: "✅ Pass", count: passCount },
+            { key: "fail" as const, label: "❌ Fail", count: failCount },
+            { key: "review" as const, label: "⚠️ Review", count: reviewCount },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setFilterStatus(tab.key)}
+              style={{
+                flex: 1, padding: "6px 8px", borderRadius: 7, border: "none", cursor: "pointer",
+                fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", transition: "all 0.15s",
+                background: filterStatus === tab.key ? C.indigo : "transparent",
+                color: filterStatus === tab.key ? "#fff" : C.textMid,
+              }}
+            >
+              {tab.label} <span style={{ fontSize: 9, opacity: 0.7, marginLeft: 2 }}>({tab.count})</span>
+            </button>
+          ))}
+        </div>
+
         {/* Control buttons */}
         {!isTerminal && (
           <div style={{ padding: "10px 14px", borderBottom: `1px solid ${C.border}`, display: "flex", gap: 6 }}>
@@ -254,14 +293,14 @@ export function RunDashboard({ runId }: { runId: string }) {
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", padding: "0 10px 12px" }}>
-          {displayCases.length === 0 ? (
+          {filteredCases.length === 0 ? (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 100, color: C.textLight, fontSize: 13 }}>
               {!isTerminal
                 ? <span style={{ display: "flex", alignItems: "center", gap: 8 }}><PulsingDot color={C.indigo} /> 준비 중…</span>
-                : "케이스 없음"}
+                : filterStatus === "all" ? "케이스 없음" : "필터링된 케이스가 없습니다"}
             </div>
           ) : (
-            displayCases.map((tc) => (
+            filteredCases.map((tc) => (
               <ScenarioCard
                 key={tc.testId}
                 tc={tc}
@@ -269,6 +308,8 @@ export function RunDashboard({ runId }: { runId: string }) {
                 onClick={() => setActiveId(tc.testId)}
                 isPaused={!!data.paused}
                 targetUrl={data.targetUrl}
+                runId={runId}
+                onVerify={() => mutate()}
               />
             ))
           )}
@@ -337,12 +378,14 @@ export function RunDashboard({ runId }: { runId: string }) {
 }
 
 // ── Scenario card ──────────────────────────────────────────────────────────
-function ScenarioCard({ tc, isActive, onClick, isPaused, targetUrl }: {
-  tc: TestCase; isActive: boolean; onClick: () => void; isPaused: boolean; targetUrl?: string;
+function ScenarioCard({ tc, isActive, onClick, isPaused, targetUrl, runId, onVerify }: {
+  tc: TestCase; isActive: boolean; onClick: () => void; isPaused: boolean; targetUrl?: string; runId?: string; onVerify?: () => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const isRunning = tc.status === "Pending";
   const isFail = tc.status === "Fail";
+  const isReview = tc.verificationStatus === "pending";
 
   const handleCopy = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -355,22 +398,42 @@ function ScenarioCard({ tc, isActive, onClick, isPaused, targetUrl }: {
     setCopied(true); setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleVerify = async (e: React.MouseEvent, status: "approved" | "rejected") => {
+    e.stopPropagation();
+    if (!runId) return;
+    setVerifying(true);
+    try {
+      const response = await fetch(`/api/run/${runId}/case/${tc.testId}/verify`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ verificationStatus: status }),
+      });
+      if (response.ok) {
+        onVerify?.();
+      }
+    } catch (err) {
+      console.error("Verify failed:", err);
+    }
+    setVerifying(false);
+  };
+
   return (
     <div
       onClick={onClick}
       style={{
         marginTop: 6, borderRadius: 11, cursor: "pointer", padding: "10px 12px",
         transition: "all .15s",
-        background: isActive ? C.glass : isFail ? C.redBg : "#fafafc",
+        background: isActive ? C.glass : isReview ? C.amberBg : isFail ? C.redBg : "#fafafc",
         border: isActive
           ? `1.5px solid ${C.indigo}`
-          : isFail ? `1px solid #fecaca` : `1px solid ${C.border}`,
+          : isReview ? `1px solid rgba(217,119,6,0.3)` : isFail ? `1px solid #fecaca` : `1px solid ${C.border}`,
         boxShadow: "none",
       }}
     >
       <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
         <div style={{ flexShrink: 0, marginTop: 2 }}>
           {isRunning ? <PulsingDot color={C.indigo} />
+            : isReview ? <span style={{ fontSize: 14 }}>⚠️</span>
             : tc.status === "Pass" ? <CheckCircle color={C.green} />
             : <XCircle color={C.red} />}
         </div>
@@ -383,8 +446,13 @@ function ScenarioCard({ tc, isActive, onClick, isPaused, targetUrl }: {
                   {isPaused ? "일시정지" : "실행 중"}
                 </span>
               )}
+              {isReview && (
+                <span style={{ fontSize: 10, color: C.amber, background: C.amberBg, padding: "1px 6px", borderRadius: 999, fontWeight: 600 }}>
+                  확인 필요
+                </span>
+              )}
             </div>
-            {isFail && (
+            {isFail && !isReview && (
               <button onClick={handleCopy} style={{
                 flexShrink: 0, display: "flex", alignItems: "center", gap: 4,
                 padding: "2px 7px", borderRadius: 6, cursor: "pointer",
@@ -399,13 +467,37 @@ function ScenarioCard({ tc, isActive, onClick, isPaused, targetUrl }: {
               </button>
             )}
           </div>
-          <p style={{ fontSize: 12.5, color: isFail ? C.red : C.text, lineHeight: 1.45, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any, overflow: "hidden" }}>
+          <p style={{ fontSize: 12.5, color: isFail && !isReview ? C.red : C.text, lineHeight: 1.45, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any, overflow: "hidden" }}>
             {tc.scenario}
           </p>
-          {tc.failReason && (
+          {tc.failReason && !isReview && (
             <p style={{ marginTop: 5, fontSize: 11, color: C.red, opacity: 0.7, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any, overflow: "hidden" }}>
               {tc.failReason}
             </p>
+          )}
+          {isReview && (
+            <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+              <button
+                onClick={(e) => handleVerify(e, "approved")}
+                disabled={verifying}
+                style={{
+                  padding: "4px 8px", borderRadius: 5, fontSize: 10, fontWeight: 600, border: "none", cursor: verifying ? "not-allowed" : "pointer",
+                  background: C.green, color: "#fff", opacity: verifying ? 0.6 : 1, transition: "opacity 0.2s",
+                }}
+              >
+                승인
+              </button>
+              <button
+                onClick={(e) => handleVerify(e, "rejected")}
+                disabled={verifying}
+                style={{
+                  padding: "4px 8px", borderRadius: 5, fontSize: 10, fontWeight: 600, border: "none", cursor: verifying ? "not-allowed" : "pointer",
+                  background: C.red, color: "#fff", opacity: verifying ? 0.6 : 1, transition: "opacity 0.2s",
+                }}
+              >
+                거부
+              </button>
+            </div>
           )}
         </div>
       </div>
