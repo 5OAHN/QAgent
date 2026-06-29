@@ -5,7 +5,7 @@ import { chromium } from "playwright";
 import { UIDictionary } from "./parser";
 import { runTest, TestResult } from "./executor";
 import { analyzeFailure } from "./analyzer";
-import { runVisionAgent } from "./vision-agent";
+import { runSmartScenario } from "./smart-executor";
 import { executeSmartLogin } from "./smart-login";
 import { saveRun, loadAllRuns, deleteRun } from "./db";
 
@@ -285,7 +285,7 @@ export async function runNaturalLanguagePipeline(
 
         const liveStepLogs: string[] = [];
 
-        const visionResult = await runVisionAgent(page, naturalText, 20, (step) => {
+        const visionResult = await runSmartScenario(page, naturalText, 20, (step) => {
           const icon = step.action === "done" ? "✅" : step.action === "failed" ? "❌" : `[${step.stepNum}]`;
           liveStepLogs.push(`${icon} ${step.action.toUpperCase()} ${step.details}\n    💭 ${step.thought}`);
           result.consoleLogs = [...liveStepLogs];
