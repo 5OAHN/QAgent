@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import DashboardAnalytics from "@/components/DashboardAnalytics";
 
@@ -131,20 +132,31 @@ export default function HomePage() {
 }
 
 function StatsRow({ runs }: { runs: RunSummary[] }) {
+  const router = useRouter();
   const isEmpty = runs.length === 0;
   const stats = [
-    { label: "전체 실행", value: runs.length,                                          color: A.blue,    bg: "rgba(0,102,204,0.07)" },
-    { label: "완료",      value: runs.filter((r) => r.status === "completed").length,  color: "#16a34a", bg: "rgba(22,163,74,0.07)"  },
-    { label: "Fail 포함", value: runs.filter((r) => r.failed > 0).length,              color: "#dc2626", bg: "rgba(220,38,38,0.07)"  },
-    { label: "진행 중",   value: runs.filter((r) => r.status === "running").length,    color: "#0066cc", bg: "rgba(0,102,204,0.07)"  },
+    { label: "전체 실행", value: runs.length,                                          color: A.blue,    bg: "rgba(0,102,204,0.07)", statusParam: "all" },
+    { label: "완료",      value: runs.filter((r) => r.status === "completed").length,  color: "#16a34a", bg: "rgba(22,163,74,0.07)",  statusParam: "completed" },
+    { label: "Fail 포함", value: runs.filter((r) => r.failed > 0).length,              color: "#dc2626", bg: "rgba(220,38,38,0.07)",  statusParam: "failIncluded" },
+    { label: "진행 중",   value: runs.filter((r) => r.status === "running").length,    color: "#0066cc", bg: "rgba(0,102,204,0.07)",  statusParam: "running" },
   ];
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 28 }}>
-      {stats.map(({ label, value, color, bg }) => (
-        <div key={label} style={{ ...card, padding: "18px 20px", opacity: isEmpty ? 0.55 : 1, transition: "opacity .2s" }}>
+      {stats.map(({ label, value, color, bg, statusParam }) => (
+        <button
+          key={label}
+          onClick={() => router.push(`/history?status=${statusParam}`)}
+          style={{
+            ...card, padding: "18px 20px", opacity: isEmpty ? 0.55 : 1,
+            transition: "opacity .2s, transform .15s, box-shadow .15s",
+            textAlign: "left", cursor: "pointer", font: "inherit",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.06)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}
+        >
           <p style={{ fontSize: 11, fontWeight: 600, color: A.inkMuted, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10 }}>{label}</p>
           <p style={{ fontSize: 28, fontWeight: 600, color: isEmpty ? A.inkMuted : color, letterSpacing: "-0.8px", lineHeight: 1 }}>{value}</p>
-        </div>
+        </button>
       ))}
     </div>
   );

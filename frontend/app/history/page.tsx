@@ -1,6 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import useSWR from "swr";
 
@@ -34,14 +35,79 @@ const card: React.CSSProperties = {
   borderRadius: 14,
 };
 
+type StatusFilter = "all" | "completed" | "failIncluded" | "running";
+type PeriodFilter = "today" | "7d" | "30d" | "all";
+type ModeFilter = "all" | "natural" | "excel";
+
+const STATUS_OPTIONS: { key: StatusFilter; label: string }[] = [
+  { key: "all", label: "전체" },
+  { key: "completed", label: "완료" },
+  { key: "failIncluded", label: "Fail 포함" },
+  { key: "running", label: "진행 중" },
+];
+const PERIOD_OPTIONS: { key: PeriodFilter; label: string }[] = [
+  { key: "today", label: "오늘" },
+  { key: "7d", label: "7일" },
+  { key: "30d", label: "30일" },
+  { key: "all", label: "전체" },
+];
+const MODE_OPTIONS: { key: ModeFilter; label: string }[] = [
+  { key: "all", label: "전체" },
+  { key: "natural", label: "자연어" },
+  { key: "excel", label: "엑셀" },
+];
+
+function isStatusFilter(v: string | null): v is StatusFilter {
+  return v === "all" || v === "completed" || v === "failIncluded" || v === "running";
+}
+
+function filterRuns(runs: RunSummary[], status: StatusFilter, period: PeriodFilter, mode: ModeFilter): RunSummary[] {
+  let result = runs;
+
+  if (status === "completed") result = result.filter((r) => r.status === "completed");
+  else if (status === "failIncluded") result = result.filter((r) => r.failed > 0);
+  else if (status === "running") result = result.filter((r) => r.status === "running");
+
+  if (mode !== "all") result = result.filter((r) => r.mode === mode);
+
+  if (period !== "all") {
+    const ranges: Record<Exclude<PeriodFilter, "all">, number> = {
+      today: 1000 * 60 * 60 * 24,
+      "7d": 1000 * 60 * 60 * 24 * 7,
+      "30d": 1000 * 60 * 60 * 24 * 30,
+    };
+    const cutoff = Date.now() - ranges[period];
+    result = result.filter((r) => new Date(r.createdAt).getTime() >= cutoff);
+  }
+
+  return result;
+}
+
 export default function HistoryPage() {
+  return <Suspense><HistoryPageInner /></Suspense>;
+}
+
+function HistoryPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
+  const [modeFilter, setModeFilter]     = useState<ModeFilter>("all");
+
+  // 대시보드 통계 카드에서 ?status=... 로 진입한 경우 초기 필터 반영
+  useEffect(() => {
+    const s = searchParams.get("status");
+    if (isStatusFilter(s)) setStatusFilter(s);
+  }, []);
 
   const { data: runs = [], isLoading, mutate } = useSWR<RunSummary[]>(
     "/api/history",
     fetcher,
     { refreshInterval: 5000 }
   );
+
+  const filteredRuns = filterRuns(runs, statusFilter, periodFilter, modeFilter);
 
   const handleDelete = async (runId: string) => {
     if (!confirm("이 테스트 이력을 삭제하시겠습니까? 되돌릴 수 없습니다.")) return;
@@ -89,36 +155,78 @@ export default function HistoryPage() {
           <EmptyState />
         ) : (
           <>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <h2 style={{ fontSize: 13, fontWeight: 600, color: A.ink, letterSpacing: "0.04em", textTransform: "uppercase" }}>전체 실행 이력</h2>
-              <span style={{ fontSize: 12, color: A.inkMuted }}>{runs.length}개 항목</span>
+            {/* 필터 바 */}
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 16 }}>
+              <FilterGroup options={STATUS_OPTIONS} value={statusFilter} onChange={setStatusFilter} />
+              <FilterGroup options={PERIOD_OPTIONS} value={periodFilter} onChange={setPeriodFilter} />
+              <FilterGroup options={MODE_OPTIONS} value={modeFilter} onChange={setModeFilter} />
             </div>
 
-            <div style={{ ...card, overflow: "hidden" }}>
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "130px 1fr 110px 100px 130px 90px 40px",
-                padding: "11px 22px",
-                background: A.parchment,
-                borderBottom: `1px solid ${A.hairline}`,
-              }}>
-                {["상태", "프로젝트 (URL)", "실행자", "결과 요약", "실행 일시", "모드", ""].map((h, i) => (
-                  <span key={i} style={{ fontSize: 11, fontWeight: 600, color: A.inkMuted, letterSpacing: "0.05em", textTransform: "uppercase" }}>{h}</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <h2 style={{ fontSize: 13, fontWeight: 600, color: A.ink, letterSpacing: "0.04em", textTransform: "uppercase" }}>전체 실행 이력</h2>
+              <span style={{ fontSize: 12, color: A.inkMuted }}>{filteredRuns.length}개 항목</span>
+            </div>
+
+            {filteredRuns.length === 0 ? (
+              <div style={{ ...card, padding: "40px 0", textAlign: "center" }}>
+                <p style={{ fontSize: 13, color: A.inkMuted }}>선택한 조건에 해당하는 이력이 없습니다.</p>
+              </div>
+            ) : (
+              <div style={{ ...card, overflow: "hidden" }}>
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "130px 1fr 110px 100px 130px 90px 40px",
+                  padding: "11px 22px",
+                  background: A.parchment,
+                  borderBottom: `1px solid ${A.hairline}`,
+                }}>
+                  {["상태", "프로젝트 (URL)", "실행자", "결과 요약", "실행 일시", "모드", ""].map((h, i) => (
+                    <span key={i} style={{ fontSize: 11, fontWeight: 600, color: A.inkMuted, letterSpacing: "0.05em", textTransform: "uppercase" }}>{h}</span>
+                  ))}
+                </div>
+                {filteredRuns.map((run, i) => (
+                  <HistoryRow
+                    key={run.runId}
+                    run={run}
+                    isLast={i === filteredRuns.length - 1}
+                    onClick={() => router.push(`/dashboard/${run.runId}`)}
+                    onDelete={() => handleDelete(run.runId)}
+                  />
                 ))}
               </div>
-              {runs.map((run, i) => (
-                <HistoryRow
-                  key={run.runId}
-                  run={run}
-                  isLast={i === runs.length - 1}
-                  onClick={() => router.push(`/dashboard/${run.runId}`)}
-                  onDelete={() => handleDelete(run.runId)}
-                />
-              ))}
-            </div>
+            )}
           </>
         )}
       </main>
+    </div>
+  );
+}
+
+function FilterGroup<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: { key: T; label: string }[];
+  value: T;
+  onChange: (key: T) => void;
+}) {
+  return (
+    <div style={{ display: "flex", gap: 4, background: A.canvas, borderRadius: 9, padding: 4, border: `1px solid ${A.hairline}` }}>
+      {options.map(({ key, label }) => (
+        <button
+          key={key}
+          onClick={() => onChange(key)}
+          style={{
+            padding: "6px 12px", borderRadius: 6, fontSize: 12, fontWeight: 500,
+            border: "none", cursor: "pointer", transition: "all .15s", whiteSpace: "nowrap",
+            background: value === key ? A.blue : "transparent",
+            color: value === key ? "#fff" : A.inkMuted,
+          }}
+        >
+          {label}
+        </button>
+      ))}
     </div>
   );
 }

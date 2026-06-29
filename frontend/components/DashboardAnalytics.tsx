@@ -60,6 +60,28 @@ function dateKey(iso: string): string {
   return `${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
 }
 
+// 백엔드/API의 원시 에러 메시지(JSON, 영문 코드 등)를 사람이 읽을 수 있는 한글 사유로 변환
+// (상세 결과 페이지의 humanizeFailReason과 동일한 규칙)
+function humanizeFailReason(raw?: string): string {
+  if (!raw) return "알 수 없는 오류로 테스트가 실패했습니다.";
+  if (/credit balance is too low/i.test(raw)) {
+    return "AI 사용량(크레딧)이 부족하여 테스트를 진행할 수 없습니다.";
+  }
+  if (/사용자에 의해 중지/.test(raw)) {
+    return "사용자에 의해 테스트가 중지되었습니다.";
+  }
+  if (/timeout|timed out/i.test(raw)) {
+    return "응답 시간이 초과되어 테스트가 실패했습니다.";
+  }
+  if (/invalid_request_error/i.test(raw)) {
+    return "AI 요청 처리 중 오류가 발생하여 테스트가 실패했습니다.";
+  }
+  if (/^\s*\d{3}\s*\{/.test(raw) || /^\s*\{/.test(raw)) {
+    return "시스템 오류로 인해 테스트가 실패했습니다.";
+  }
+  return raw;
+}
+
 const cardClass = "bg-white rounded-xl shadow-sm border border-gray-100";
 
 /* ─── 집계 로직 ───────────────────────────────────────────────────── */
@@ -114,7 +136,7 @@ function buildRecentFailures(cases: CaseWithRun[]) {
       testId: c.testId,
       scenario: c.scenario,
       failedAt: caseTimestamp(c),
-      reason: c.failReason || "알 수 없는 오류",
+      reason: humanizeFailReason(c.failReason),
     }));
 }
 

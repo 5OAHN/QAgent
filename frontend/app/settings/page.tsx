@@ -52,6 +52,7 @@ export default function SettingsPage() {
   /* Password change */
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword]         = useState("");
+  const [adminPassword, setAdminPassword]     = useState("");
   const [pwError, setPwError]                 = useState("");
   const [pwSuccess, setPwSuccess]             = useState(false);
   const [pwLoading, setPwLoading]             = useState(false);
@@ -70,11 +71,22 @@ export default function SettingsPage() {
     setTimeout(() => setSaved(false), 2000);
   };
 
-  /* Change app password */
+  /* Change app password — 관리자 비밀번호로 2차 검증 후 진행 */
   const handleChangePassword = async () => {
-    if (!currentPassword || !newPassword || pwLoading) return;
+    if (!currentPassword || !newPassword || !adminPassword || pwLoading) return;
     setPwLoading(true); setPwError(""); setPwSuccess(false);
     try {
+      const verifyRes = await fetch("/api/auth/verify-admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: adminPassword }),
+      });
+      if (!verifyRes.ok) {
+        const verifyData = await verifyRes.json().catch(() => ({}));
+        setPwError(verifyData.error || "관리자 비밀번호가 올바르지 않습니다.");
+        return;
+      }
+
       const res = await fetch("/api/auth/change-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -83,7 +95,7 @@ export default function SettingsPage() {
       const data = await res.json();
       if (res.ok) {
         setPwSuccess(true);
-        setCurrentPassword(""); setNewPassword("");
+        setCurrentPassword(""); setNewPassword(""); setAdminPassword("");
         setTimeout(() => setPwSuccess(false), 3000);
       } else {
         setPwError(data.error || "비밀번호 변경에 실패했습니다.");
@@ -278,6 +290,20 @@ export default function SettingsPage() {
                 onBlur={(e) => { e.target.style.borderColor = "rgba(209,213,219,0.8)"; e.target.style.boxShadow = "none"; }}
               />
             </div>
+            <div>
+              <label style={labelStyle}>관리자 비밀번호 (2차 확인)</label>
+              <input
+                type="password" value={adminPassword}
+                onChange={(e) => { setAdminPassword(e.target.value); setPwError(""); }}
+                placeholder="관리자 비밀번호"
+                style={inputStyle}
+                onFocus={(e) => { e.target.style.borderColor = "#0066cc"; e.target.style.boxShadow = "0 0 0 3px rgba(0,102,204,0.1)"; }}
+                onBlur={(e) => { e.target.style.borderColor = "rgba(209,213,219,0.8)"; e.target.style.boxShadow = "none"; }}
+              />
+              <p style={{ fontSize: 11, color: "#9ca3af", marginTop: 6 }}>
+                보안을 위해 접속 비밀번호 변경에도 관리자 비밀번호 확인이 필요합니다.
+              </p>
+            </div>
 
             {pwError && (
               <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#dc2626" }}>{pwError}</div>
@@ -291,12 +317,12 @@ export default function SettingsPage() {
 
             <button
               onClick={handleChangePassword}
-              disabled={!currentPassword || !newPassword || pwLoading}
+              disabled={!currentPassword || !newPassword || !adminPassword || pwLoading}
               style={{
                 alignSelf: "flex-start", padding: "9px 16px", borderRadius: 9, fontSize: 12, fontWeight: 600,
-                border: "none", cursor: currentPassword && newPassword && !pwLoading ? "pointer" : "not-allowed",
-                background: currentPassword && newPassword && !pwLoading ? "#0066cc" : "#f5f5f7",
-                color: currentPassword && newPassword && !pwLoading ? "#fff" : "#9ca3af",
+                border: "none", cursor: currentPassword && newPassword && adminPassword && !pwLoading ? "pointer" : "not-allowed",
+                background: currentPassword && newPassword && adminPassword && !pwLoading ? "#0066cc" : "#f5f5f7",
+                color: currentPassword && newPassword && adminPassword && !pwLoading ? "#fff" : "#9ca3af",
               }}
             >
               {pwLoading ? "변경 중…" : "비밀번호 변경"}
