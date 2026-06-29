@@ -147,6 +147,25 @@ function buildRecentFailures(cases: CaseWithRun[]) {
     }));
 }
 
+function buildTokenUsage(cases: CaseWithRun[]) {
+  const withTokens = cases.filter((c) => typeof (c as any).tokenUsage === "number");
+  if (withTokens.length === 0) return { avgTokens: null, hasData: false, byProvider: [] as { name: string; avg: number }[] };
+
+  const avg = withTokens.reduce((sum, c) => sum + ((c as any).tokenUsage as number), 0) / withTokens.length;
+
+  const byProv = new Map<string, { total: number; count: number }>();
+  for (const c of withTokens) {
+    const prov = (c as any).provider || "unknown";
+    const e = byProv.get(prov) || { total: 0, count: 0 };
+    e.total += (c as any).tokenUsage;
+    e.count += 1;
+    byProv.set(prov, e);
+  }
+  const byProvider = Array.from(byProv.entries()).map(([name, v]) => ({ name, avg: Math.round(v.total / v.count) }));
+
+  return { avgTokens: Math.round(avg), hasData: true, byProvider };
+}
+
 function buildExecTime(cases: CaseWithRun[]) {
   const timed = cases.filter((c) => typeof c.durationMs === "number");
 
@@ -195,21 +214,29 @@ export default function DashboardAnalytics() {
   const trendData = buildTrend(cases);
   const recentFailures = buildRecentFailures(cases);
   const execTime = buildExecTime(cases);
+  const tokenUsage = buildTokenUsage(cases);
   const hasAnyCases = cases.length > 0;
 
   return (
     <div className="mt-8 grid grid-cols-3 gap-4 items-start">
+      {/* Row 1: 트렌드(2칸) + 실패 시나리오(1칸) — 동일 높이 */}
       <TrendWidget data={trendData} loading={isLoading} hasData={hasAnyCases} />
-      <div className="col-span-1 flex flex-col gap-4">
-        <RecentFailuresWidget failures={recentFailures} loading={isLoading} />
-        <AvgExecTimeWidget
-          avgSeconds={execTime.avgSeconds}
-          changePct={execTime.changePct}
-          trend={execTime.trend}
-          loading={isLoading}
-          hasData={execTime.hasData}
-        />
-      </div>
+      <RecentFailuresWidget failures={recentFailures} loading={isLoading} />
+
+      {/* Row 2: 소요 시간(1칸) + 평균 사용량(2칸) — 동일 높이 */}
+      <AvgExecTimeWidget
+        avgSeconds={execTime.avgSeconds}
+        changePct={execTime.changePct}
+        trend={execTime.trend}
+        loading={isLoading}
+        hasData={execTime.hasData}
+      />
+      <AvgTokenUsageWidget
+        avgTokens={tokenUsage.avgTokens}
+        byProvider={tokenUsage.byProvider}
+        loading={isLoading}
+        hasData={tokenUsage.hasData}
+      />
     </div>
   );
 }
@@ -225,7 +252,7 @@ function TrendWidget({
   hasData: boolean;
 }) {
   return (
-    <div className={`${cardClass} col-span-2 p-5 flex flex-col`} style={{ height: 280 }}>
+    <div className={`${cardClass} col-span-2 p-5 flex flex-col`} style={{ height: 300 }}>
       <div className="flex items-center justify-between mb-3">
         <div>
           <p className="text-[13px] font-semibold text-gray-900">일자별 테스트 성공률 트렌드</p>
@@ -298,7 +325,7 @@ function RecentFailuresWidget({
   const router = useRouter();
 
   return (
-    <div className={`${cardClass} col-span-1 p-5 flex flex-col`} style={{ minHeight: 0 }}>
+    <div className={`${cardClass} col-span-1 p-5 flex flex-col`} style={{ height: 300 }}>
       <p className="text-[13px] font-semibold text-gray-900 mb-1">요주의 실패 시나리오</p>
       <p className="text-[11px] text-gray-400 mb-3 flex-shrink-0">
         {loading ? "불러오는 중…" : `최근 Fail 발생 ${failures.length}건`}
@@ -350,7 +377,7 @@ function AvgExecTimeWidget({
   const improved = (changePct ?? 0) < 0;
 
   return (
-    <div className={`${cardClass} col-span-1 p-5 flex flex-col`}>
+    <div className={`${cardClass} col-span-1 p-5 flex flex-col`} style={{ height: 160 }}>
       <p className="text-[13px] font-semibold text-gray-900 mb-1">평균 시나리오 소요 시간</p>
 
       {loading ? (
@@ -370,7 +397,7 @@ function AvgExecTimeWidget({
             <p className="text-[12px] text-gray-400 mt-0.5">전주 대비 데이터 부족</p>
           )}
 
-          <div className="flex-1 min-h-[60px] mt-2">
+          <div className="flex-1 min-h-[40px] mt-1">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={trend}>
                 <XAxis dataKey="i" hide />
@@ -380,6 +407,62 @@ function AvgExecTimeWidget({
             </ResponsiveContainer>
           </div>
         </>
+      )}
+    </div>
+  );
+}
+
+/* ── 위젯 4: 시나리오당 평균 토큰 사용량 ─────────────────────────── */
+function AvgTokenUsageWidget({
+  avgTokens,
+  byProvider,
+  loading,
+  hasData,
+}: {
+  avgTokens: number | null;
+  byProvider: { name: string; avg: number }[];
+  loading: boolean;
+  hasData: boolean;
+}) {
+  const fmt = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
+  const providerLabel = (name: string) => name === "claude" ? "Claude" : name === "gemini" ? "Gemini" : name;
+
+  return (
+    <div className={`${cardClass} col-span-2 p-5 flex flex-col`} style={{ height: 160 }}>
+      <p className="text-[13px] font-semibold text-gray-900 mb-1">시나리오당 평균 사용량</p>
+
+      {loading ? (
+        <p className="text-[12px] text-gray-400 mt-2">불러오는 중…</p>
+      ) : !hasData ? (
+        <p className="text-[12px] text-gray-400 mt-2">토큰 사용 데이터가 없습니다.</p>
+      ) : (
+        <div className="flex items-end gap-8 mt-1 flex-1">
+          <div>
+            <p className="text-[28px] font-semibold" style={{ color: COLOR.ink, letterSpacing: "-0.5px" }}>
+              {fmt(avgTokens ?? 0)}
+            </p>
+            <p className="text-[11px] text-gray-400 mt-0.5">평균 토큰</p>
+          </div>
+
+          {byProvider.length > 0 && (
+            <div className="flex flex-col gap-1.5 pb-0.5">
+              {byProvider.map((p) => (
+                <div key={p.name} className="flex items-center gap-2">
+                  <span
+                    className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                    style={{
+                      background: p.name === "claude" ? "rgba(112,53,204,0.1)" : "rgba(26,115,232,0.1)",
+                      color: p.name === "claude" ? "#7035cc" : "#1a73e8",
+                    }}
+                  >
+                    {providerLabel(p.name)}
+                  </span>
+                  <span className="text-[12px] font-medium text-gray-700">{fmt(p.avg)} tok</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
