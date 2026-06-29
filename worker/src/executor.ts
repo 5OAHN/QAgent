@@ -75,6 +75,13 @@ export async function runTest(
     outgoingStorageState = await context.storageState();
     result.status = "Pass";
     console.log(`  ✓ [${testCase.testId}] Pass`);
+
+    try {
+      const screenshotBuffer = await page.screenshot({ fullPage: true });
+      result.screenshotBase64 = screenshotBuffer.toString("base64");
+    } catch (shotErr: any) {
+      console.warn(`  [${testCase.testId}] 스크린샷 캡처 실패: ${shotErr.message}`);
+    }
   } catch (err: any) {
     result.status = "Fail";
     result.failReason = err.message;

@@ -511,7 +511,7 @@ function TargetUrlCard({ url }: { url: string }) {
       </a>
       <button
         onClick={handleCopy}
-        className="text-[11px] font-medium text-gray-400 hover:text-gray-600 flex-shrink-0 transition-all duration-200 active:scale-90"
+        className="text-xs font-medium text-gray-400 hover:text-gray-600 flex-shrink-0 transition-all duration-200 active:scale-90"
       >
         {copied ? "복사됨" : "복사"}
       </button>
@@ -527,37 +527,37 @@ function LoginFailureAccordion({ reason, steps }: { reason?: string; steps?: str
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="bg-white rounded-xl border border-red-300 overflow-hidden">
+    <div className="bg-white rounded-xl border border-red-300 overflow-hidden flex-shrink-0">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-5 py-4 transition-colors duration-200 hover:bg-red-50/50"
+        className="w-full flex items-center justify-between px-4 py-3 gap-2.5 transition-colors duration-200 hover:bg-red-50/50"
       >
-        <div className="flex items-center gap-2 text-red-600">
-          <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+        <div className="flex items-center gap-2.5 text-red-600 min-w-0">
+          <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" className="flex-shrink-0">
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
               d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"
             />
           </svg>
-          <span className="font-semibold text-sm">로그인 실패</span>
-          {reason && <span className="text-xs text-red-400">— {reason}</span>}
+          <span className="text-xs font-semibold flex-shrink-0">로그인 실패</span>
+          {reason && <span className="text-xs text-red-400 truncate">— {reason}</span>}
         </div>
         <svg
-          width="16"
-          height="16"
+          width="14"
+          height="14"
           fill="none"
           stroke="currentColor"
           strokeWidth="2"
           viewBox="0 0 24 24"
-          className={`text-red-500 transition-transform ${open ? "rotate-180" : ""}`}
+          className={`text-red-500 flex-shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
         >
           <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
 
       {open && steps && steps.length > 0 && (
-        <div className="px-5 pb-4 pt-1 border-t border-red-100 bg-red-50/50 max-h-48 overflow-y-auto">
+        <div className="px-4 pb-3 pt-1 border-t border-red-100 bg-red-50/50 max-h-48 overflow-y-auto">
           {steps.map((s, i) => (
             <p key={i} className="text-xs text-gray-600 whitespace-pre-line py-1">
               {s}
@@ -775,13 +775,13 @@ function ScenarioCard({
                     e.stopPropagation();
                     onEditRequest();
                   }}
-                  className="flex items-center gap-1 text-[11px] font-semibold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md transition-all duration-200 active:scale-95 hover:bg-indigo-100"
+                  className="flex items-center gap-1 text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md transition-all duration-200 active:scale-95 hover:bg-indigo-100"
                 >
                   ✏️ 수정
                 </button>
               )}
               {duration && (
-                <span className="flex items-center gap-1 text-[11px] font-medium text-gray-400">
+                <span className="flex items-center gap-1 text-xs font-medium text-gray-400">
                   <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <circle cx="12" cy="12" r="9" />
                     <path d="M12 7v5l3 2" strokeLinecap="round" strokeLinejoin="round" />
@@ -822,14 +822,14 @@ function ScenarioCard({
               <button
                 onClick={(e) => handleVerify(e, "approved")}
                 disabled={verifying}
-                className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-green-600 text-white disabled:opacity-50 transition-all duration-200 active:scale-95 hover:bg-green-700"
+                className="text-xs font-semibold px-2.5 py-1 rounded-md bg-green-600 text-white disabled:opacity-50 transition-all duration-200 active:scale-95 hover:bg-green-700"
               >
                 승인
               </button>
               <button
                 onClick={(e) => handleVerify(e, "rejected")}
                 disabled={verifying}
-                className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-red-600 text-white disabled:opacity-50 transition-all duration-200 active:scale-95 hover:bg-red-700"
+                className="text-xs font-semibold px-2.5 py-1 rounded-md bg-red-600 text-white disabled:opacity-50 transition-all duration-200 active:scale-95 hover:bg-red-700"
               >
                 거부
               </button>
@@ -846,27 +846,58 @@ function ScenarioCard({
 // ─────────────────────────────────────────────────────────────────────────────
 
 function MediaViewerCard({ tc, isTerminal }: { tc: TestCase | null; isTerminal: boolean }) {
+  const [zoomed, setZoomed] = useState(false);
+
   const imgSrc = tc?.screenshotBase64
     ? `data:image/png;base64,${tc.screenshotBase64}`
     : tc?.screenshotUrl || null;
 
+  useEffect(() => {
+    setZoomed(false);
+  }, [imgSrc]);
+
   return (
-    <div className="bg-gray-100 rounded-xl border border-gray-200 p-6 flex-1 min-h-0 flex items-center justify-center overflow-hidden">
-      {!tc ? (
-        <p className="text-gray-400 text-sm">시나리오를 선택하세요</p>
-      ) : imgSrc ? (
-        <img
-          key={imgSrc}
-          src={imgSrc}
-          alt="screenshot"
-          className="max-w-full max-h-full object-contain rounded-lg shadow-sm animate-[fadeIn_0.25s_ease-out]"
-        />
-      ) : (
-        <p className="text-gray-400 text-sm">
-          {!isTerminal && tc.status === "Pending" ? "실행 대기 중…" : "미디어 없음"}
-        </p>
+    <>
+      <div className="bg-gray-100 rounded-xl border border-gray-200 p-6 flex-1 min-h-0 flex items-center justify-center overflow-hidden">
+        {!tc ? (
+          <p className="text-sm text-gray-400">시나리오를 선택하세요</p>
+        ) : imgSrc ? (
+          <img
+            key={imgSrc}
+            src={imgSrc}
+            alt="screenshot"
+            onClick={() => setZoomed(true)}
+            className="max-w-full max-h-full object-contain rounded-lg shadow-sm animate-[fadeIn_0.25s_ease-out] cursor-zoom-in transition-transform duration-200 hover:scale-[1.01]"
+          />
+        ) : (
+          <p className="text-sm text-gray-400">
+            {!isTerminal && tc.status === "Pending" ? "실행 대기 중…" : "미디어 없음"}
+          </p>
+        )}
+      </div>
+
+      {zoomed && imgSrc && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-8 animate-[fadeIn_0.15s_ease-out] cursor-zoom-out"
+          onClick={() => setZoomed(false)}
+        >
+          <img
+            src={imgSrc}
+            alt="screenshot-zoomed"
+            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <button
+            onClick={() => setZoomed(false)}
+            className="absolute top-5 right-5 text-white/80 hover:text-white transition-colors duration-200 p-2 rounded-full hover:bg-white/10"
+          >
+            <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
       )}
-    </div>
+    </>
   );
 }
 
