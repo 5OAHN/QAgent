@@ -32,32 +32,32 @@ const sectionCard: React.CSSProperties = {
 };
 
 /* ─── 토스트 ─────────────────────────────────────────────────────── */
-type Toast = { id: number; message: string; type: "ok" | "err" };
+type Toast = { id: number; message: string; type: "ok" | "err" | "warn" };
 
 function ToastContainer({ toasts }: { toasts: Toast[] }) {
+  const bg = { ok: "#1a2e1a", err: "#2e1a1a", warn: "#2a2410" };
+  const border = { ok: "#22c55e33", err: "#ef444433", warn: "#f59e0b44" };
   return (
     <div style={{
       position: "fixed", bottom: 28, right: 28, zIndex: 9999,
       display: "flex", flexDirection: "column", gap: 10, pointerEvents: "none",
+      maxWidth: 420,
     }}>
       {toasts.map((t) => (
-        <div
-          key={t.id}
-          style={{
-            display: "flex", alignItems: "center", gap: 10,
-            padding: "12px 18px", borderRadius: 12,
-            background: t.type === "ok" ? "#1a2e1a" : "#2e1a1a",
-            border: `1px solid ${t.type === "ok" ? "#22c55e33" : "#ef444433"}`,
-            color: "#fff", fontSize: 13, fontWeight: 500,
-            boxShadow: "0 4px 20px rgba(0,0,0,0.25)",
-            animation: "slideUp 0.22s ease",
-          }}
-        >
-          {t.type === "ok"
-            ? <svg width="16" height="16" fill="none" stroke="#22c55e" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            : <svg width="16" height="16" fill="none" stroke="#ef4444" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01" strokeLinecap="round"/></svg>
-          }
-          {t.message}
+        <div key={t.id} style={{
+          display: "flex", alignItems: "flex-start", gap: 10,
+          padding: "12px 18px", borderRadius: 12,
+          background: bg[t.type], border: `1px solid ${border[t.type]}`,
+          color: "#fff", fontSize: 13, fontWeight: 500, lineHeight: 1.5,
+          boxShadow: "0 4px 20px rgba(0,0,0,0.25)",
+          animation: "slideUp 0.22s ease",
+        }}>
+          <span style={{ flexShrink: 0, marginTop: 1 }}>
+            {t.type === "ok" && <svg width="16" height="16" fill="none" stroke="#22c55e" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+            {t.type === "err" && <svg width="16" height="16" fill="none" stroke="#ef4444" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01" strokeLinecap="round"/></svg>}
+            {t.type === "warn" && <svg width="16" height="16" fill="none" stroke="#f59e0b" strokeWidth="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><path d="M12 9v4M12 17h.01" strokeLinecap="round"/></svg>}
+          </span>
+          <span>{t.message}</span>
         </div>
       ))}
     </div>
@@ -66,11 +66,12 @@ function ToastContainer({ toasts }: { toasts: Toast[] }) {
 
 function useToast() {
   const [toasts, setToasts] = useState<Toast[]>([]);
-  let counter = 0;
-  const show = useCallback((message: string, type: "ok" | "err" = "ok") => {
-    const id = Date.now() + counter++;
+  const counter = { n: 0 };
+  const show = useCallback((message: string, type: "ok" | "err" | "warn" = "ok") => {
+    const id = Date.now() + counter.n++;
     setToasts((prev) => [...prev, { id, message, type }]);
-    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3500);
+    const duration = type === "warn" ? 6000 : 3500;
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), duration);
   }, []);
   return { toasts, show };
 }
@@ -172,7 +173,7 @@ function AdminGate({ onUnlock }: { onUnlock: () => void }) {
 }
 
 /* ─── API 키 입력 행 ─────────────────────────────────────────────── */
-type VerifyState = "idle" | "loading" | "ok" | "err";
+type VerifyState = "idle" | "loading" | "ok" | "warn" | "err";
 
 function ApiKeyRow({
   label, dot, placeholder, value, onChange,
@@ -184,8 +185,8 @@ function ApiKeyRow({
   onVerify: () => void; verifyState: VerifyState;
 }) {
   const canVerify = value.trim().length > 8;
-  const verifyColor = verifyState === "ok" ? "#16a34a" : verifyState === "err" ? "#dc2626" : "#0066cc";
-  const verifyLabel = verifyState === "loading" ? "검증 중…" : verifyState === "ok" ? "✓ 정상" : verifyState === "err" ? "✗ 실패" : "검증";
+  const verifyColor = verifyState === "ok" ? "#16a34a" : verifyState === "warn" ? "#d97706" : verifyState === "err" ? "#dc2626" : "#0066cc";
+  const verifyLabel = verifyState === "loading" ? "검증 중…" : verifyState === "ok" ? "✓ 정상" : verifyState === "warn" ? "⚠ 잔액부족" : verifyState === "err" ? "✗ 실패" : "검증";
 
   return (
     <div>
@@ -221,7 +222,7 @@ function ApiKeyRow({
           style={{
             padding: "0 16px", height: 38, borderRadius: 9, fontSize: 12, fontWeight: 600,
             border: `1px solid ${canVerify ? verifyColor + "55" : "rgba(209,213,219,0.8)"}`,
-            background: verifyState === "ok" ? "#f0fdf4" : verifyState === "err" ? "#fef2f2" : canVerify ? "rgba(255,255,255,0.9)" : "#f9f9fb",
+            background: verifyState === "ok" ? "#f0fdf4" : verifyState === "warn" ? "#fffbeb" : verifyState === "err" ? "#fef2f2" : canVerify ? "rgba(255,255,255,0.9)" : "#f9f9fb",
             color: canVerify ? verifyColor : "#c0c0c8",
             cursor: canVerify && verifyState !== "loading" ? "pointer" : "not-allowed",
             whiteSpace: "nowrap" as const, flexShrink: 0, transition: "all .2s",
@@ -246,6 +247,7 @@ export default function SettingsPage() {
   const [showGemini, setShowGemini] = useState(false);
   const [anthropicVerify, setAnthropicVerify] = useState<VerifyState>("idle");
   const [geminiVerify, setGeminiVerify] = useState<VerifyState>("idle");
+
   const [apiKeyStatus, setApiKeyStatus] = useState({ hasAnthropic: false, hasGemini: false, anthropicMasked: "", geminiMasked: "" });
   const [apiKeySaving, setApiKeySaving] = useState(false);
 
@@ -270,7 +272,7 @@ export default function SettingsPage() {
   useEffect(() => { if (unlocked) loadApiKeyStatus(); }, [unlocked, loadApiKeyStatus]);
 
   /* 키 검증 */
-  const verifyKey = async (provider: "claude" | "gemini", apiKey: string, setter: (s: VerifyState) => void) => {
+  const verifyKey = async (provider: "claude" | "gemini", apiKey: string, setter: React.Dispatch<React.SetStateAction<VerifyState>>) => {
     if (!apiKey.trim()) return;
     setter("loading");
     try {
@@ -281,9 +283,16 @@ export default function SettingsPage() {
       });
       const data = await res.json();
       if (data.ok) {
-        setter("ok");
-        showToast(`${provider === "claude" ? "Claude" : "Gemini"} API 키가 정상적으로 연결되었습니다`, "ok");
-        setTimeout(() => setter("idle"), 4000);
+        if (data.warning) {
+          // 키는 유효하지만 크레딧/quota 부족
+          setter("ok");
+          showToast(data.warning, "warn");
+          setTimeout(() => setter("idle"), 6000);
+        } else {
+          setter("ok");
+          showToast(data.message || `${provider === "claude" ? "Claude" : "Gemini"} API 키가 정상적으로 연결되었습니다`, "ok");
+          setTimeout(() => setter("idle"), 4000);
+        }
       } else {
         setter("err");
         showToast(data.error || "API 키 검증에 실패했습니다", "err");

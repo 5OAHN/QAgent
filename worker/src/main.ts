@@ -111,34 +111,77 @@ app.post("/settings/verify-key", async (req: Request, res: Response) => {
         max_tokens: 10,
         messages: [{ role: "user", content: "hi" }],
       });
-      return res.json({ ok: true });
+      return res.json({ ok: true, message: "Claude API 키가 정상적으로 연결되었습니다." });
     } catch (err: any) {
-      const msg = err.status === 401 ? "인증 실패: API 키가 유효하지 않습니다."
-        : err.status === 403 ? "권한 없음: 해당 키로 접근할 수 없습니다."
-        : `연결 실패: ${err.message}`;
+      // 크레딧 부족은 인증 성공 — 키는 유효함
+      const body = err.error || {};
+      const isLowCredit = body.type === "invalid_request_error" &&
+        (body.message || "").includes("credit balance");
+      if (isLowCredit) {
+        return res.json({ ok: true, warning: "API 키는 유효하지만 크레딧이 부족합니다. 충전 후 사용하세요." });
+      }
+      const msg = err.status === 401
+        ? "유효하지 않은 API 키입니다. 키를 다시 확인해 주세요."
+        : err.status === 403
+        ? "해당 키로는 접근 권한이 없습니다."
+        : "Claude 연결 실패: " + (err.message || "알 수 없는 오류");
       return res.status(400).json({ ok: false, error: msg });
     }
   }
 
   if (provider === "gemini") {
-    try {
-      const r = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey.trim()}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ contents: [{ parts: [{ text: "hi" }] }] }),
+    // 여러 모델을 순서대로 시도 — 모델별 quota/지원 여부가 다를 수 있음
+    const GEMINI_MODELS = [
+      "gemini-2.0-flash-lite",
+      "gemini-1.5-flash",
+      "gemini-1.5-flash-8b",
+      "gemini-2.0-flash",
+    ];
+
+    let lastError = "";
+    for (const model of GEMINI_MODELS) {
+      try {
+        const r = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey.trim()}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contents: [{ parts: [{ text: "hi" }] }] }),
+          }
+        );
+        const data = await r.json().catch(() => ({}));
+
+        if (r.ok) {
+          return res.json({ ok: true, message: `Gemini API 키가 정상적으로 연결되었습니다. (모델: ${model})` });
         }
-      );
-      if (r.ok) return res.json({ ok: true });
-      const data = await r.json().catch(() => ({}));
-      const msg = r.status === 400 ? "인증 실패: API 키가 유효하지 않습니다."
-        : r.status === 403 ? "권한 없음: 해당 키로 접근할 수 없습니다."
-        : data.error?.message || `연결 실패 (HTTP ${r.status})`;
-      return res.status(400).json({ ok: false, error: msg });
-    } catch (err: any) {
-      return res.status(400).json({ ok: false, error: `연결 실패: ${err.message}` });
+
+        const errMsg: string = data.error?.message || "";
+        const status = r.status;
+
+        // 인증 실패 → 다른 모델 시도해도 의미 없음
+        if (status === 400 && errMsg.includes("API key not valid")) {
+          return res.status(400).json({ ok: false, error: "유효하지 않은 API 키입니다. 키를 다시 확인해 주세요." });
+        }
+        if (status === 403) {
+          return res.status(400).json({ ok: false, error: "해당 키로는 접근 권한이 없습니다. Google Cloud 콘솔에서 Gemini API가 활성화되어 있는지 확인하세요." });
+        }
+
+        // quota 초과 → 키는 유효함
+        if (status === 429 || errMsg.toLowerCase().includes("quota")) {
+          return res.json({ ok: true, warning: "API 키는 유효하지만 무료 할당량이 초과되었습니다. 유료 플랜으로 업그레이드하거나 잠시 후 다시 시도하세요." });
+        }
+
+        // 모델 미지원 → 다음 모델 시도
+        lastError = errMsg || `HTTP ${status}`;
+        continue;
+      } catch (err: any) {
+        lastError = err.message;
+        continue;
+      }
     }
+
+    // 모든 모델 실패
+    return res.status(400).json({ ok: false, error: `Gemini 연결 실패: ${lastError}` });
   }
 
   return res.status(400).json({ ok: false, error: "지원하지 않는 provider입니다." });
