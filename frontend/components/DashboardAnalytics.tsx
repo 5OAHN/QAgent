@@ -200,14 +200,16 @@ export default function DashboardAnalytics() {
   return (
     <div className="mt-8 grid grid-cols-3 gap-4 items-start">
       <TrendWidget data={trendData} loading={isLoading} hasData={hasAnyCases} />
-      <RecentFailuresWidget failures={recentFailures} loading={isLoading} />
-      <AvgExecTimeWidget
-        avgSeconds={execTime.avgSeconds}
-        changePct={execTime.changePct}
-        trend={execTime.trend}
-        loading={isLoading}
-        hasData={execTime.hasData}
-      />
+      <div className="col-span-1 flex flex-col gap-4">
+        <RecentFailuresWidget failures={recentFailures} loading={isLoading} />
+        <AvgExecTimeWidget
+          avgSeconds={execTime.avgSeconds}
+          changePct={execTime.changePct}
+          trend={execTime.trend}
+          loading={isLoading}
+          hasData={execTime.hasData}
+        />
+      </div>
     </div>
   );
 }

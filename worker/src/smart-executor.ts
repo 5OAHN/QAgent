@@ -118,7 +118,9 @@ async function planStep(
   stepText: string,
   currentUrl: string
 ): Promise<{ action: string; qid: number; value: string } | null> {
-  const client = new Anthropic();
+  const resolvedKey = resolveAnthropicKey();
+  if (!resolvedKey) return null;
+  const client = new Anthropic({ apiKey: resolvedKey });
   const systemPrompt = [
     "당신은 웹 자동화 스텝을 분석하는 역할만 합니다. 직접 클릭하거나 입력하지 않습니다.",
     "주어진 DOM 요소 목록(JSON)과 자연어 스텝 하나를 보고, 어떤 액션을 어떤 요소에 수행해야 하는지만 결정해서 반환하십시오.",
