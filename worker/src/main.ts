@@ -4,7 +4,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { runExcelPipeline, runNaturalLanguagePipeline, getRunResult, getAllRuns, cancelRun, pauseRun, resumeRun, deleteRunResult } from "./pipeline";
-import { verifyPassword, changePassword } from "./auth";
+import { verifyPassword, changePassword, verifyAdminPassword, changeAdminPassword } from "./auth";
 import { saveRun } from "./db";
 
 const app = express();
@@ -50,6 +50,29 @@ app.post("/auth/change-password", (req: Request, res: Response) => {
   }
   if (!changePassword(currentPassword, newPassword)) {
     return res.status(401).json({ error: "현재 비밀번호가 올바르지 않습니다." });
+  }
+  res.json({ ok: true });
+});
+
+// ── 관리자(테스트 생성) 비밀번호 인증 — API 크레딧 소비 액션 보호 ──────────
+app.post("/auth/verify-admin", (req: Request, res: Response) => {
+  const { password } = req.body as { password?: string };
+  if (!password || !verifyAdminPassword(password)) {
+    return res.status(401).json({ error: "관리자 비밀번호가 올바르지 않습니다." });
+  }
+  res.json({ ok: true });
+});
+
+app.post("/auth/change-admin-password", (req: Request, res: Response) => {
+  const { currentPassword, newPassword } = req.body as { currentPassword?: string; newPassword?: string };
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: "현재 비밀번호와 새 비밀번호가 필요합니다." });
+  }
+  if (newPassword.length < 4) {
+    return res.status(400).json({ error: "새 비밀번호는 4자 이상이어야 합니다." });
+  }
+  if (!changeAdminPassword(currentPassword, newPassword)) {
+    return res.status(401).json({ error: "현재 관리자 비밀번호가 올바르지 않습니다." });
   }
   res.json({ ok: true });
 });

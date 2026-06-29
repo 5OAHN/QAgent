@@ -56,7 +56,11 @@ export default function NewPage() {
   return <Suspense><NewTestForm /></Suspense>;
 }
 
+const ADMIN_VERIFIED_KEY = "qagent_admin_verified";
+
 function NewTestForm() {
+  const [adminVerified, setAdminVerified] = useState(false);
+  const [adminChecked, setAdminChecked]   = useState(false); // sessionStorage 확인 완료 여부 (깜빡임 방지)
   const [targetUrl, setTargetUrl]       = useState("");
   const [mode, setMode]                 = useState<Mode>("natural");
   const [file, setFile]                 = useState<File | null>(null);
@@ -76,6 +80,12 @@ function NewTestForm() {
     const sc  = searchParams.get("scenarios");
     if (url) setTargetUrl(url);
     if (sc)  { setMode("natural"); setCards([{ id: 1, text: sc }]); }
+  }, []);
+
+  // 새 테스트 생성(=API 크레딧 소비)은 관리자 비밀번호 인증 후에만 가능
+  useEffect(() => {
+    if (sessionStorage.getItem(ADMIN_VERIFIED_KEY) === "1") setAdminVerified(true);
+    setAdminChecked(true);
   }, []);
 
   const filledCards = cards.filter((c) => c.text.trim().length > 0);
@@ -177,6 +187,12 @@ function NewTestForm() {
       setIsLoading(false);
     }
   };
+
+  // 관리자 인증 전: 본 폼 대신 비밀번호 모달만 노출 (sessionStorage 확인 전엔 깜빡임 방지를 위해 빈 화면)
+  if (!adminChecked) return null;
+  if (!adminVerified) {
+    return <AdminGateModal onVerified={() => { sessionStorage.setItem(ADMIN_VERIFIED_KEY, "1"); setAdminVerified(true); }} />;
+  }
 
   return (
     <>
@@ -523,5 +539,117 @@ function NewTestForm() {
         </div>
       </main>
     </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ADMIN GATE MODAL — 새 테스트 생성(API 크레딧 소비) 보호용 2차 비밀번호
+// ─────────────────────────────────────────────────────────────────────────────
+
+function AdminGateModal({ onVerified }: { onVerified: () => void }) {
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!password.trim() || loading) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/auth/verify-admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        onVerified();
+      } else {
+        setError(data.error || "관리자 비밀번호가 올바르지 않습니다.");
+      }
+    } catch {
+      setError("Worker에 연결할 수 없습니다.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.3)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 50,
+      }}
+    >
+      <div
+        style={{
+          background: A.canvas,
+          borderRadius: 14,
+          padding: "28px 28px 24px",
+          width: 360,
+          boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+          <svg width="18" height="18" fill="none" stroke={A.blue} strokeWidth="1.8" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"
+            />
+          </svg>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: A.ink }}>관리자 인증 필요</h2>
+        </div>
+        <p style={{ fontSize: 12.5, color: A.inkMuted, marginBottom: 16, lineHeight: 1.5 }}>
+          새 테스트 실행은 AI API 비용이 발생하므로, 관리자 비밀번호 확인이 필요합니다.
+        </p>
+
+        <form onSubmit={handleSubmit}>
+          <input
+            type="password"
+            autoFocus
+            value={password}
+            onChange={(e) => { setPassword(e.target.value); setError(""); }}
+            placeholder="관리자 비밀번호"
+            style={{ ...inputStyle, marginBottom: 10 }}
+          />
+          {error && (
+            <p style={{ fontSize: 12, color: "#dc2626", marginBottom: 10 }}>{error}</p>
+          )}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => router.push("/")}
+              style={{
+                flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${A.hairline}`,
+                background: A.canvas, color: A.inkMuted, fontSize: 13.5, fontWeight: 500, cursor: "pointer",
+              }}
+            >
+              취소
+            </button>
+            <button
+              type="submit"
+              disabled={!password.trim() || loading}
+              style={{
+                flex: 1, padding: "10px 0", borderRadius: 10, border: "none",
+                background: !password.trim() || loading ? A.parchment : A.blue,
+                color: !password.trim() || loading ? A.inkMuted : "#fff",
+                fontSize: 13.5, fontWeight: 600, cursor: !password.trim() || loading ? "not-allowed" : "pointer",
+                transition: "background .15s",
+              }}
+            >
+              {loading ? "확인 중…" : "확인"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
