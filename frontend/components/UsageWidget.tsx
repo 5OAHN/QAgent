@@ -65,27 +65,28 @@ export default function UsageWidget({ data, isLoading }: UsageWidgetProps) {
 
       {/* 사용량 통계 카드 */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 14, marginBottom: 14 }}>
-        {/* 누적 토큰 사용량 */}
+        {/* 누적 토큰 사용량 - 검정색 배경 */}
         <div
           style={{
-            ...card,
             padding: "18px 20px",
+            borderRadius: 14,
+            background: "#1d1d1f",
             transition: "opacity .2s, transform .15s, box-shadow .15s",
           }}
           onMouseEnter={(e) => {
             (e.currentTarget as HTMLDivElement).style.transform = "translateY(-1px)";
-            (e.currentTarget as HTMLDivElement).style.boxShadow = "0 4px 14px rgba(0,0,0,0.06)";
+            (e.currentTarget as HTMLDivElement).style.boxShadow = "0 4px 14px rgba(0,0,0,0.2)";
           }}
           onMouseLeave={(e) => {
             (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)";
             (e.currentTarget as HTMLDivElement).style.boxShadow = "none";
           }}
         >
-          <p style={{ fontSize: 11, fontWeight: 600, color: A.inkMuted, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10 }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: "#a3a3a7", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10 }}>
             누적 토큰 사용량
           </p>
           <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-            <p style={{ fontSize: 28, fontWeight: 600, color: A.blue, letterSpacing: "-0.8px", lineHeight: 1 }}>
+            <p style={{ fontSize: 28, fontWeight: 600, color: "#ffffff", letterSpacing: "-0.8px", lineHeight: 1 }}>
               {data.totalTokensThisMonth.toLocaleString()}
             </p>
             <span
@@ -94,8 +95,8 @@ export default function UsageWidget({ data, isLoading }: UsageWidgetProps) {
                 fontWeight: 600,
                 padding: "3px 8px",
                 borderRadius: 6,
-                background: isIncreased ? "rgba(220, 38, 38, 0.1)" : "rgba(22, 163, 74, 0.1)",
-                color: isIncreased ? "#dc2626" : "#16a34a",
+                background: isIncreased ? "rgba(220, 38, 38, 0.2)" : "rgba(22, 163, 74, 0.2)",
+                color: isIncreased ? "#ff6b6b" : "#51cf66",
               }}
             >
               {isIncreased ? "↑" : "↓"} {Math.abs(changePercent)}% vs 전월

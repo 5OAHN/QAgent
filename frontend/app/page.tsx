@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import DashboardAnalytics from "@/components/DashboardAnalytics";
 import UsageWidget, { UsageData } from "@/components/UsageWidget";
-import FilterDropdown, { FilterOption } from "@/components/FilterDropdown";
 
 interface RunSummary {
   runId: string;
@@ -37,36 +36,22 @@ const card: React.CSSProperties = {
   borderRadius: 14,
 };
 
-// Filter option definitions
-const PERIOD_OPTIONS: FilterOption[] = [
-  { key: "today", label: "오늘" },
-  { key: "7d", label: "7일" },
-  { key: "30d", label: "30일" },
-];
+type Period = "all" | "today" | "7d" | "30d";
 
-type Period = "today" | "7d" | "30d" | "all";
-
-function filterByPeriod(runs: RunSummary[], selectedPeriods: string[]): RunSummary[] {
-  if (selectedPeriods.length === 0) return runs;
+function filterByPeriod(runs: RunSummary[], period: Period): RunSummary[] {
+  if (period === "all") return runs;
   const now = Date.now();
-  const ranges: Record<string, number> = {
+  const ranges: Record<Exclude<Period, "all">, number> = {
     today: 1000 * 60 * 60 * 24,
     "7d": 1000 * 60 * 60 * 24 * 7,
     "30d": 1000 * 60 * 60 * 24 * 30,
   };
-
-  return runs.filter((r) => {
-    const createdTime = new Date(r.createdAt).getTime();
-    for (const period of selectedPeriods) {
-      const cutoff = now - (ranges[period] || 0);
-      if (createdTime >= cutoff) return true;
-    }
-    return false;
-  });
+  const cutoff = now - ranges[period];
+  return runs.filter((r) => new Date(r.createdAt).getTime() >= cutoff);
 }
 
 export default function HomePage() {
-  const [selectedPeriods, setSelectedPeriods] = useState<string[]>([]);
+  const [period, setPeriod] = useState<Period>("all");
 
   const { data: runs = [], isLoading } = useSWR<RunSummary[]>(
     "/api/history",
@@ -75,7 +60,7 @@ export default function HomePage() {
   );
 
   // Apply period filter only
-  const filteredRuns = filterByPeriod(runs, selectedPeriods);
+  const filteredRuns = filterByPeriod(runs, period);
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -105,27 +90,29 @@ export default function HomePage() {
           <LoadingState />
         ) : (
           <>
-            {/* 기간 필터 */}
-            <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
-              <FilterDropdown
-                label="기간"
-                icon={
-                  <svg
-                    width="14"
-                    height="14"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    viewBox="0 0 24 24"
+            {/* 기간 필터 - 퀵버튼 */}
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 24 }}>
+              <div style={{ display: "flex", gap: 4, background: A.canvas, borderRadius: 9, padding: 4, border: `1px solid ${A.hairline}` }}>
+                {(["all", "today", "7d", "30d"] as const).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setPeriod(p)}
+                    style={{
+                      padding: "6px 14px",
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      border: "none",
+                      cursor: "pointer",
+                      transition: "all .15s",
+                      background: period === p ? A.blue : "transparent",
+                      color: period === p ? "#fff" : A.inkMuted,
+                    }}
                   >
-                    <rect x="3" y="4" width="18" height="18" rx="2" />
-                    <path d="M3 10h18M9 1v6M15 1v6" strokeLinecap="round" />
-                  </svg>
-                }
-                options={PERIOD_OPTIONS}
-                selectedValues={selectedPeriods}
-                onSelectionChange={setSelectedPeriods}
-              />
+                    {p === "all" ? "전체" : p === "today" ? "오늘" : p === "7d" ? "7일" : "30일"}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* 통계 카드 — 데이터 유무와 상관없이 항상 노출 */}
