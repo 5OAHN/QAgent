@@ -381,7 +381,7 @@ export default function HistoryDetailDemoPage() {
                       return (
                         <TimelineItem
                           key={i}
-                          stepNumber={parseInt(num)}
+                          stepNumber={typeof num === 'number' ? num : parseInt(num, 10)}
                           title={action}
                           description={details}
                         />
