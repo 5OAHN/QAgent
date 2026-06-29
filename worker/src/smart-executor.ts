@@ -1,8 +1,47 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { Page } from "playwright";
-import { runVisionAgent, VisionResult, VisionStep, RunControl } from "./vision-agent";
+import { VisionResult, VisionStep, RunControl, ProviderConfig } from "./providers/types";
+import { ProviderManager } from "./providers/provider-manager";
 
 const PLAN_MODEL = "claude-haiku-4-5";
+
+function getProviderConfigs(): ProviderConfig[] {
+  const configs: ProviderConfig[] = [];
+
+  // Claude 설정
+  const claudeApiKey = process.env.ANTHROPIC_API_KEY;
+  const claudePriority = parseInt(process.env.CLAUDE_PRIORITY || "1", 10);
+  const claudeEnabled = process.env.CLAUDE_ENABLED !== "false";
+
+  if (claudeApiKey && claudeEnabled) {
+    configs.push({
+      type: "claude",
+      priority: claudePriority,
+      apiKey: claudeApiKey,
+      enabled: true,
+    });
+  }
+
+  // Gemini 설정
+  const geminiApiKey = process.env.GEMINI_API_KEY;
+  const geminiPriority = parseInt(process.env.GEMINI_PRIORITY || "2", 10);
+  const geminiEnabled = process.env.GEMINI_ENABLED !== "false";
+
+  if (geminiApiKey && geminiEnabled) {
+    configs.push({
+      type: "gemini",
+      priority: geminiPriority,
+      apiKey: geminiApiKey,
+      enabled: true,
+    });
+  }
+
+  if (configs.length === 0) {
+    throw new Error("No vision providers configured. Set ANTHROPIC_API_KEY or GEMINI_API_KEY");
+  }
+
+  return configs;
+}
 
 interface DomElement {
   qid: number;
@@ -147,9 +186,12 @@ export async function runSmartScenario(
   onStep?: (step: VisionStep) => void,
   control?: RunControl
 ): Promise<VisionResult> {
+  const providerConfigs = getProviderConfigs();
+  const providerManager = new ProviderManager(providerConfigs);
+
   const steps = splitSteps(naturalText);
   if (!steps) {
-    return runVisionAgent(page, naturalText, maxSteps, onStep, control);
+    return providerManager.runAgent(page, naturalText, maxSteps, onStep, control);
   }
 
   const collected: VisionStep[] = [];
@@ -194,7 +236,7 @@ export async function runSmartScenario(
       collected.push(fallbackStep);
       onStep?.(fallbackStep);
 
-      const fallbackResult = await runVisionAgent(page, stepText, 6, (s) => {
+      const fallbackResult = await providerManager.runAgent(page, stepText, 6, (s) => {
         const wrapped = { ...s, stepNum: stepNum + s.stepNum * 0.1 };
         collected.push(wrapped);
         onStep?.(wrapped);
