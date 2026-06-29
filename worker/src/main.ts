@@ -113,18 +113,22 @@ app.post("/settings/verify-key", async (req: Request, res: Response) => {
       });
       return res.json({ ok: true, message: "Claude API 키가 정상적으로 연결되었습니다." });
     } catch (err: any) {
-      // 크레딧 부족은 인증 성공 — 키는 유효함
+      // Anthropic SDK는 err.message에 "400 {JSON}" 형태로 전달하거나 err.error 객체로 전달
+      const errMsg: string = err.message || "";
       const body = err.error || {};
-      const isLowCredit = body.type === "invalid_request_error" &&
+      const isLowCredit =
+        errMsg.includes("credit balance") ||
+        errMsg.includes("credit_balance") ||
         (body.message || "").includes("credit balance");
+
       if (isLowCredit) {
-        return res.json({ ok: true, warning: "API 키는 유효하지만 크레딧이 부족합니다. 충전 후 사용하세요." });
+        return res.json({ ok: true, warning: "API 키는 유효하지만 크레딧이 부족합니다. Plans & Billing에서 충전 후 사용하세요." });
       }
       const msg = err.status === 401
         ? "유효하지 않은 API 키입니다. 키를 다시 확인해 주세요."
         : err.status === 403
         ? "해당 키로는 접근 권한이 없습니다."
-        : "Claude 연결 실패: " + (err.message || "알 수 없는 오류");
+        : "유효하지 않은 API 키이거나 연결에 실패했습니다.";
       return res.status(400).json({ ok: false, error: msg });
     }
   }
