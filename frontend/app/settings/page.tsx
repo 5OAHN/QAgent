@@ -166,9 +166,6 @@ function AdminGate({ onUnlock }: { onUnlock: () => void }) {
             {loading ? "확인 중…" : "확인"}
           </button>
         </div>
-        <p style={{ fontSize: 11, color: "#c0c0c8", textAlign: "center", marginTop: -8 }}>
-          기본 관리자 비밀번호: <code style={{ background: "#f5f5f7", padding: "1px 6px", borderRadius: 4 }}>qagent-admin</code>
-        </p>
       </div>
     </div>
   );

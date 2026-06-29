@@ -1,7 +1,7 @@
 import { Page } from "playwright";
 import { VisionProvider, VisionStep, VisionResult, RunControl, ProviderUsage } from "./types";
 
-const VISION_MODEL = "gemini-1.5-flash";
+const VISION_MODEL = "gemini-2.0-flash";
 
 const SYSTEM_PROMPT = `You are a web automation agent controlling a real browser. You will be shown a screenshot and a task.
 Analyze the screenshot carefully and decide the SINGLE next action to take.
