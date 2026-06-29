@@ -301,16 +301,24 @@ export async function runNaturalLanguagePipeline(
           result.status = "Pass";
           if (visionResult.summary) result.consoleLogs.push(`✅ ${visionResult.summary}`);
           const shotPath = path.join(screenshotDir, `${runId}_${testId}_pass.png`);
-          await page.screenshot({ path: shotPath, fullPage: true });
-          result.screenshotUrl = `${BASE_URL}/data/screenshots/${runId}_${testId}_pass.png`;
+          try {
+            await page.screenshot({ path: shotPath, fullPage: true });
+            result.screenshotUrl = `${BASE_URL}/data/screenshots/${runId}_${testId}_pass.png`;
+          } catch (shotErr: any) {
+            console.warn(`  [${testId}] 스크린샷 저장 실패 (${shotPath}): ${shotErr.message}`);
+          }
           run.passed++;
           console.log(`\n✅ [${testId}] 완료 (현재 URL: ${page.url()})`);
         } else {
           result.status = "Fail";
           result.failReason = visionResult.failReason || "알 수 없는 오류";
           const shotPath = path.join(screenshotDir, `${runId}_${testId}_fail.png`);
-          await page.screenshot({ path: shotPath, fullPage: true });
-          result.screenshotUrl = `${BASE_URL}/data/screenshots/${runId}_${testId}_fail.png`;
+          try {
+            await page.screenshot({ path: shotPath, fullPage: true });
+            result.screenshotUrl = `${BASE_URL}/data/screenshots/${runId}_${testId}_fail.png`;
+          } catch (shotErr: any) {
+            console.warn(`  [${testId}] 스크린샷 저장 실패 (${shotPath}): ${shotErr.message}`);
+          }
           run.failed++;
           console.log(`\n❌ [${testId}] 실패: ${result.failReason}`);
         }
