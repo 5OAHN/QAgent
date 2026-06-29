@@ -806,6 +806,17 @@ function ScenarioCard({
           <div className="flex items-center justify-between gap-2 mb-1">
             <div className="flex items-center gap-2">
               <span className="font-mono text-base font-bold text-gray-900">{tc.testId}</span>
+              {canEdit && isFail && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEditRequest();
+                  }}
+                  className="flex items-center gap-1 text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md transition-all duration-200 active:scale-95 hover:bg-indigo-100"
+                >
+                  ✏️ 수정
+                </button>
+              )}
               {tc.status === "Pending" && (
                 <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600">
                   {isPaused ? "일시정지" : "실행 중"}
@@ -818,17 +829,6 @@ function ScenarioCard({
               )}
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              {canEdit && isFail && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onEditRequest();
-                  }}
-                  className="flex items-center gap-1 text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md transition-all duration-200 active:scale-95 hover:bg-indigo-100"
-                >
-                  ✏️ 수정
-                </button>
-              )}
               {duration && (
                 <span className="flex items-center gap-1 text-xs font-medium text-gray-400">
                   <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
