@@ -63,23 +63,30 @@ function dateKey(iso: string): string {
 // 백엔드/API의 원시 에러 메시지(JSON, 영문 코드 등)를 사람이 읽을 수 있는 한글 사유로 변환
 // (상세 결과 페이지의 humanizeFailReason과 동일한 규칙)
 function humanizeFailReason(raw?: string): string {
-  if (!raw) return "알 수 없는 오류로 테스트가 실패했습니다.";
+  if (!raw) return "알 수 없는 오류";
+  if (/GEMINI_QUOTA_EXCEEDED/i.test(raw) || /quota.*exceeded/i.test(raw)) {
+    return "Gemini API 할당량 초과";
+  }
+  if (/All providers failed/i.test(raw)) {
+    return "AI 제공자 연결 실패";
+  }
   if (/credit balance is too low/i.test(raw)) {
-    return "AI 사용량(크레딧)이 부족하여 테스트를 진행할 수 없습니다.";
+    return "AI 크레딧 부족";
   }
   if (/사용자에 의해 중지/.test(raw)) {
-    return "사용자에 의해 테스트가 중지되었습니다.";
+    return "사용자 중지";
   }
   if (/timeout|timed out/i.test(raw)) {
-    return "응답 시간이 초과되어 테스트가 실패했습니다.";
+    return "응답 시간 초과";
   }
   if (/invalid_request_error/i.test(raw)) {
-    return "AI 요청 처리 중 오류가 발생하여 테스트가 실패했습니다.";
+    return "AI 요청 오류";
   }
   if (/^\s*\d{3}\s*\{/.test(raw) || /^\s*\{/.test(raw)) {
-    return "시스템 오류로 인해 테스트가 실패했습니다.";
+    return "시스템 오류";
   }
-  return raw;
+  // 원문이 너무 길면 앞 30자만
+  return raw.length > 30 ? raw.slice(0, 30) + "…" : raw;
 }
 
 const cardClass = "bg-white rounded-xl shadow-sm border border-gray-100";
@@ -191,7 +198,7 @@ export default function DashboardAnalytics() {
   const hasAnyCases = cases.length > 0;
 
   return (
-    <div className="mt-8 grid grid-cols-3 gap-4">
+    <div className="mt-8 grid grid-cols-3 gap-4 items-start">
       <TrendWidget data={trendData} loading={isLoading} hasData={hasAnyCases} />
       <RecentFailuresWidget failures={recentFailures} loading={isLoading} />
       <AvgExecTimeWidget
@@ -216,7 +223,7 @@ function TrendWidget({
   hasData: boolean;
 }) {
   return (
-    <div className={`${cardClass} col-span-2 row-span-2 p-5 flex flex-col`}>
+    <div className={`${cardClass} col-span-2 p-5 flex flex-col`} style={{ height: 280 }}>
       <div className="flex items-center justify-between mb-3">
         <div>
           <p className="text-[13px] font-semibold text-gray-900">일자별 테스트 성공률 트렌드</p>
@@ -289,9 +296,9 @@ function RecentFailuresWidget({
   const router = useRouter();
 
   return (
-    <div className={`${cardClass} col-span-1 p-5`}>
+    <div className={`${cardClass} col-span-1 p-5 flex flex-col`} style={{ minHeight: 0 }}>
       <p className="text-[13px] font-semibold text-gray-900 mb-1">요주의 실패 시나리오</p>
-      <p className="text-[11px] text-gray-400 mb-3">
+      <p className="text-[11px] text-gray-400 mb-3 flex-shrink-0">
         {loading ? "불러오는 중…" : `최근 Fail 발생 ${failures.length}건`}
       </p>
 
@@ -299,12 +306,12 @@ function RecentFailuresWidget({
         <p className="text-[12px] text-gray-400 py-4 text-center">실패한 테스트가 없습니다.</p>
       )}
 
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1 overflow-y-auto flex-1">
         {failures.map((f) => (
           <button
             key={`${f.runId}-${f.testId}`}
             onClick={() => router.push(`/dashboard/${f.runId}`)}
-            className="w-full text-left rounded-lg px-2.5 py-2 transition-colors hover:bg-gray-50"
+            className="w-full text-left rounded-lg px-2.5 py-2 transition-colors hover:bg-gray-50 flex-shrink-0"
           >
             <div className="flex items-center justify-between gap-2">
               <span className="text-[12px] font-medium text-gray-900 truncate">{f.testId}</span>
@@ -312,7 +319,7 @@ function RecentFailuresWidget({
             </div>
             <p className="text-[11px] text-gray-500 truncate mt-0.5">{f.scenario}</p>
             <span
-              className="inline-block mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+              className="inline-block mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-full truncate max-w-full"
               style={{ background: "rgba(220,38,38,0.08)", color: COLOR.red, border: "1px solid rgba(220,38,38,0.18)" }}
             >
               {f.reason}

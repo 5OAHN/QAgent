@@ -51,25 +51,29 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 // 백엔드/API의 원시 에러 메시지(JSON, 영문 코드 등)를 사람이 읽을 수 있는 한글 사유로 변환
 function humanizeFailReason(raw?: string): string {
-  if (!raw) return "알 수 없는 오류로 테스트가 실패했습니다.";
-
-  if (/credit balance is too low/i.test(raw)) {
-    return "AI 사용량(크레딧)이 부족하여 테스트를 진행할 수 없습니다. 관리자에게 문의해 주세요.";
+  if (!raw) return "알 수 없는 오류";
+  if (/GEMINI_QUOTA_EXCEEDED/i.test(raw) || /quota.*exceeded/i.test(raw)) {
+    return "Gemini API 할당량 초과";
   }
-  if (/사용자에 의해 중지/.test(raw) || /사용자에 의해 중지되었습니다/.test(raw)) {
-    return "사용자에 의해 테스트가 중지되었습니다.";
+  if (/All providers failed/i.test(raw)) {
+    return "AI 제공자 연결 실패";
+  }
+  if (/credit balance is too low/i.test(raw)) {
+    return "AI 크레딧 부족";
+  }
+  if (/사용자에 의해 중지/.test(raw)) {
+    return "사용자 중지";
   }
   if (/timeout|timed out/i.test(raw)) {
-    return "응답 시간이 초과되어 테스트가 실패했습니다.";
+    return "응답 시간 초과";
   }
   if (/invalid_request_error/i.test(raw)) {
-    return "AI 요청 처리 중 오류가 발생하여 테스트가 실패했습니다.";
+    return "AI 요청 오류";
   }
   if (/^\s*\d{3}\s*\{/.test(raw) || /^\s*\{/.test(raw)) {
-    // 400 {"type":"error", ...} 형태의 원시 JSON/에러코드는 노출하지 않음
-    return "시스템 오류로 인해 테스트가 실패했습니다.";
+    return "시스템 오류";
   }
-  return raw;
+  return raw.length > 40 ? raw.slice(0, 40) + "…" : raw;
 }
 
 // durationMs(밀리초)를 00:00:00(시:분:초) 형태로 변환
