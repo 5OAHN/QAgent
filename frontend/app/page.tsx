@@ -179,14 +179,14 @@ function StatsRow({ runs }: { runs: RunSummary[] }) {
   const router = useRouter();
   const isEmpty = runs.length === 0;
   const stats = [
-    { label: "전체 실행", value: runs.length, color: A.blue, bg: "rgba(0,102,204,0.07)", filterKey: null },
-    { label: "완료", value: runs.filter((r) => r.status === "completed").length, color: "#16a34a", bg: "rgba(22,163,74,0.07)", filterKey: "completed" },
-    { label: "Fail 포함", value: runs.filter((r) => r.failed > 0).length, color: "#dc2626", bg: "rgba(220,38,38,0.07)", filterKey: "failIncluded" },
-    { label: "진행 중", value: runs.filter((r) => r.status === "running").length, color: "#0066cc", bg: "rgba(0,102,204,0.07)", filterKey: "running" },
+    { label: "전체 실행", value: runs.length, color: A.blue, bg: "rgba(0,102,204,0.07)", filterKey: null, isDark: true },
+    { label: "완료", value: runs.filter((r) => r.status === "completed").length, color: "#16a34a", bg: "rgba(22,163,74,0.07)", filterKey: "completed", isDark: false },
+    { label: "Fail 포함", value: runs.filter((r) => r.failed > 0).length, color: "#dc2626", bg: "rgba(220,38,38,0.07)", filterKey: "failIncluded", isDark: false },
+    { label: "진행 중", value: runs.filter((r) => r.status === "running").length, color: "#0066cc", bg: "rgba(0,102,204,0.07)", filterKey: "running", isDark: false },
   ];
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 28 }}>
-      {stats.map(({ label, value, color, filterKey }) => (
+      {stats.map(({ label, value, color, filterKey, isDark }) => (
         <button
           key={label}
           onClick={() => {
@@ -197,26 +197,28 @@ function StatsRow({ runs }: { runs: RunSummary[] }) {
             }
           }}
           style={{
-            ...card, padding: "18px 20px", opacity: isEmpty ? 0.55 : 1,
+            padding: "18px 20px",
+            opacity: isEmpty ? 0.55 : 1,
             transition: "opacity .2s, transform .15s, box-shadow .15s",
             cursor: "pointer",
             border: "none",
-            background: A.canvas,
+            borderRadius: 14,
+            background: isDark ? "#1d1d1f" : A.canvas,
             font: "inherit",
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.transform = "translateY(-1px)";
-            e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.06)";
+            e.currentTarget.style.boxShadow = isDark ? "0 4px 14px rgba(0,0,0,0.2)" : "0 4px 14px rgba(0,0,0,0.06)";
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = "translateY(0)";
             e.currentTarget.style.boxShadow = "none";
           }}
         >
-          <p style={{ fontSize: 11, fontWeight: 600, color: A.inkMuted, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10 }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: isDark ? "#a3a3a7" : A.inkMuted, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10 }}>
             {label}
           </p>
-          <p style={{ fontSize: 28, fontWeight: 600, color: isEmpty ? A.inkMuted : color, letterSpacing: "-0.8px", lineHeight: 1 }}>
+          <p style={{ fontSize: 28, fontWeight: 600, color: isDark ? "#ffffff" : (isEmpty ? A.inkMuted : color), letterSpacing: "-0.8px", lineHeight: 1 }}>
             {value}
           </p>
         </button>

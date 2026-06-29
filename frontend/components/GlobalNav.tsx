@@ -66,15 +66,15 @@ export default function GlobalNav() {
         flexDirection: "column",
         transition: "width 0.22s cubic-bezier(0.4,0,0.2,1)",
         overflow: "visible",
-        background: "#ffffff",
-        borderRight: "1px solid #e0e0e0",
+        background: "#1d1d1f",
+        borderRight: "1px solid #424245",
         zIndex: 10,
       }}
     >
       {/* 로고 + 접기 버튼 */}
       <div style={{
         padding: collapsed ? "14px 0" : "14px 16px",
-        borderBottom: "1px solid #f0f0f0",
+        borderBottom: "1px solid #424245",
         display: "flex",
         alignItems: "center",
         justifyContent: collapsed ? "center" : "space-between",
@@ -87,7 +87,7 @@ export default function GlobalNav() {
           <img src="/logo.svg" alt="QAgent" style={{ height: 24, width: "auto", flexShrink: 0 }} />
           {!collapsed && (
             <div style={{ minWidth: 0, overflow: "hidden" }}>
-              <p style={{ fontSize: 18, fontWeight: 600, color: "#1d1d1f", letterSpacing: "-0.4px", lineHeight: 1.2, whiteSpace: "nowrap", fontFamily: "var(--font-outfit), sans-serif" }}>QAgent</p>
+              <p style={{ fontSize: 18, fontWeight: 600, color: "#ffffff", letterSpacing: "-0.4px", lineHeight: 1.2, whiteSpace: "nowrap", fontFamily: "var(--font-outfit), sans-serif" }}>QAgent</p>
             </div>
           )}
         </Link>
@@ -97,12 +97,12 @@ export default function GlobalNav() {
             onClick={() => setCollapsed(true)}
             title="접기"
             style={{
-              width: 24, height: 24, borderRadius: 6, border: "1px solid #e0e0e0",
+              width: 24, height: 24, borderRadius: 6, border: "1px solid #424245",
               background: "transparent", display: "flex", alignItems: "center", justifyContent: "center",
-              cursor: "pointer", color: "#6b7280", flexShrink: 0,
+              cursor: "pointer", color: "#a3a3a7", flexShrink: 0,
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "#f5f5f7"; e.currentTarget.style.color = "#1d1d1f"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#6b7280"; }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "#424245"; e.currentTarget.style.color = "#ffffff"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#a3a3a7"; }}
           >
             <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 12 12">
               <path d="M8 2L4 6l4 4" strokeLinecap="round" strokeLinejoin="round"/>
@@ -112,7 +112,7 @@ export default function GlobalNav() {
       </div>
 
       {/* 새 테스트 버튼 */}
-      <div style={{ padding: collapsed ? "10px 8px" : "10px 10px", borderBottom: "1px solid #f0f0f0", flexShrink: 0 }}>
+      <div style={{ padding: collapsed ? "10px 8px" : "10px 10px", borderBottom: "1px solid #424245", flexShrink: 0 }}>
         <Link
           href="/new"
           title={collapsed ? "새 테스트" : undefined}
@@ -159,16 +159,16 @@ export default function GlobalNav() {
                 textDecoration: "none",
                 fontSize: 14,
                 fontWeight: active ? 600 : 400,
-                color: active ? "#0066cc" : "#1d1d1f",
-                background: active ? "#f0f7ff" : "transparent",
+                color: active ? "#0066cc" : "#a3a3a7",
+                background: active ? "rgba(0, 102, 204, 0.1)" : "transparent",
                 transition: "background .12s, color .12s",
                 whiteSpace: "nowrap",
                 overflow: "hidden",
               }}
-              onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = "#f5f5f7"; } }}
-              onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = "transparent"; } }}
+              onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = "#424245"; e.currentTarget.style.color = "#ffffff"; } }}
+              onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#a3a3a7"; } }}
             >
-              <span style={{ color: active ? "#0066cc" : "#6b7280", flexShrink: 0 }}>{icon}</span>
+              <span style={{ color: active ? "#0066cc" : "#a3a3a7", flexShrink: 0 }}>{icon}</span>
               {!collapsed && label}
             </Link>
           );
@@ -186,7 +186,7 @@ export default function GlobalNav() {
             background: "#0066cc", border: "none",
             display: "flex", alignItems: "center", justifyContent: "center",
             cursor: "pointer", color: "#ffffff",
-            boxShadow: "0 2px 8px rgba(0,102,204,0.35)",
+            boxShadow: "0 2px 8px rgba(0,102,204,0.5)",
             zIndex: 20,
           }}
           onMouseEnter={(e) => { e.currentTarget.style.background = "#0055b3"; }}
@@ -199,7 +199,7 @@ export default function GlobalNav() {
       )}
 
       {/* 하단 프로필 */}
-      <div style={{ padding: collapsed ? "10px 6px" : "10px 10px", borderTop: "1px solid #f0f0f0", flexShrink: 0 }}>
+      <div style={{ padding: collapsed ? "10px 6px" : "10px 10px", borderTop: "1px solid #424245", flexShrink: 0 }}>
         <div style={{
           display: "flex",
           alignItems: "center",
@@ -210,24 +210,24 @@ export default function GlobalNav() {
         }}>
           <div style={{
             width: 26, height: 26, borderRadius: "50%",
-            background: "#e8f0fc",
+            background: "rgba(0, 102, 204, 0.2)",
             display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
           }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: "#0066cc" }}>안</span>
           </div>
           {!collapsed && (
             <div style={{ minWidth: 0, overflow: "hidden" }}>
-              <p style={{ fontSize: 13, fontWeight: 500, color: "#1d1d1f", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>안영선</p>
-              <p style={{ fontSize: 11, color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Workspace</p>
+              <p style={{ fontSize: 13, fontWeight: 500, color: "#ffffff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>안영선</p>
+              <p style={{ fontSize: 11, color: "#a3a3a7", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Workspace</p>
             </div>
           )}
           {!collapsed && (
             <button
               onClick={handleLogout}
               title="로그아웃"
-              style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4, flexShrink: 0, borderRadius: 6 }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = "#ef4444"; e.currentTarget.style.background = "rgba(239,68,68,0.08)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = "#9ca3af"; e.currentTarget.style.background = "transparent"; }}
+              style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "#a3a3a7", padding: 4, flexShrink: 0, borderRadius: 6 }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = "#ff6b6b"; e.currentTarget.style.background = "rgba(255, 107, 107, 0.1)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = "#a3a3a7"; e.currentTarget.style.background = "transparent"; }}
             >
               <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
                 <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" strokeLinecap="round" strokeLinejoin="round"/>
