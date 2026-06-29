@@ -248,9 +248,9 @@ export function RunDashboard({ runId }: { runId: string }) {
         <div style={{ padding: "8px 12px", borderBottom: `1px solid ${C.border}`, display: "flex", gap: 4 }}>
           {[
             { key: "all" as const, label: "전체", count: displayCases.length },
-            { key: "pass" as const, label: "✅ Pass", count: passCount },
-            { key: "fail" as const, label: "❌ Fail", count: failCount },
-            { key: "review" as const, label: "⚠️ Review", count: reviewCount },
+            { key: "pass" as const, label: "✅ 완료", count: passCount },
+            { key: "fail" as const, label: "❌ 실패", count: failCount },
+            { key: "review" as const, label: "⚠️ 확인 필요", count: reviewCount },
           ].map((tab) => (
             <button
               key={tab.key}
@@ -467,14 +467,9 @@ function ScenarioCard({ tc, isActive, onClick, isPaused, targetUrl, runId, onVer
               </button>
             )}
           </div>
-          <p style={{ fontSize: 12.5, color: isFail && !isReview ? C.red : C.text, lineHeight: 1.45, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any, overflow: "hidden" }}>
+          <p style={{ fontSize: 12.5, color: C.text, lineHeight: 1.45, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any, overflow: "hidden" }}>
             {tc.scenario}
           </p>
-          {tc.failReason && !isReview && (
-            <p style={{ marginTop: 5, fontSize: 11, color: C.red, opacity: 0.7, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any, overflow: "hidden" }}>
-              {tc.failReason}
-            </p>
-          )}
           {isReview && (
             <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
               <button
