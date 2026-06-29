@@ -2,14 +2,15 @@ import Anthropic from "@anthropic-ai/sdk";
 import { Page } from "playwright";
 import { VisionResult, VisionStep, RunControl, ProviderConfig } from "./providers/types";
 import { ProviderManager } from "./providers/provider-manager";
+import { resolveAnthropicKey, resolveGeminiKey } from "./api-keys";
 
 const PLAN_MODEL = "claude-haiku-4-5";
 
 function getProviderConfigs(): ProviderConfig[] {
   const configs: ProviderConfig[] = [];
 
-  // Claude 설정
-  const claudeApiKey = process.env.ANTHROPIC_API_KEY;
+  // Claude 설정 (저장된 키 우선, 없으면 환경변수)
+  const claudeApiKey = resolveAnthropicKey();
   const claudePriority = parseInt(process.env.CLAUDE_PRIORITY || "1", 10);
   const claudeEnabled = process.env.CLAUDE_ENABLED !== "false";
 
@@ -22,8 +23,8 @@ function getProviderConfigs(): ProviderConfig[] {
     });
   }
 
-  // Gemini 설정
-  const geminiApiKey = process.env.GEMINI_API_KEY;
+  // Gemini 설정 (저장된 키 우선, 없으면 환경변수)
+  const geminiApiKey = resolveGeminiKey();
   const geminiPriority = parseInt(process.env.GEMINI_PRIORITY || "2", 10);
   const geminiEnabled = process.env.GEMINI_ENABLED !== "false";
 

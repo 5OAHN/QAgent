@@ -6,6 +6,7 @@ import fs from "fs";
 import { runExcelPipeline, runNaturalLanguagePipeline, getRunResult, getAllRuns, cancelRun, pauseRun, resumeRun, deleteRunResult } from "./pipeline";
 import { verifyPassword, changePassword, verifyAdminPassword, changeAdminPassword } from "./auth";
 import { saveRun } from "./db";
+import { getMaskedKeys, saveApiKeys } from "./api-keys";
 
 const app = express();
 app.use(cors());
@@ -75,6 +76,23 @@ app.post("/auth/change-admin-password", (req: Request, res: Response) => {
     return res.status(401).json({ error: "현재 관리자 비밀번호가 올바르지 않습니다." });
   }
   res.json({ ok: true });
+});
+
+// ── API 키 관리 ────────────────────────────────────────────────────────────
+app.get("/settings/api-keys", (_req: Request, res: Response) => {
+  res.json(getMaskedKeys());
+});
+
+app.post("/settings/api-keys", (req: Request, res: Response) => {
+  const { anthropicApiKey, geminiApiKey } = req.body as {
+    anthropicApiKey?: string;
+    geminiApiKey?: string;
+  };
+  const update: Record<string, string> = {};
+  if (anthropicApiKey !== undefined) update.anthropicApiKey = anthropicApiKey.trim();
+  if (geminiApiKey !== undefined) update.geminiApiKey = geminiApiKey.trim();
+  saveApiKeys(update);
+  res.json({ ok: true, masked: getMaskedKeys() });
 });
 
 const storage = multer.diskStorage({
