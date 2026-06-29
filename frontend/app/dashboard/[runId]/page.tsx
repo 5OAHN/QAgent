@@ -1,5 +1,5 @@
-import { RunDashboard } from "@/components/RunDashboard";
+import { RunResultDashboard } from "@/components/RunResultDashboard";
 
 export default function DashboardPage({ params }: { params: { runId: string } }) {
-  return <RunDashboard runId={params.runId} />;
+  return <RunResultDashboard runId={params.runId} />;
 }
