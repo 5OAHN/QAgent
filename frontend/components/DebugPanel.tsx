@@ -263,9 +263,6 @@ function DebugHeader({
           )}
         </div>
       </div>
-
-      {/* Scenario preview */}
-      <p className="text-sm text-gray-700 line-clamp-2">{tc.scenario}</p>
     </div>
   );
 }
