@@ -272,8 +272,32 @@ function HistoryPageInner() {
             </div>
 
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <h2 style={{ fontSize: 13, fontWeight: 600, color: A.ink, letterSpacing: "0.04em", textTransform: "uppercase" }}>전체 실행 이력</h2>
-              <span style={{ fontSize: 12, color: A.inkMuted }}>{filteredRuns.length}개 항목</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <h2 style={{ fontSize: 13, fontWeight: 600, color: A.ink, letterSpacing: "0.04em", textTransform: "uppercase" }}>전체 실행 이력</h2>
+                <span style={{ fontSize: 12, color: A.inkMuted }}>
+                  {selectedRunIds.size > 0 ? `${selectedRunIds.size}개 선택` : `${filteredRuns.length}개 항목`}
+                </span>
+              </div>
+              {selectedRunIds.size > 0 && (
+                <button
+                  onClick={handleBulkDelete}
+                  style={{
+                    padding: "6px 14px",
+                    background: "#dc2626",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 6,
+                    fontSize: 12,
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    transition: "background .15s",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "#b91c1c"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "#dc2626"; }}
+                >
+                  선택 삭제
+                </button>
+              )}
             </div>
 
             {filteredRuns.length === 0 ? (
@@ -318,41 +342,6 @@ function HistoryPageInner() {
                     />
                   ))}
                 </div>
-
-                {selectedRunIds.size > 0 && (
-                  <div style={{
-                    marginTop: 16,
-                    padding: "12px 16px",
-                    background: "rgba(220, 38, 38, 0.05)",
-                    border: `1px solid rgba(220, 38, 38, 0.2)`,
-                    borderRadius: 8,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                  }}>
-                    <span style={{ fontSize: 13, fontWeight: 500, color: A.ink }}>
-                      {selectedRunIds.size}개 항목 선택됨
-                    </span>
-                    <button
-                      onClick={handleBulkDelete}
-                      style={{
-                        padding: "6px 14px",
-                        background: "#dc2626",
-                        color: "#fff",
-                        border: "none",
-                        borderRadius: 6,
-                        fontSize: 12,
-                        fontWeight: 500,
-                        cursor: "pointer",
-                        transition: "background .15s",
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = "#b91c1c"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = "#dc2626"; }}
-                    >
-                      선택 삭제
-                    </button>
-                  </div>
-                )}
               </>
             )}
           </>

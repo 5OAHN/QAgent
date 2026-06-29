@@ -93,6 +93,7 @@ export interface VisionResult {
   summary?: string;
   verificationStatus?: "approved" | "pending";
   reviewReason?: string;
+  totalTokens?: number;
 }
 
 const UX_REVIEW_TOOL = {
@@ -175,16 +176,17 @@ export async function runVisionAgent(
   const client = new Anthropic();
   const steps: VisionStep[] = [];
   const actionHistory: string[] = [];
+  let totalTokens = 0;
 
   for (let i = 0; i < maxSteps; i++) {
     if (control?.isCancelled()) {
-      return { success: false, steps, failReason: "사용자에 의해 중지되었습니다." };
+      return { success: false, steps, failReason: "사용자에 의해 중지되었습니다.", totalTokens };
     }
 
     while (control?.isPaused()) {
       await new Promise((r) => setTimeout(r, 500));
       if (control.isCancelled()) {
-        return { success: false, steps, failReason: "사용자에 의해 중지되었습니다." };
+        return { success: false, steps, failReason: "사용자에 의해 중지되었습니다.", totalTokens };
       }
     }
 
@@ -212,9 +214,14 @@ export async function runVisionAgent(
       ],
     });
 
+    // 토큰 사용량 수집
+    if (response.usage) {
+      totalTokens += (response.usage.input_tokens || 0) + (response.usage.output_tokens || 0);
+    }
+
     const toolBlock = response.content.find((b) => b.type === "tool_use");
     if (!toolBlock || toolBlock.type !== "tool_use") {
-      return { success: false, steps, failReason: "AI가 액션을 결정하지 못했습니다." };
+      return { success: false, steps, failReason: "AI가 액션을 결정하지 못했습니다.", totalTokens };
     }
 
     const input = toolBlock.input as any;
@@ -226,8 +233,8 @@ export async function runVisionAgent(
 
     console.log(`  [Step ${i + 1}] ${input.action} ${details}`);
 
-    if (input.action === "done")   return { success: true,  steps, summary: input.summary };
-    if (input.action === "failed") return { success: false, steps, failReason: input.reason };
+    if (input.action === "done")   return { success: true,  steps, summary: input.summary, totalTokens };
+    if (input.action === "failed") return { success: false, steps, failReason: input.reason, totalTokens };
 
     // 액션 실행 — 실패 시 최대 2회 재시도
     let actionErr: string | null = null;
@@ -252,7 +259,7 @@ export async function runVisionAgent(
     await page.waitForLoadState("networkidle", { timeout: 2000 }).catch(() => {});
   }
 
-  return { success: false, steps, failReason: `${maxSteps}단계 내에 완료하지 못했습니다.` };
+  return { success: false, steps, failReason: `${maxSteps}단계 내에 완료하지 못했습니다.`, totalTokens };
 }
 
 // ── DOM/Text 기반 액션 실행기 ──────────────────────────────────────────────

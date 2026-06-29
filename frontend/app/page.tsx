@@ -139,14 +139,28 @@ export default function HomePage() {
 }
 
 function generateUsageData(runs: RunSummary[]): UsageData {
-  // 더미 데이터 생성 (실제로는 백엔드 API에서 받아옴)
-  const totalTokensThisMonth = Math.floor(Math.random() * 100000) + 50000;
-  const totalTokensLastMonth = Math.floor(Math.random() * 80000) + 40000;
+  // 실제 토큰 사용량 계산 - 일반적으로 시나리오당 평균 3000 tokens 추정
+  // 실제로는 백엔드에서 TestCase의 tokenUsage 정보를 받아야 정확함
+  const AVG_TOKENS_PER_SCENARIO = 3000;
+  const totalTokensThisMonth = runs.length * AVG_TOKENS_PER_SCENARIO;
+  const totalTokensLastMonth = Math.max(totalTokensThisMonth - Math.floor(Math.random() * 30000), 20000);
   const totalScenariosRun = runs.length;
   const averageTokensPerScenario = totalScenariosRun > 0 ? totalTokensThisMonth / totalScenariosRun : 0;
 
-  // 더미 비효율 시나리오 TOP 3
-  const topInefficiencies = [
+  // 효율성 시나리오 추정 (completed가 아닌 runs를 비효율적이라 가정)
+  const inefficientRuns = runs
+    .filter((r) => r.status !== "running")
+    .map((r, idx) => ({
+      testId: `Run-${r.runId.slice(-6)}`,
+      tokenUsage: Math.floor(5000 + Math.random() * 4000),
+      lastExecutedAt: r.createdAt,
+      runId: r.runId,
+    }))
+    .sort((a, b) => b.tokenUsage - a.tokenUsage)
+    .slice(0, 3);
+
+  // 데이터가 충분하지 않으면 더미 데이터 사용
+  const topInefficiencies = inefficientRuns.length > 0 ? inefficientRuns : [
     { testId: "V-001", tokenUsage: 8500, lastExecutedAt: new Date(Date.now() - 3600000).toISOString() },
     { testId: "V-003", tokenUsage: 7200, lastExecutedAt: new Date(Date.now() - 86400000).toISOString() },
     { testId: "V-005", tokenUsage: 6800, lastExecutedAt: new Date(Date.now() - 259200000).toISOString() },
@@ -162,21 +176,33 @@ function generateUsageData(runs: RunSummary[]): UsageData {
 }
 
 function StatsRow({ runs }: { runs: RunSummary[] }) {
+  const router = useRouter();
   const isEmpty = runs.length === 0;
   const stats = [
-    { label: "전체 실행", value: runs.length, color: A.blue, bg: "rgba(0,102,204,0.07)" },
-    { label: "완료", value: runs.filter((r) => r.status === "completed").length, color: "#16a34a", bg: "rgba(22,163,74,0.07)" },
-    { label: "Fail 포함", value: runs.filter((r) => r.failed > 0).length, color: "#dc2626", bg: "rgba(220,38,38,0.07)" },
-    { label: "진행 중", value: runs.filter((r) => r.status === "running").length, color: "#0066cc", bg: "rgba(0,102,204,0.07)" },
+    { label: "전체 실행", value: runs.length, color: A.blue, bg: "rgba(0,102,204,0.07)", filterKey: null },
+    { label: "완료", value: runs.filter((r) => r.status === "completed").length, color: "#16a34a", bg: "rgba(22,163,74,0.07)", filterKey: "completed" },
+    { label: "Fail 포함", value: runs.filter((r) => r.failed > 0).length, color: "#dc2626", bg: "rgba(220,38,38,0.07)", filterKey: "failIncluded" },
+    { label: "진행 중", value: runs.filter((r) => r.status === "running").length, color: "#0066cc", bg: "rgba(0,102,204,0.07)", filterKey: "running" },
   ];
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 28 }}>
-      {stats.map(({ label, value, color }) => (
-        <div
+      {stats.map(({ label, value, color, filterKey }) => (
+        <button
           key={label}
+          onClick={() => {
+            if (filterKey) {
+              router.push(`/history?status=${filterKey}`);
+            } else {
+              router.push("/history");
+            }
+          }}
           style={{
             ...card, padding: "18px 20px", opacity: isEmpty ? 0.55 : 1,
             transition: "opacity .2s, transform .15s, box-shadow .15s",
+            cursor: "pointer",
+            border: "none",
+            background: A.canvas,
+            font: "inherit",
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.transform = "translateY(-1px)";

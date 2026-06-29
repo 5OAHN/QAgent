@@ -25,6 +25,7 @@ interface TestCase {
   verificationStatus?: "approved" | "rejected" | "pending";
   reviewReason?: string;
   durationMs?: number;
+  tokenUsage?: number;
 }
 
 interface RunResult {

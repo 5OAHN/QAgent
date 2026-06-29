@@ -297,6 +297,11 @@ export async function runNaturalLanguagePipeline(
           return `${icon} ${s.action.toUpperCase()} ${s.details}\n    💭 ${s.thought}`;
         });
 
+        // 토큰 사용량 저장
+        if (visionResult.totalTokens) {
+          result.tokenUsage = visionResult.totalTokens;
+        }
+
         if (visionResult.success) {
           result.status = "Pass";
           result.verificationStatus = visionResult.verificationStatus || "approved";

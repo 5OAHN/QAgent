@@ -1,9 +1,12 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
 interface InefficiencyScenario {
   testId: string;
   tokenUsage: number;
   lastExecutedAt: string;
+  runId?: string;
 }
 
 export interface UsageData {
@@ -36,6 +39,8 @@ const card: React.CSSProperties = {
 };
 
 export default function UsageWidget({ data, isLoading }: UsageWidgetProps) {
+  const router = useRouter();
+
   if (isLoading) {
     return (
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 14, marginTop: 28 }}>
@@ -155,6 +160,7 @@ export default function UsageWidget({ data, isLoading }: UsageWidgetProps) {
             {data.topInefficiencies.map((scenario, index) => (
               <div
                 key={scenario.testId}
+                onClick={() => scenario.runId && router.push(`/dashboard/${scenario.runId}`)}
                 style={{
                   display: "grid",
                   gridTemplateColumns: "40px 1fr 140px 120px",
@@ -162,8 +168,9 @@ export default function UsageWidget({ data, isLoading }: UsageWidgetProps) {
                   alignItems: "center",
                   borderBottom: index < data.topInefficiencies.length - 1 ? `1px solid ${A.divider}` : "none",
                   transition: "background .12s",
+                  cursor: scenario.runId ? "pointer" : "default",
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = A.parchment)}
+                onMouseEnter={(e) => scenario.runId && (e.currentTarget.style.background = A.parchment)}
                 onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
               >
                 {/* 순위 */}

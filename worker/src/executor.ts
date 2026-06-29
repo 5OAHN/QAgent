@@ -17,6 +17,7 @@ export interface TestResult {
   completedAt?: string;
   verificationStatus?: "approved" | "rejected" | "pending";
   reviewReason?: string;
+  tokenUsage?: number;
 }
 
 const BASE_URL = process.env.WORKER_BASE_URL || "http://localhost:8001";
