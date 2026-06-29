@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import useSWR from "swr";
+import FilterDropdown, { FilterOption } from "@/components/FilterDropdown";
 
 interface RunSummary {
   runId: string;
@@ -35,49 +36,61 @@ const card: React.CSSProperties = {
   borderRadius: 14,
 };
 
-type StatusFilter = "all" | "completed" | "failIncluded" | "running";
-type PeriodFilter = "today" | "7d" | "30d" | "all";
-type ModeFilter = "all" | "natural" | "excel";
+type StatusFilter = "completed" | "failIncluded" | "running";
+type PeriodFilter = "today" | "7d" | "30d";
+type ModeFilter = "natural" | "excel";
 
-const STATUS_OPTIONS: { key: StatusFilter; label: string }[] = [
-  { key: "all", label: "전체" },
+const STATUS_OPTIONS: FilterOption[] = [
   { key: "completed", label: "완료" },
   { key: "failIncluded", label: "Fail 포함" },
   { key: "running", label: "진행 중" },
 ];
-const PERIOD_OPTIONS: { key: PeriodFilter; label: string }[] = [
+const PERIOD_OPTIONS: FilterOption[] = [
   { key: "today", label: "오늘" },
   { key: "7d", label: "7일" },
   { key: "30d", label: "30일" },
-  { key: "all", label: "전체" },
 ];
-const MODE_OPTIONS: { key: ModeFilter; label: string }[] = [
-  { key: "all", label: "전체" },
+const MODE_OPTIONS: FilterOption[] = [
   { key: "natural", label: "자연어" },
   { key: "excel", label: "엑셀" },
 ];
 
-function isStatusFilter(v: string | null): v is StatusFilter {
-  return v === "all" || v === "completed" || v === "failIncluded" || v === "running";
-}
-
-function filterRuns(runs: RunSummary[], status: StatusFilter, period: PeriodFilter, mode: ModeFilter): RunSummary[] {
+function filterRuns(runs: RunSummary[], selectedStatuses: string[], selectedPeriods: string[], selectedModes: string[]): RunSummary[] {
   let result = runs;
 
-  if (status === "completed") result = result.filter((r) => r.status === "completed");
-  else if (status === "failIncluded") result = result.filter((r) => r.failed > 0);
-  else if (status === "running") result = result.filter((r) => r.status === "running");
+  // 상태 필터
+  if (selectedStatuses.length > 0) {
+    result = result.filter((r) => {
+      for (const status of selectedStatuses) {
+        if (status === "completed" && r.status === "completed") return true;
+        if (status === "failIncluded" && r.failed > 0) return true;
+        if (status === "running" && r.status === "running") return true;
+      }
+      return false;
+    });
+  }
 
-  if (mode !== "all") result = result.filter((r) => r.mode === mode);
+  // 모드 필터
+  if (selectedModes.length > 0) {
+    result = result.filter((r) => selectedModes.includes(r.mode));
+  }
 
-  if (period !== "all") {
-    const ranges: Record<Exclude<PeriodFilter, "all">, number> = {
+  // 기간 필터
+  if (selectedPeriods.length > 0) {
+    const ranges: Record<string, number> = {
       today: 1000 * 60 * 60 * 24,
       "7d": 1000 * 60 * 60 * 24 * 7,
       "30d": 1000 * 60 * 60 * 24 * 30,
     };
-    const cutoff = Date.now() - ranges[period];
-    result = result.filter((r) => new Date(r.createdAt).getTime() >= cutoff);
+    const now = Date.now();
+    result = result.filter((r) => {
+      const createdTime = new Date(r.createdAt).getTime();
+      for (const period of selectedPeriods) {
+        const cutoff = now - (ranges[period] || 0);
+        if (createdTime >= cutoff) return true;
+      }
+      return false;
+    });
   }
 
   return result;
@@ -91,14 +104,17 @@ function HistoryPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
-  const [modeFilter, setModeFilter]     = useState<ModeFilter>("all");
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  const [selectedPeriods, setSelectedPeriods] = useState<string[]>([]);
+  const [selectedModes, setSelectedModes] = useState<string[]>([]);
+  const [selectedRunIds, setSelectedRunIds] = useState<Set<string>>(new Set());
 
   // 대시보드 통계 카드에서 ?status=... 로 진입한 경우 초기 필터 반영
   useEffect(() => {
     const s = searchParams.get("status");
-    if (isStatusFilter(s)) setStatusFilter(s);
+    if (s === "completed" || s === "failIncluded" || s === "running") {
+      setSelectedStatuses([s]);
+    }
   }, []);
 
   const { data: runs = [], isLoading, mutate } = useSWR<RunSummary[]>(
@@ -107,7 +123,7 @@ function HistoryPageInner() {
     { refreshInterval: 5000 }
   );
 
-  const filteredRuns = filterRuns(runs, statusFilter, periodFilter, modeFilter);
+  const filteredRuns = filterRuns(runs, selectedStatuses, selectedPeriods, selectedModes);
 
   const handleDelete = async (runId: string) => {
     if (!confirm("이 테스트 이력을 삭제하시겠습니까? 되돌릴 수 없습니다.")) return;
@@ -123,6 +139,41 @@ function HistoryPageInner() {
       alert("Worker에 연결할 수 없습니다.");
       mutate();
     }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedRunIds.size === 0) return;
+    if (!confirm(`${selectedRunIds.size}개의 테스트 이력을 삭제하시겠습니까? 되돌릴 수 없습니다.`)) return;
+
+    const selectedIds = Array.from(selectedRunIds);
+    mutate((prev) => (prev ?? []).filter((r) => !selectedIds.includes(r.runId)), { revalidate: false });
+
+    try {
+      const failedIds = [];
+      for (const id of selectedIds) {
+        const res = await fetch(`/api/run/${id}`, { method: "DELETE" });
+        if (!res.ok) failedIds.push(id);
+      }
+      if (failedIds.length > 0) {
+        alert(`${failedIds.length}개 항목 삭제 실패. 다시 시도해주세요.`);
+        mutate();
+      } else {
+        setSelectedRunIds(new Set());
+      }
+    } catch {
+      alert("Worker에 연결할 수 없습니다.");
+      mutate();
+    }
+  };
+
+  const toggleRunSelection = (runId: string) => {
+    const newSelected = new Set(selectedRunIds);
+    if (newSelected.has(runId)) {
+      newSelected.delete(runId);
+    } else {
+      newSelected.add(runId);
+    }
+    setSelectedRunIds(newSelected);
   };
 
   return (
@@ -155,11 +206,69 @@ function HistoryPageInner() {
           <EmptyState />
         ) : (
           <>
-            {/* 필터 바 */}
-            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 16 }}>
-              <FilterGroup options={STATUS_OPTIONS} value={statusFilter} onChange={setStatusFilter} />
-              <FilterGroup options={PERIOD_OPTIONS} value={periodFilter} onChange={setPeriodFilter} />
-              <FilterGroup options={MODE_OPTIONS} value={modeFilter} onChange={setModeFilter} />
+            {/* 드롭다운 필터 */}
+            <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
+              {/* 상태 필터 */}
+              <FilterDropdown
+                label="상태"
+                icon={
+                  <svg
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle cx="9" cy="11" r="7" />
+                    <path d="M20 20l-4-4" strokeLinecap="round" />
+                  </svg>
+                }
+                options={STATUS_OPTIONS}
+                selectedValues={selectedStatuses}
+                onSelectionChange={setSelectedStatuses}
+              />
+
+              {/* 기간 필터 */}
+              <FilterDropdown
+                label="기간"
+                icon={
+                  <svg
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    viewBox="0 0 24 24"
+                  >
+                    <rect x="3" y="4" width="18" height="18" rx="2" />
+                    <path d="M3 10h18M9 1v6M15 1v6" strokeLinecap="round" />
+                  </svg>
+                }
+                options={PERIOD_OPTIONS}
+                selectedValues={selectedPeriods}
+                onSelectionChange={setSelectedPeriods}
+              />
+
+              {/* 모드 필터 */}
+              <FilterDropdown
+                label="모드"
+                icon={
+                  <svg
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M11 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2v-5M14 4h6M14 4v6M14 4l8 8" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                }
+                options={MODE_OPTIONS}
+                selectedValues={selectedModes}
+                onSelectionChange={setSelectedModes}
+              />
             </div>
 
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
@@ -172,28 +281,79 @@ function HistoryPageInner() {
                 <p style={{ fontSize: 13, color: A.inkMuted }}>선택한 조건에 해당하는 이력이 없습니다.</p>
               </div>
             ) : (
-              <div style={{ ...card, overflow: "hidden" }}>
-                <div style={{
-                  display: "grid",
-                  gridTemplateColumns: "130px 1fr 110px 100px 130px 90px 40px",
-                  padding: "11px 22px",
-                  background: A.parchment,
-                  borderBottom: `1px solid ${A.hairline}`,
-                }}>
-                  {["상태", "프로젝트 (URL)", "실행자", "결과 요약", "실행 일시", "모드", ""].map((h, i) => (
-                    <span key={i} style={{ fontSize: 11, fontWeight: 600, color: A.inkMuted, letterSpacing: "0.05em", textTransform: "uppercase" }}>{h}</span>
+              <>
+                <div style={{ ...card, overflow: "hidden" }}>
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "36px 130px 1fr 110px 100px 130px 90px 40px",
+                    padding: "11px 22px",
+                    background: A.parchment,
+                    borderBottom: `1px solid ${A.hairline}`,
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedRunIds.size > 0 && selectedRunIds.size === filteredRuns.length}
+                      onChange={() => {
+                        if (selectedRunIds.size === filteredRuns.length) {
+                          setSelectedRunIds(new Set());
+                        } else {
+                          setSelectedRunIds(new Set(filteredRuns.map((r) => r.runId)));
+                        }
+                      }}
+                      style={{ width: 16, height: 16, cursor: "pointer", accentColor: A.blue }}
+                    />
+                    {["상태", "프로젝트 (URL)", "실행자", "결과 요약", "실행 일시", "모드", ""].map((h, i) => (
+                      <span key={i} style={{ fontSize: 11, fontWeight: 600, color: A.inkMuted, letterSpacing: "0.05em", textTransform: "uppercase" }}>{h}</span>
+                    ))}
+                  </div>
+                  {filteredRuns.map((run, i) => (
+                    <HistoryRow
+                      key={run.runId}
+                      run={run}
+                      isLast={i === filteredRuns.length - 1}
+                      isSelected={selectedRunIds.has(run.runId)}
+                      onToggleSelect={() => toggleRunSelection(run.runId)}
+                      onClick={() => router.push(`/dashboard/${run.runId}`)}
+                      onDelete={() => handleDelete(run.runId)}
+                    />
                   ))}
                 </div>
-                {filteredRuns.map((run, i) => (
-                  <HistoryRow
-                    key={run.runId}
-                    run={run}
-                    isLast={i === filteredRuns.length - 1}
-                    onClick={() => router.push(`/dashboard/${run.runId}`)}
-                    onDelete={() => handleDelete(run.runId)}
-                  />
-                ))}
-              </div>
+
+                {selectedRunIds.size > 0 && (
+                  <div style={{
+                    marginTop: 16,
+                    padding: "12px 16px",
+                    background: "rgba(220, 38, 38, 0.05)",
+                    border: `1px solid rgba(220, 38, 38, 0.2)`,
+                    borderRadius: 8,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}>
+                    <span style={{ fontSize: 13, fontWeight: 500, color: A.ink }}>
+                      {selectedRunIds.size}개 항목 선택됨
+                    </span>
+                    <button
+                      onClick={handleBulkDelete}
+                      style={{
+                        padding: "6px 14px",
+                        background: "#dc2626",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: 6,
+                        fontSize: 12,
+                        fontWeight: 500,
+                        cursor: "pointer",
+                        transition: "background .15s",
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "#b91c1c"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "#dc2626"; }}
+                    >
+                      선택 삭제
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}
@@ -202,36 +362,7 @@ function HistoryPageInner() {
   );
 }
 
-function FilterGroup<T extends string>({
-  options,
-  value,
-  onChange,
-}: {
-  options: { key: T; label: string }[];
-  value: T;
-  onChange: (key: T) => void;
-}) {
-  return (
-    <div style={{ display: "flex", gap: 4, background: A.canvas, borderRadius: 9, padding: 4, border: `1px solid ${A.hairline}` }}>
-      {options.map(({ key, label }) => (
-        <button
-          key={key}
-          onClick={() => onChange(key)}
-          style={{
-            padding: "6px 12px", borderRadius: 6, fontSize: 12, fontWeight: 500,
-            border: "none", cursor: "pointer", transition: "all .15s", whiteSpace: "nowrap",
-            background: value === key ? A.blue : "transparent",
-            color: value === key ? "#fff" : A.inkMuted,
-          }}
-        >
-          {label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function HistoryRow({ run, isLast, onClick, onDelete }: { run: RunSummary; isLast: boolean; onClick: () => void; onDelete: () => void }) {
+function HistoryRow({ run, isLast, isSelected, onToggleSelect, onClick, onDelete }: { run: RunSummary; isLast: boolean; isSelected: boolean; onToggleSelect: () => void; onClick: () => void; onDelete: () => void }) {
   const passRate = run.total > 0 ? `${run.passed}/${run.total}` : "—";
   const allPass  = run.passed === run.total && run.total > 0;
   const hasFail  = run.failed > 0;
@@ -252,16 +383,25 @@ function HistoryRow({ run, isLast, onClick, onDelete }: { run: RunSummary; isLas
       onClick={onClick}
       style={{
         display: "grid",
-        gridTemplateColumns: "130px 1fr 110px 100px 130px 90px 40px",
+        gridTemplateColumns: "36px 130px 1fr 110px 100px 130px 90px 40px",
         padding: "14px 22px",
         alignItems: "center",
         borderBottom: isLast ? "none" : `1px solid ${A.divider}`,
         cursor: "pointer",
         transition: "background .12s",
+        background: isSelected ? "rgba(0, 102, 204, 0.05)" : "transparent",
       }}
-      onMouseEnter={(e) => (e.currentTarget.style.background = A.parchment)}
-      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+      onMouseEnter={(e) => !isSelected && (e.currentTarget.style.background = A.parchment)}
+      onMouseLeave={(e) => (e.currentTarget.style.background = isSelected ? "rgba(0, 102, 204, 0.05)" : "transparent")}
     >
+      <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center" }}>
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={onToggleSelect}
+          style={{ width: 16, height: 16, cursor: "pointer", accentColor: A.blue }}
+        />
+      </div>
       <div>
         <span style={{
           display: "inline-flex", alignItems: "center", gap: 5,

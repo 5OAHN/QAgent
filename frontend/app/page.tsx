@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import DashboardAnalytics from "@/components/DashboardAnalytics";
+import UsageWidget, { UsageData } from "@/components/UsageWidget";
 import FilterDropdown, { FilterOption } from "@/components/FilterDropdown";
 
 interface RunSummary {
@@ -37,36 +38,13 @@ const card: React.CSSProperties = {
 };
 
 // Filter option definitions
-const STATUS_OPTIONS: FilterOption[] = [
-  { key: "completed", label: "완료" },
-  { key: "failIncluded", label: "Fail 포함" },
-  { key: "running", label: "진행 중" },
-];
-
 const PERIOD_OPTIONS: FilterOption[] = [
   { key: "today", label: "오늘" },
   { key: "7d", label: "7일" },
   { key: "30d", label: "30일" },
 ];
 
-const MODE_OPTIONS: FilterOption[] = [
-  { key: "natural", label: "자연어" },
-  { key: "excel", label: "엑셀" },
-];
-
 type Period = "today" | "7d" | "30d" | "all";
-
-function filterByStatus(runs: RunSummary[], selectedStatuses: string[]): RunSummary[] {
-  if (selectedStatuses.length === 0) return runs;
-  return runs.filter((r) => {
-    for (const status of selectedStatuses) {
-      if (status === "completed" && r.status === "completed") return true;
-      if (status === "failIncluded" && r.failed > 0) return true;
-      if (status === "running" && r.status === "running") return true;
-    }
-    return false;
-  });
-}
 
 function filterByPeriod(runs: RunSummary[], selectedPeriods: string[]): RunSummary[] {
   if (selectedPeriods.length === 0) return runs;
@@ -87,15 +65,8 @@ function filterByPeriod(runs: RunSummary[], selectedPeriods: string[]): RunSumma
   });
 }
 
-function filterByMode(runs: RunSummary[], selectedModes: string[]): RunSummary[] {
-  if (selectedModes.length === 0) return runs;
-  return runs.filter((r) => selectedModes.includes(r.mode));
-}
-
 export default function HomePage() {
-  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [selectedPeriods, setSelectedPeriods] = useState<string[]>([]);
-  const [selectedModes, setSelectedModes] = useState<string[]>([]);
 
   const { data: runs = [], isLoading } = useSWR<RunSummary[]>(
     "/api/history",
@@ -103,10 +74,8 @@ export default function HomePage() {
     { refreshInterval: 5000 }
   );
 
-  // Apply all filters in sequence
-  const filteredByStatus = filterByStatus(runs, selectedStatuses);
-  const filteredByPeriod = filterByPeriod(filteredByStatus, selectedPeriods);
-  const filteredRuns = filterByMode(filteredByPeriod, selectedModes);
+  // Apply period filter only
+  const filteredRuns = filterByPeriod(runs, selectedPeriods);
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -136,30 +105,8 @@ export default function HomePage() {
           <LoadingState />
         ) : (
           <>
-            {/* 필터 섹션 - 드롭다운 필터 */}
-            <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
-              {/* 상태 필터 */}
-              <FilterDropdown
-                label="상태"
-                icon={
-                  <svg
-                    width="14"
-                    height="14"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle cx="9" cy="11" r="7" />
-                    <path d="M20 20l-4-4" strokeLinecap="round" />
-                  </svg>
-                }
-                options={STATUS_OPTIONS}
-                selectedValues={selectedStatuses}
-                onSelectionChange={setSelectedStatuses}
-              />
-
-              {/* 기간 필터 */}
+            {/* 기간 필터 */}
+            <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
               <FilterDropdown
                 label="기간"
                 icon={
@@ -179,30 +126,10 @@ export default function HomePage() {
                 selectedValues={selectedPeriods}
                 onSelectionChange={setSelectedPeriods}
               />
-
-              {/* 모드 필터 */}
-              <FilterDropdown
-                label="모드"
-                icon={
-                  <svg
-                    width="14"
-                    height="14"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="M11 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2v-5M14 4h6M14 4v6M14 4l8 8" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                }
-                options={MODE_OPTIONS}
-                selectedValues={selectedModes}
-                onSelectionChange={setSelectedModes}
-              />
             </div>
 
             {/* 통계 카드 — 데이터 유무와 상관없이 항상 노출 */}
-            <StatsRow runs={filteredRuns} onStatusFilterClick={setSelectedStatuses} />
+            <StatsRow runs={filteredRuns} />
 
             {filteredRuns.length === 0 && (
               <div style={{ ...card, padding: "40px 0", textAlign: "center" }}>
@@ -214,6 +141,9 @@ export default function HomePage() {
 
             {/* 분석 위젯 */}
             <DashboardAnalytics />
+
+            {/* 사용량 위젯 */}
+            <UsageWidget data={generateUsageData(filteredRuns)} />
           </>
         )}
       </main>
@@ -221,36 +151,45 @@ export default function HomePage() {
   );
 }
 
-function StatsRow({
-  runs,
-  onStatusFilterClick,
-}: {
-  runs: RunSummary[];
-  onStatusFilterClick: (statuses: string[]) => void;
-}) {
+function generateUsageData(runs: RunSummary[]): UsageData {
+  // 더미 데이터 생성 (실제로는 백엔드 API에서 받아옴)
+  const totalTokensThisMonth = Math.floor(Math.random() * 100000) + 50000;
+  const totalTokensLastMonth = Math.floor(Math.random() * 80000) + 40000;
+  const totalScenariosRun = runs.length;
+  const averageTokensPerScenario = totalScenariosRun > 0 ? totalTokensThisMonth / totalScenariosRun : 0;
+
+  // 더미 비효율 시나리오 TOP 3
+  const topInefficiencies = [
+    { testId: "V-001", tokenUsage: 8500, lastExecutedAt: new Date(Date.now() - 3600000).toISOString() },
+    { testId: "V-003", tokenUsage: 7200, lastExecutedAt: new Date(Date.now() - 86400000).toISOString() },
+    { testId: "V-005", tokenUsage: 6800, lastExecutedAt: new Date(Date.now() - 259200000).toISOString() },
+  ];
+
+  return {
+    totalTokensThisMonth,
+    totalTokensLastMonth,
+    averageTokensPerScenario,
+    totalScenariosRun,
+    topInefficiencies,
+  };
+}
+
+function StatsRow({ runs }: { runs: RunSummary[] }) {
   const isEmpty = runs.length === 0;
   const stats = [
-    { label: "전체 실행", value: runs.length, color: A.blue, bg: "rgba(0,102,204,0.07)", filterKey: null },
-    { label: "완료", value: runs.filter((r) => r.status === "completed").length, color: "#16a34a", bg: "rgba(22,163,74,0.07)", filterKey: "completed" },
-    { label: "Fail 포함", value: runs.filter((r) => r.failed > 0).length, color: "#dc2626", bg: "rgba(220,38,38,0.07)", filterKey: "failIncluded" },
-    { label: "진행 중", value: runs.filter((r) => r.status === "running").length, color: "#0066cc", bg: "rgba(0,102,204,0.07)", filterKey: "running" },
+    { label: "전체 실행", value: runs.length, color: A.blue, bg: "rgba(0,102,204,0.07)" },
+    { label: "완료", value: runs.filter((r) => r.status === "completed").length, color: "#16a34a", bg: "rgba(22,163,74,0.07)" },
+    { label: "Fail 포함", value: runs.filter((r) => r.failed > 0).length, color: "#dc2626", bg: "rgba(220,38,38,0.07)" },
+    { label: "진행 중", value: runs.filter((r) => r.status === "running").length, color: "#0066cc", bg: "rgba(0,102,204,0.07)" },
   ];
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 28 }}>
-      {stats.map(({ label, value, color, bg, filterKey }) => (
-        <button
+      {stats.map(({ label, value, color }) => (
+        <div
           key={label}
-          onClick={() => {
-            if (filterKey) {
-              onStatusFilterClick([filterKey]);
-            } else {
-              onStatusFilterClick([]);
-            }
-          }}
           style={{
             ...card, padding: "18px 20px", opacity: isEmpty ? 0.55 : 1,
             transition: "opacity .2s, transform .15s, box-shadow .15s",
-            textAlign: "left", cursor: "pointer", font: "inherit",
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.transform = "translateY(-1px)";
@@ -267,7 +206,7 @@ function StatsRow({
           <p style={{ fontSize: 28, fontWeight: 600, color: isEmpty ? A.inkMuted : color, letterSpacing: "-0.8px", lineHeight: 1 }}>
             {value}
           </p>
-        </button>
+        </div>
       ))}
     </div>
   );
