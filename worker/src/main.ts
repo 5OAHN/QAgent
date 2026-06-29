@@ -6,7 +6,8 @@ import fs from "fs";
 import { runExcelPipeline, runNaturalLanguagePipeline, getRunResult, getAllRuns, cancelRun, pauseRun, resumeRun, deleteRunResult } from "./pipeline";
 import { verifyPassword, changePassword, verifyAdminPassword, changeAdminPassword } from "./auth";
 import { saveRun } from "./db";
-import { getMaskedKeys, saveApiKeys } from "./api-keys";
+import { getMaskedKeys, saveApiKeys, resolveAnthropicKey, resolveGeminiKey } from "./api-keys";
+import Anthropic from "@anthropic-ai/sdk";
 
 const app = express();
 app.use(cors());
@@ -93,6 +94,54 @@ app.post("/settings/api-keys", (req: Request, res: Response) => {
   if (geminiApiKey !== undefined) update.geminiApiKey = geminiApiKey.trim();
   saveApiKeys(update);
   res.json({ ok: true, masked: getMaskedKeys() });
+});
+
+// ── API 키 유효성 검증 ─────────────────────────────────────────────────────
+app.post("/settings/verify-key", async (req: Request, res: Response) => {
+  const { provider, apiKey } = req.body as { provider?: string; apiKey?: string };
+  if (!provider || !apiKey) {
+    return res.status(400).json({ ok: false, error: "provider와 apiKey가 필요합니다." });
+  }
+
+  if (provider === "claude") {
+    try {
+      const client = new Anthropic({ apiKey: apiKey.trim() });
+      await client.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 10,
+        messages: [{ role: "user", content: "hi" }],
+      });
+      return res.json({ ok: true });
+    } catch (err: any) {
+      const msg = err.status === 401 ? "인증 실패: API 키가 유효하지 않습니다."
+        : err.status === 403 ? "권한 없음: 해당 키로 접근할 수 없습니다."
+        : `연결 실패: ${err.message}`;
+      return res.status(400).json({ ok: false, error: msg });
+    }
+  }
+
+  if (provider === "gemini") {
+    try {
+      const r = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey.trim()}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents: [{ parts: [{ text: "hi" }] }] }),
+        }
+      );
+      if (r.ok) return res.json({ ok: true });
+      const data = await r.json().catch(() => ({}));
+      const msg = r.status === 400 ? "인증 실패: API 키가 유효하지 않습니다."
+        : r.status === 403 ? "권한 없음: 해당 키로 접근할 수 없습니다."
+        : data.error?.message || `연결 실패 (HTTP ${r.status})`;
+      return res.status(400).json({ ok: false, error: msg });
+    } catch (err: any) {
+      return res.status(400).json({ ok: false, error: `연결 실패: ${err.message}` });
+    }
+  }
+
+  return res.status(400).json({ ok: false, error: "지원하지 않는 provider입니다." });
 });
 
 const storage = multer.diskStorage({
