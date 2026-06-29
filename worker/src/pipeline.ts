@@ -6,6 +6,7 @@ import { UIDictionary } from "./parser";
 import { runTest, TestResult } from "./executor";
 import { analyzeFailure } from "./analyzer";
 import { runVisionAgent } from "./vision-agent";
+import { executeSmartLogin } from "./smart-login";
 import { saveRun, loadAllRuns, deleteRun } from "./db";
 
 export interface RunResult {
@@ -212,15 +213,10 @@ export async function runNaturalLanguagePipeline(
         const credLines = loginConfig.fields
           .filter((f) => f.value.trim())
           .map((f) => `- ${f.label || "필드"}: ${f.isPassword ? "(비밀번호 입력됨)" : f.value}`);
-        const loginTask = [
-          "[로그인 선행 작업 — 아래 정보로 로그인 후 완료(done)하세요]",
-          ...loginConfig.fields.filter((f) => f.value.trim()).map((f) => `- ${f.label || "필드"}: ${f.value}`),
-          "",
-          "로그인 폼을 찾아 위 정보를 입력하고 로그인 버튼을 클릭하세요. 로그인이 완료되면 done 액션을 사용하세요.",
-        ].join("\n");
+        console.log(`\n🔑 [${runId}] 로그인 선행 작업 시작 (스마트 로그인)\n${credLines.join("\n")}`);
 
-        console.log(`\n🔑 [${runId}] 로그인 선행 작업 시작\n${credLines.join("\n")}`);
-        const loginResult = await runVisionAgent(page, loginTask, 15, (step) => {
+        const loginFields = loginConfig.fields.filter((f) => f.value.trim());
+        const loginResult = await executeSmartLogin(page, loginFields, (step) => {
           const icon = step.action === "done" ? "✅" : step.action === "failed" ? "❌" : `[${step.stepNum}]`;
           run.loginSteps!.push(`${icon} ${step.action.toUpperCase()} ${step.details}\n    💭 ${step.thought}`);
           saveRun(run);

@@ -860,7 +860,7 @@ function LoginStatusBanner({ data }: { data: RunResult }) {
   const s = styleByStatus[loginStatus!];
 
   return (
-    <div style={{ margin: "0 12px 8px", borderRadius: 8, border: `1px solid ${s.border}`, background: s.bg, overflow: "hidden" }}>
+    <div style={{ margin: "12px 12px 8px", borderRadius: 8, border: `1px solid ${s.border}`, background: s.bg, overflow: "hidden" }}>
       <button
         onClick={() => setExpanded((p) => !p)}
         style={{ width: "100%", display: "flex", alignItems: "center", gap: 6, padding: "7px 10px", background: "none", border: "none", cursor: "pointer" }}
