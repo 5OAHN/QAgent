@@ -219,7 +219,7 @@ function StatsRow({ runs }: { runs: RunSummary[] }) {
           <p style={{ fontSize: 28, fontWeight: 600, color: isEmpty ? A.inkMuted : color, letterSpacing: "-0.8px", lineHeight: 1 }}>
             {value}
           </p>
-        </div>
+        </button>
       ))}
     </div>
   );
