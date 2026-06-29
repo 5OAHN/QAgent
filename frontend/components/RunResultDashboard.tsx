@@ -47,6 +47,29 @@ interface RunResult {
 const TERMINAL: RunStatus[] = ["completed", "failed"];
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
+// 백엔드/API의 원시 에러 메시지(JSON, 영문 코드 등)를 사람이 읽을 수 있는 한글 사유로 변환
+function humanizeFailReason(raw?: string): string {
+  if (!raw) return "알 수 없는 오류로 테스트가 실패했습니다.";
+
+  if (/credit balance is too low/i.test(raw)) {
+    return "AI 사용량(크레딧)이 부족하여 테스트를 진행할 수 없습니다. 관리자에게 문의해 주세요.";
+  }
+  if (/사용자에 의해 중지/.test(raw) || /사용자에 의해 중지되었습니다/.test(raw)) {
+    return "사용자에 의해 테스트가 중지되었습니다.";
+  }
+  if (/timeout|timed out/i.test(raw)) {
+    return "응답 시간이 초과되어 테스트가 실패했습니다.";
+  }
+  if (/invalid_request_error/i.test(raw)) {
+    return "AI 요청 처리 중 오류가 발생하여 테스트가 실패했습니다.";
+  }
+  if (/^\s*\d{3}\s*\{/.test(raw) || /^\s*\{/.test(raw)) {
+    // 400 {"type":"error", ...} 형태의 원시 JSON/에러코드는 노출하지 않음
+    return "시스템 오류로 인해 테스트가 실패했습니다.";
+  }
+  return raw;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -165,10 +188,10 @@ export function RunResultDashboard({ runId }: { runId: string }) {
   const progress = data.total > 0 ? Math.round(((data.passed + data.failed) / data.total) * 100) : 0;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-[1600px] mx-auto p-8">
+    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col px-6 py-5 min-h-0">
         {/* Top bar */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-4 flex-shrink-0">
           <button
             onClick={() => router.push("/history")}
             className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
@@ -206,10 +229,10 @@ export function RunResultDashboard({ runId }: { runId: string }) {
           )}
         </div>
 
-        {/* 2-column grid: 5/12 left, 7/12 right (~40/60) */}
-        <div className="grid grid-cols-12 gap-6">
+        {/* 2-column fill layout: 40% left / 60% right */}
+        <div className="flex-1 flex gap-6 min-h-0">
           {/* ───────────── LEFT COLUMN (40%) ───────────── */}
-          <div className="col-span-12 lg:col-span-5 flex flex-col gap-6">
+          <div className="flex flex-col gap-4 min-h-0" style={{ width: "40%" }}>
             <ExecutionSummaryCard
               createdAt={data.createdAt}
               statusBadge={statusBadge}
@@ -245,7 +268,7 @@ export function RunResultDashboard({ runId }: { runId: string }) {
           </div>
 
           {/* ───────────── RIGHT COLUMN (60%) ───────────── */}
-          <div className="col-span-12 lg:col-span-7 flex flex-col gap-6">
+          <div className="flex flex-col gap-4 min-h-0" style={{ width: "60%" }}>
             <MediaViewerCard tc={selectedCase} isTerminal={isTerminal} />
             <TimelineCard tc={selectedCase} />
           </div>
@@ -337,8 +360,12 @@ function LoginFailureAccordion({ reason, steps }: { reason?: string; steps?: str
         className="w-full flex items-center justify-between px-5 py-4"
       >
         <div className="flex items-center gap-2 text-red-600">
-          <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 11-12 0 6 6 0 0112 0zM9 11h12" />
+          <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"
+            />
           </svg>
           <span className="font-semibold text-sm">로그인 실패</span>
           {reason && <span className="text-xs text-red-400">— {reason}</span>}
@@ -412,7 +439,7 @@ function ScenarioListCard({
   ];
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col flex-1 min-h-0">
       {/* Tabs */}
       <div className="flex gap-1 mb-5 bg-gray-100 rounded-lg p-1">
         {tabs.map((tab) => (
@@ -435,7 +462,7 @@ function ScenarioListCard({
         </span>
       </div>
 
-      <div className="flex flex-col gap-3 max-h-[520px] overflow-y-auto pr-1">
+      <div className="flex flex-col gap-3 flex-1 min-h-0 overflow-y-auto pr-1">
         {filteredCases.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-6">표시할 케이스가 없습니다</p>
         ) : (
@@ -603,26 +630,11 @@ function MediaViewerCard({ tc, isTerminal }: { tc: TestCase | null; isTerminal: 
     : tc?.screenshotUrl || null;
 
   return (
-    <div className="bg-gray-100 rounded-xl border border-gray-200 p-6 min-h-[420px] flex items-center justify-center">
+    <div className="bg-gray-100 rounded-xl border border-gray-200 p-6 flex-1 min-h-0 flex items-center justify-center overflow-hidden">
       {!tc ? (
         <p className="text-gray-400 text-sm">시나리오를 선택하세요</p>
       ) : imgSrc ? (
-        <div className="relative w-full h-[420px] flex items-center justify-center">
-          <img src={imgSrc} alt="screenshot" className="max-w-full max-h-full object-contain rounded-lg shadow-sm" />
-          {tc.status === "Fail" && (
-            <div
-              className="absolute border-3 border-red-500 rounded pointer-events-none"
-              style={{
-                width: "26%",
-                height: "8%",
-                bottom: "8%",
-                right: "8%",
-                borderWidth: 3,
-                boxShadow: "0 0 0 2px rgba(239,68,68,0.15)",
-              }}
-            />
-          )}
-        </div>
+        <img src={imgSrc} alt="screenshot" className="max-w-full max-h-full object-contain rounded-lg shadow-sm" />
       ) : (
         <p className="text-gray-400 text-sm">
           {!isTerminal && tc.status === "Pending" ? "실행 대기 중…" : "미디어 없음"}
@@ -640,14 +652,14 @@ function TimelineCard({ tc }: { tc: TestCase | null }) {
   const logs = tc?.consoleLogs ?? [];
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-      <h3 className="text-base font-bold text-gray-900 mb-4">실행 타임라인</h3>
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex-1 min-h-0 flex flex-col">
+      <h3 className="text-base font-bold text-gray-900 mb-4 flex-shrink-0">실행 타임라인</h3>
 
       {tc?.status === "Fail" && tc.failReason && (
-        <div className="mb-5 px-4 py-3 rounded-lg border border-red-300 bg-red-50">
+        <div className="mb-5 px-4 py-3 rounded-lg border border-red-300 bg-red-50 flex-shrink-0">
           <p className="text-sm text-red-600">
             <span className="font-semibold">실패 사유 : </span>
-            {tc.failReason}
+            {humanizeFailReason(tc.failReason)}
           </p>
         </div>
       )}
@@ -655,7 +667,7 @@ function TimelineCard({ tc }: { tc: TestCase | null }) {
       {logs.length === 0 ? (
         <p className="text-sm text-gray-400 py-4">실행 로그가 없습니다</p>
       ) : (
-        <div className="relative max-h-[420px] overflow-y-auto pr-1">
+        <div className="relative flex-1 min-h-0 overflow-y-auto pr-1">
           <div className="absolute left-[5px] top-1 bottom-1 w-px bg-gray-200" />
           <div className="flex flex-col gap-3">
             {logs.map((log, i) => (
