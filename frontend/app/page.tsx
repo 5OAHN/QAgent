@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import DashboardAnalytics from "@/components/DashboardAnalytics";
+import FilterDropdown, { FilterOption } from "@/components/FilterDropdown";
 
 interface RunSummary {
   runId: string;
@@ -35,28 +36,66 @@ const card: React.CSSProperties = {
   borderRadius: 14,
 };
 
-type Period = "today" | "7d" | "30d" | "all";
-const PERIODS: { key: Period; label: string }[] = [
-  { key: "today", label: "오늘" },
-  { key: "7d",    label: "7일" },
-  { key: "30d",   label: "30일" },
-  { key: "all",   label: "전체" },
+// Filter option definitions
+const STATUS_OPTIONS: FilterOption[] = [
+  { key: "completed", label: "완료" },
+  { key: "failIncluded", label: "Fail 포함" },
+  { key: "running", label: "진행 중" },
 ];
 
-function filterByPeriod(runs: RunSummary[], period: Period): RunSummary[] {
-  if (period === "all") return runs;
+const PERIOD_OPTIONS: FilterOption[] = [
+  { key: "today", label: "오늘" },
+  { key: "7d", label: "7일" },
+  { key: "30d", label: "30일" },
+];
+
+const MODE_OPTIONS: FilterOption[] = [
+  { key: "natural", label: "자연어" },
+  { key: "excel", label: "엑셀" },
+];
+
+type Period = "today" | "7d" | "30d" | "all";
+
+function filterByStatus(runs: RunSummary[], selectedStatuses: string[]): RunSummary[] {
+  if (selectedStatuses.length === 0) return runs;
+  return runs.filter((r) => {
+    for (const status of selectedStatuses) {
+      if (status === "completed" && r.status === "completed") return true;
+      if (status === "failIncluded" && r.failed > 0) return true;
+      if (status === "running" && r.status === "running") return true;
+    }
+    return false;
+  });
+}
+
+function filterByPeriod(runs: RunSummary[], selectedPeriods: string[]): RunSummary[] {
+  if (selectedPeriods.length === 0) return runs;
   const now = Date.now();
-  const ranges: Record<Exclude<Period, "all">, number> = {
+  const ranges: Record<string, number> = {
     today: 1000 * 60 * 60 * 24,
-    "7d":  1000 * 60 * 60 * 24 * 7,
+    "7d": 1000 * 60 * 60 * 24 * 7,
     "30d": 1000 * 60 * 60 * 24 * 30,
   };
-  const cutoff = now - ranges[period];
-  return runs.filter((r) => new Date(r.createdAt).getTime() >= cutoff);
+
+  return runs.filter((r) => {
+    const createdTime = new Date(r.createdAt).getTime();
+    for (const period of selectedPeriods) {
+      const cutoff = now - (ranges[period] || 0);
+      if (createdTime >= cutoff) return true;
+    }
+    return false;
+  });
+}
+
+function filterByMode(runs: RunSummary[], selectedModes: string[]): RunSummary[] {
+  if (selectedModes.length === 0) return runs;
+  return runs.filter((r) => selectedModes.includes(r.mode));
 }
 
 export default function HomePage() {
-  const [period, setPeriod] = useState<Period>("all");
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  const [selectedPeriods, setSelectedPeriods] = useState<string[]>([]);
+  const [selectedModes, setSelectedModes] = useState<string[]>([]);
 
   const { data: runs = [], isLoading } = useSWR<RunSummary[]>(
     "/api/history",
@@ -64,7 +103,10 @@ export default function HomePage() {
     { refreshInterval: 5000 }
   );
 
-  const filteredRuns = filterByPeriod(runs, period);
+  // Apply all filters in sequence
+  const filteredByStatus = filterByStatus(runs, selectedStatuses);
+  const filteredByPeriod = filterByPeriod(filteredByStatus, selectedPeriods);
+  const filteredRuns = filterByMode(filteredByPeriod, selectedModes);
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -94,25 +136,73 @@ export default function HomePage() {
           <LoadingState />
         ) : (
           <>
-            {/* 기간 선택 */}
-            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14 }}>
-              <div style={{ display: "flex", gap: 4, background: A.canvas, borderRadius: 9, padding: 4, border: `1px solid ${A.hairline}` }}>
-                {PERIODS.map(({ key, label }) => (
-                  <button key={key} onClick={() => setPeriod(key)}
-                    style={{
-                      padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 500,
-                      border: "none", cursor: "pointer", transition: "all .15s",
-                      background: period === key ? A.blue : "transparent",
-                      color: period === key ? "#fff" : A.inkMuted,
-                    }}>
-                    {label}
-                  </button>
-                ))}
-              </div>
+            {/* 필터 섹션 - 드롭다운 필터 */}
+            <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
+              {/* 상태 필터 */}
+              <FilterDropdown
+                label="상태"
+                icon={
+                  <svg
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle cx="9" cy="11" r="7" />
+                    <path d="M20 20l-4-4" strokeLinecap="round" />
+                  </svg>
+                }
+                options={STATUS_OPTIONS}
+                selectedValues={selectedStatuses}
+                onSelectionChange={setSelectedStatuses}
+              />
+
+              {/* 기간 필터 */}
+              <FilterDropdown
+                label="기간"
+                icon={
+                  <svg
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    viewBox="0 0 24 24"
+                  >
+                    <rect x="3" y="4" width="18" height="18" rx="2" />
+                    <path d="M3 10h18M9 1v6M15 1v6" strokeLinecap="round" />
+                  </svg>
+                }
+                options={PERIOD_OPTIONS}
+                selectedValues={selectedPeriods}
+                onSelectionChange={setSelectedPeriods}
+              />
+
+              {/* 모드 필터 */}
+              <FilterDropdown
+                label="모드"
+                icon={
+                  <svg
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M11 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2v-5M14 4h6M14 4v6M14 4l8 8" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                }
+                options={MODE_OPTIONS}
+                selectedValues={selectedModes}
+                onSelectionChange={setSelectedModes}
+              />
             </div>
 
             {/* 통계 카드 — 데이터 유무와 상관없이 항상 노출 */}
-            <StatsRow runs={filteredRuns} />
+            <StatsRow runs={filteredRuns} onStatusFilterClick={setSelectedStatuses} />
 
             {filteredRuns.length === 0 && (
               <div style={{ ...card, padding: "40px 0", textAlign: "center" }}>
@@ -131,31 +221,52 @@ export default function HomePage() {
   );
 }
 
-function StatsRow({ runs }: { runs: RunSummary[] }) {
-  const router = useRouter();
+function StatsRow({
+  runs,
+  onStatusFilterClick,
+}: {
+  runs: RunSummary[];
+  onStatusFilterClick: (statuses: string[]) => void;
+}) {
   const isEmpty = runs.length === 0;
   const stats = [
-    { label: "전체 실행", value: runs.length,                                          color: A.blue,    bg: "rgba(0,102,204,0.07)", statusParam: "all" },
-    { label: "완료",      value: runs.filter((r) => r.status === "completed").length,  color: "#16a34a", bg: "rgba(22,163,74,0.07)",  statusParam: "completed" },
-    { label: "Fail 포함", value: runs.filter((r) => r.failed > 0).length,              color: "#dc2626", bg: "rgba(220,38,38,0.07)",  statusParam: "failIncluded" },
-    { label: "진행 중",   value: runs.filter((r) => r.status === "running").length,    color: "#0066cc", bg: "rgba(0,102,204,0.07)",  statusParam: "running" },
+    { label: "전체 실행", value: runs.length, color: A.blue, bg: "rgba(0,102,204,0.07)", filterKey: null },
+    { label: "완료", value: runs.filter((r) => r.status === "completed").length, color: "#16a34a", bg: "rgba(22,163,74,0.07)", filterKey: "completed" },
+    { label: "Fail 포함", value: runs.filter((r) => r.failed > 0).length, color: "#dc2626", bg: "rgba(220,38,38,0.07)", filterKey: "failIncluded" },
+    { label: "진행 중", value: runs.filter((r) => r.status === "running").length, color: "#0066cc", bg: "rgba(0,102,204,0.07)", filterKey: "running" },
   ];
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 28 }}>
-      {stats.map(({ label, value, color, bg, statusParam }) => (
+      {stats.map(({ label, value, color, bg, filterKey }) => (
         <button
           key={label}
-          onClick={() => router.push(`/history?status=${statusParam}`)}
+          onClick={() => {
+            if (filterKey) {
+              onStatusFilterClick([filterKey]);
+            } else {
+              onStatusFilterClick([]);
+            }
+          }}
           style={{
             ...card, padding: "18px 20px", opacity: isEmpty ? 0.55 : 1,
             transition: "opacity .2s, transform .15s, box-shadow .15s",
             textAlign: "left", cursor: "pointer", font: "inherit",
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.06)"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "translateY(-1px)";
+            e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.06)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "translateY(0)";
+            e.currentTarget.style.boxShadow = "none";
+          }}
         >
-          <p style={{ fontSize: 11, fontWeight: 600, color: A.inkMuted, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10 }}>{label}</p>
-          <p style={{ fontSize: 28, fontWeight: 600, color: isEmpty ? A.inkMuted : color, letterSpacing: "-0.8px", lineHeight: 1 }}>{value}</p>
+          <p style={{ fontSize: 11, fontWeight: 600, color: A.inkMuted, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10 }}>
+            {label}
+          </p>
+          <p style={{ fontSize: 28, fontWeight: 600, color: isEmpty ? A.inkMuted : color, letterSpacing: "-0.8px", lineHeight: 1 }}>
+            {value}
+          </p>
         </button>
       ))}
     </div>
