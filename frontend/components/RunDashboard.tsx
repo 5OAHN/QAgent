@@ -200,11 +200,14 @@ export function RunDashboard({ runId }: { runId: string }) {
   return (
     <div style={{ display: "flex", flex: 1, minHeight: 0, overflow: "hidden", fontFamily: "-apple-system, BlinkMacSystemFont, 'Geist', sans-serif" }}>
 
-      {/* ── Middle: scenario list (glass panel) ───────────────────── */}
+      {/* ── Middle: Replaced with DebugPanel for 2-column layout ───────────────────── */}
+      <DebugPanel tc={activeCase} isTerminal={isTerminal} targetUrl={data.targetUrl} data={data} />
+
+      {/* ── Old scenario panel (hidden) ─────────────────────────── */}
       <div style={{
         ...glass({ borderRadius: 0, borderTop: "none", borderBottom: "none", borderLeft: "none" }),
         width: 320,
-        display: "flex",
+        display: "none",
         flexDirection: "column",
         flexShrink: 0,
         boxShadow: "none",
@@ -334,9 +337,6 @@ export function RunDashboard({ runId }: { runId: string }) {
           )}
         </div>
       </div>
-
-      {/* ── Right: Debug Panel (2-column debugging dashboard) ───────────────────────────────────── */}
-      <DebugPanel tc={activeCase} isTerminal={isTerminal} targetUrl={data.targetUrl} data={data} />
     </div>
   );
 }
