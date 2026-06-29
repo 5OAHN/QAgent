@@ -4,6 +4,7 @@ import useSWR from "swr";
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { DebugPanel } from "./DebugPanel";
 
 type RunStatus = "running" | "completed" | "failed";
 type ControlAction = "cancel" | "pause" | "resume";
@@ -334,45 +335,8 @@ export function RunDashboard({ runId }: { runId: string }) {
         </div>
       </div>
 
-      {/* ── Right: Viewer + Logs ───────────────────────────────────── */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", background: "#f5f5f7" }}>
-
-        {/* Top bar */}
-        <div style={{
-          ...glass({ borderRadius: 0, borderLeft: "none", borderRight: "none", borderTop: "none" }),
-          padding: "11px 20px",
-          display: "flex", alignItems: "center", gap: 10, flexShrink: 0,
-          boxShadow: "none",
-        }}>
-          {activeCase ? (
-            <>
-              <span style={{ fontSize: 11, fontFamily: "monospace", color: C.indigo, background: C.indigoBg, padding: "2px 8px", borderRadius: 5, fontWeight: 600 }}>{activeCase.testId}</span>
-              <span style={{ fontSize: 13, fontWeight: 500, color: C.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{activeCase.scenario}</span>
-              {activeCase.status !== "Pending" && <CaseStatusBadge status={activeCase.status} />}
-              {activeCase.status === "Fail" && <CopyReportButton tc={activeCase} targetUrl={data.targetUrl} />}
-            </>
-          ) : (
-            <span style={{ fontSize: 13, color: C.textLight }}>시나리오를 선택하세요</span>
-          )}
-        </div>
-
-        {/* Browser mockup */}
-        <div style={{ flex: "0 0 50%", padding: "16px 20px 8px", minHeight: 0 }}>
-          <BrowserMockup tc={activeCase} isTerminal={isTerminal} />
-        </div>
-
-        {/* AI 제안 */}
-        {(activeCase?.suggestions?.length ?? 0) > 0 && (
-          <div style={{ flexShrink: 0, padding: "0 20px 8px" }}>
-            <AISuggestionsAccordion suggestions={activeCase!.suggestions!} />
-          </div>
-        )}
-
-        {/* Terminal logs */}
-        <div style={{ flex: 1, padding: "0 20px 16px", minHeight: 0, display: "flex", flexDirection: "column" }}>
-          <TerminalPanel tc={activeCase} isPaused={!!data.paused} />
-        </div>
-      </div>
+      {/* ── Right: Debug Panel (2-column debugging dashboard) ───────────────────────────────────── */}
+      <DebugPanel tc={activeCase} isTerminal={isTerminal} targetUrl={data.targetUrl} data={data} />
     </div>
   );
 }
