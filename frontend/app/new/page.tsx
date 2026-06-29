@@ -98,7 +98,8 @@ function NewTestForm() {
 
   // 줄바꿈(Enter) 시 다음 줄 시작에 자동으로 번호를 붙여준다 (1. 2. 3. ...)
   const handleScenarioKeyDown = (id: number, e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key !== "Enter" || e.shiftKey) return;
+    // 한국어 IME 조합 중 Enter는 글자 확정 이벤트이므로 무시
+    if (e.nativeEvent.isComposing || e.key !== "Enter" || e.shiftKey) return;
     const textarea = e.currentTarget;
     const { selectionStart, value } = textarea;
     const before = value.slice(0, selectionStart);
