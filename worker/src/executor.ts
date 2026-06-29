@@ -11,6 +11,7 @@ export interface TestResult {
   failReason: string;
   videoUrl: string;
   screenshotUrl: string;
+  screenshotBase64?: string;
   consoleLogs: string[];
   durationMs?: number;
   completedAt?: string;
@@ -76,9 +77,12 @@ export async function runTest(
     result.status = "Fail";
     result.failReason = err.message;
 
-    const shotPath = path.join(screenshotDir, `${testCase.testId}_fail.png`);
-    await page.screenshot({ path: shotPath, fullPage: true });
-    result.screenshotUrl = toUrl(shotPath);
+    try {
+      const screenshotBuffer = await page.screenshot({ fullPage: true });
+      result.screenshotBase64 = screenshotBuffer.toString("base64");
+    } catch (shotErr: any) {
+      console.warn(`  [${testCase.testId}] 스크린샷 캡처 실패: ${shotErr.message}`);
+    }
     console.log(`  ✗ [${testCase.testId}] Fail: ${err.message}`);
   } finally {
     const video = page.video();

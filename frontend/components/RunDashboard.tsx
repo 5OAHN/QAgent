@@ -23,6 +23,7 @@ interface TestCase {
   failReason: string;
   videoUrl: string;
   screenshotUrl: string;
+  screenshotBase64?: string;
   consoleLogs?: string[];
   suggestions?: UXSuggestion[];
 }
@@ -455,6 +456,8 @@ function BrowserMockup({ tc, isTerminal }: { tc: TestCase | null; isTerminal: bo
         {tc?.videoUrl ? (
           <video ref={videoRef} key={tc.videoUrl} src={tc.videoUrl} controls autoPlay
             style={{ width: "100%", height: "100%", objectFit: "contain", background: "#000" }} />
+        ) : tc?.screenshotBase64 ? (
+          <img src={`data:image/png;base64,${tc.screenshotBase64}`} alt="screenshot" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
         ) : tc?.screenshotUrl ? (
           <img src={tc.screenshotUrl} alt="screenshot" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
         ) : tc?.status === "Pending" ? (
