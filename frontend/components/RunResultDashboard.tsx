@@ -24,6 +24,7 @@ interface TestCase {
   consoleLogs?: string[];
   verificationStatus?: "approved" | "rejected" | "pending";
   reviewReason?: string;
+  durationMs?: number;
 }
 
 interface RunResult {
@@ -68,6 +69,17 @@ function humanizeFailReason(raw?: string): string {
     return "시스템 오류로 인해 테스트가 실패했습니다.";
   }
   return raw;
+}
+
+// durationMs(밀리초)를 00:00:00(시:분:초) 형태로 변환
+function formatDuration(ms?: number): string | null {
+  if (!ms || ms < 0) return null;
+  const totalSeconds = Math.floor(ms / 1000);
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(h)}:${pad(m)}:${pad(s)}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -207,21 +219,21 @@ export function RunResultDashboard({ runId }: { runId: string }) {
               {data.paused ? (
                 <button
                   onClick={() => sendControl("resume")}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-all duration-200 active:scale-95"
                 >
                   ▶ 재개
                 </button>
               ) : (
                 <button
                   onClick={() => sendControl("pause")}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100"
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 transition-all duration-200 active:scale-95"
                 >
                   ⏸ 일시정지
                 </button>
               )}
               <button
                 onClick={() => sendControl("cancel")}
-                className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-red-300 text-red-600 hover:bg-red-50"
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-red-300 text-red-600 hover:bg-red-50 transition-all duration-200 active:scale-95"
               >
                 ■ 중지
               </button>
@@ -241,6 +253,8 @@ export function RunResultDashboard({ runId }: { runId: string }) {
               passed={passCount}
               failed={failCount}
             />
+
+            {data.targetUrl && <TargetUrlCard url={data.targetUrl} />}
 
             {data.loginStatus === "fail" && (
               <LoginFailureAccordion reason={data.loginFailReason} steps={data.loginSteps} />
@@ -347,6 +361,48 @@ function StatBox({ label, value, valueClassName }: { label: string; value: numbe
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// LEFT: Target URL Card
+// ─────────────────────────────────────────────────────────────────────────────
+
+function TargetUrlCard({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* noop */
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-4 py-3 flex items-center gap-2.5 flex-shrink-0">
+      <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="text-gray-400 flex-shrink-0">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 11-5.656-5.656l1.5-1.5M10.172 13.828a4 4 0 010-5.656l3-3a4 4 0 115.656 5.656l-1.5 1.5" />
+      </svg>
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-xs text-gray-600 truncate flex-1 hover:text-indigo-600 transition-colors duration-200"
+        title={url}
+      >
+        {url}
+      </a>
+      <button
+        onClick={handleCopy}
+        className="text-[11px] font-medium text-gray-400 hover:text-gray-600 flex-shrink-0 transition-all duration-200 active:scale-90"
+      >
+        {copied ? "복사됨" : "복사"}
+      </button>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // LEFT: Login Failure Accordion
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -357,7 +413,7 @@ function LoginFailureAccordion({ reason, steps }: { reason?: string; steps?: str
     <div className="bg-white rounded-xl border border-red-300 overflow-hidden">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-5 py-4"
+        className="w-full flex items-center justify-between px-5 py-4 transition-colors duration-200 hover:bg-red-50/50"
       >
         <div className="flex items-center gap-2 text-red-600">
           <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
@@ -446,7 +502,7 @@ function ScenarioListCard({
           <button
             key={tab.key}
             onClick={() => onFilterChange(tab.key)}
-            className={`flex-1 text-xs font-semibold py-2 rounded-md transition ${
+            className={`flex-1 text-xs font-semibold py-2 rounded-md transition-all duration-200 active:scale-95 ${
               filterStatus === tab.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
             }`}
           >
@@ -483,7 +539,7 @@ function ScenarioListCard({
       {canRetry && (
         <button
           onClick={onRetry}
-          className="mt-5 w-full py-3 rounded-lg bg-blue-50 text-blue-600 font-semibold text-sm hover:bg-blue-100 transition"
+          className="mt-5 w-full py-3 rounded-lg bg-blue-50 text-blue-600 font-semibold text-sm hover:bg-blue-100 transition-all duration-200 active:scale-[0.98]"
         >
           시나리오 수정 후 재시도
         </button>
@@ -547,26 +603,39 @@ function ScenarioCard({
   const lines = tc.scenario.split("\n").filter(Boolean);
   const isLong = tc.scenario.length > 90 || lines.length > 2;
 
+  const duration = formatDuration(tc.durationMs);
+
   return (
     <div
       onClick={onClick}
-      className={`rounded-lg border-2 p-3.5 cursor-pointer transition ${
-        isSelected ? "border-blue-500 bg-blue-50/40" : "border-gray-200 hover:border-gray-300 bg-white"
+      className={`rounded-lg border-2 p-3.5 cursor-pointer transition-all duration-200 ease-out active:scale-[0.98] ${
+        isSelected ? "border-blue-500 bg-blue-50/40 shadow-sm" : "border-gray-200 hover:border-gray-300 hover:shadow-sm bg-white"
       }`}
     >
       <div className="flex items-start gap-2.5">
         <div className="flex-shrink-0 mt-0.5">{icon}</div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="font-mono text-xs font-bold text-gray-700">{tc.testId}</span>
-            {tc.status === "Pending" && (
-              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600">
-                {isPaused ? "일시정지" : "실행 중"}
-              </span>
-            )}
-            {isReview && (
-              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600">
-                확인 필요
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-base font-bold text-gray-900">{tc.testId}</span>
+              {tc.status === "Pending" && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600">
+                  {isPaused ? "일시정지" : "실행 중"}
+                </span>
+              )}
+              {isReview && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600">
+                  확인 필요
+                </span>
+              )}
+            </div>
+            {duration && (
+              <span className="flex items-center gap-1 text-[11px] font-medium text-gray-400 flex-shrink-0">
+                <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 7v5l3 2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                {duration}
               </span>
             )}
           </div>
@@ -579,7 +648,7 @@ function ScenarioCard({
                 e.stopPropagation();
                 setExpanded((v) => !v);
               }}
-              className="mt-1 text-xs text-blue-500 font-medium flex items-center gap-0.5"
+              className="mt-1 text-xs text-blue-500 font-medium flex items-center gap-0.5 transition-colors duration-200 hover:text-blue-700"
             >
               {expanded ? "접기" : "전체 보기"}
               <svg
@@ -601,14 +670,14 @@ function ScenarioCard({
               <button
                 onClick={(e) => handleVerify(e, "approved")}
                 disabled={verifying}
-                className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-green-600 text-white disabled:opacity-50"
+                className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-green-600 text-white disabled:opacity-50 transition-all duration-200 active:scale-95 hover:bg-green-700"
               >
                 승인
               </button>
               <button
                 onClick={(e) => handleVerify(e, "rejected")}
                 disabled={verifying}
-                className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-red-600 text-white disabled:opacity-50"
+                className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-red-600 text-white disabled:opacity-50 transition-all duration-200 active:scale-95 hover:bg-red-700"
               >
                 거부
               </button>
@@ -634,7 +703,12 @@ function MediaViewerCard({ tc, isTerminal }: { tc: TestCase | null; isTerminal: 
       {!tc ? (
         <p className="text-gray-400 text-sm">시나리오를 선택하세요</p>
       ) : imgSrc ? (
-        <img src={imgSrc} alt="screenshot" className="max-w-full max-h-full object-contain rounded-lg shadow-sm" />
+        <img
+          key={imgSrc}
+          src={imgSrc}
+          alt="screenshot"
+          className="max-w-full max-h-full object-contain rounded-lg shadow-sm animate-[fadeIn_0.25s_ease-out]"
+        />
       ) : (
         <p className="text-gray-400 text-sm">
           {!isTerminal && tc.status === "Pending" ? "실행 대기 중…" : "미디어 없음"}
