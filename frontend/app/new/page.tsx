@@ -2,7 +2,6 @@
 
 import { useState, useRef, DragEvent, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 
 type Mode = "natural" | "excel";
 interface ScenarioCard { id: number; text: string; }
@@ -204,7 +203,6 @@ function NewTestForm() {
         height: 54,
         display: "flex",
         alignItems: "center",
-        justifyContent: "space-between",
         flexShrink: 0,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -212,7 +210,6 @@ function NewTestForm() {
           <span style={{ fontSize: 12, color: A.hairline }}>/</span>
           <span style={{ fontSize: 12, color: A.blue, fontWeight: 600 }}>새 테스트</span>
         </div>
-        <Link href="/dashboard/demo" style={{ fontSize: 12, color: A.inkMuted, textDecoration: "none" }}>UI 미리보기 →</Link>
       </header>
 
       {/* 폼 */}
@@ -577,17 +574,7 @@ function AdminGateModal({ onVerified }: { onVerified: () => void }) {
   };
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.3)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 50,
-      }}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
       <div
         style={{
           background: A.canvas,
