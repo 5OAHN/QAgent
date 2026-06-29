@@ -83,6 +83,75 @@ function formatDuration(ms?: number): string | null {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SCENARIO STEP EDITOR — 자연어 시나리오 텍스트 ↔ 단계 배열 변환
+// ─────────────────────────────────────────────────────────────────────────────
+
+type StepActionType = "click" | "input" | "wait" | "scroll" | "assert" | "custom";
+
+interface ScenarioStep {
+  id: string;
+  actionType: StepActionType;
+  target: string;
+}
+
+const ACTION_TYPE_OPTIONS: { value: StepActionType; label: string; suffix: string }[] = [
+  { value: "click", label: "클릭", suffix: "클릭" },
+  { value: "input", label: "텍스트 입력", suffix: "입력" },
+  { value: "wait", label: "대기", suffix: "대기" },
+  { value: "scroll", label: "스크롤", suffix: "스크롤" },
+  { value: "assert", label: "확인", suffix: "확인" },
+  { value: "custom", label: "기타(직접 작성)", suffix: "" },
+];
+
+let stepIdCounter = 0;
+function nextStepId(): string {
+  stepIdCounter += 1;
+  return `step-${Date.now()}-${stepIdCounter}`;
+}
+
+function parseScenarioToSteps(scenario: string): ScenarioStep[] {
+  const matches = Array.from(scenario.matchAll(/\d+\.\s*([^\n]+)/g)).map((m) => m[1].trim());
+  const lines = matches.length > 0 ? matches : scenario.split("\n").map((l) => l.trim()).filter(Boolean);
+
+  return lines.map((line) => {
+    let actionType: StepActionType = "custom";
+    let target = line;
+
+    if (/클릭\s*$/.test(line)) {
+      actionType = "click";
+      target = line.replace(/\s*클릭\s*$/, "");
+    } else if (/(텍스트\s*)?입력\s*$/.test(line)) {
+      actionType = "input";
+      target = line.replace(/\s*(텍스트\s*)?입력\s*$/, "");
+    } else if (/대기\s*$/.test(line)) {
+      actionType = "wait";
+      target = line.replace(/\s*대기\s*$/, "");
+    } else if (/스크롤\s*$/.test(line)) {
+      actionType = "scroll";
+      target = line.replace(/\s*스크롤\s*$/, "");
+    } else if (/(확인|검증)\s*$/.test(line)) {
+      actionType = "assert";
+      target = line.replace(/\s*(확인|검증)\s*$/, "");
+    }
+
+    return { id: nextStepId(), actionType, target: target.trim() };
+  });
+}
+
+function stepsToScenarioText(steps: ScenarioStep[]): string {
+  return steps
+    .map((step, i) => {
+      const option = ACTION_TYPE_OPTIONS.find((o) => o.value === step.actionType);
+      const text =
+        step.actionType === "custom" || !option?.suffix
+          ? step.target.trim()
+          : `${step.target.trim()} ${option.suffix}`.trim();
+      return `${i + 1}. ${text}`;
+    })
+    .join("\n");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -123,6 +192,9 @@ export function RunResultDashboard({ runId }: { runId: string }) {
   const router = useRouter();
   const [selectedTestId, setSelectedTestId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<"all" | "pass" | "fail" | "review">("all");
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+  const [editedScenarios, setEditedScenarios] = useState<Record<string, string>>({});
+  const [editingTestId, setEditingTestId] = useState<string | null>(null);
   const prevCasesRef = useRef<Map<string, CaseStatus>>(new Map());
 
   const { data, error, isLoading, mutate } = useSWR<RunResult>(
@@ -156,6 +228,34 @@ export function RunResultDashboard({ runId }: { runId: string }) {
       body: JSON.stringify({ action }),
     });
     await mutate();
+  };
+
+  const toggleChecked = (testId: string) => {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(testId)) next.delete(testId);
+      else next.add(testId);
+      return next;
+    });
+  };
+
+  const getEffectiveScenario = (tc: TestCase) => editedScenarios[tc.testId] ?? tc.scenario;
+
+  const handleApplyEdit = (testId: string, newScenarioText: string) => {
+    setEditedScenarios((prev) => ({ ...prev, [testId]: newScenarioText }));
+    setEditingTestId(null);
+  };
+
+  const handleRetrySelected = () => {
+    if (!data?.targetUrl || checkedIds.size === 0) return;
+    const selectedScenarios = displayCases
+      .filter((c) => checkedIds.has(c.testId))
+      .map((c) => getEffectiveScenario(c).trim());
+    const params = new URLSearchParams({
+      url: data.targetUrl,
+      scenarios: selectedScenarios.join("\n\n---\n\n"),
+    });
+    router.push(`/new?${params.toString()}`);
   };
 
   if (isLoading) {
@@ -273,11 +373,11 @@ export function RunResultDashboard({ runId }: { runId: string }) {
               isPaused={!!data.paused}
               runId={runId}
               onVerify={() => mutate()}
-              canRetry={data.mode === "natural" && !!data.targetUrl && !!data.scenarios && (isTerminal || !!data.paused)}
-              onRetry={() => {
-                const params = new URLSearchParams({ url: data.targetUrl!, scenarios: data.scenarios! });
-                router.push(`/new?${params.toString()}`);
-              }}
+              canEdit={data.mode === "natural" && !!data.targetUrl && (isTerminal || !!data.paused)}
+              checkedIds={checkedIds}
+              onToggleChecked={toggleChecked}
+              onEditRequest={setEditingTestId}
+              getEffectiveScenario={getEffectiveScenario}
             />
           </div>
 
@@ -288,6 +388,23 @@ export function RunResultDashboard({ runId }: { runId: string }) {
           </div>
         </div>
       </div>
+
+      {/* ── Floating Action Bar: 체크된 시나리오 일괄 재시도 ───────────────────── */}
+      <FloatingActionBar
+        count={checkedIds.size}
+        onRetry={handleRetrySelected}
+        onCancel={() => setCheckedIds(new Set())}
+      />
+
+      {/* ── Scenario Edit Modal ─────────────────────────────────────────────── */}
+      {editingTestId && (
+        <ScenarioEditModal
+          testId={editingTestId}
+          scenarioText={getEffectiveScenario(displayCases.find((c) => c.testId === editingTestId)!)}
+          onClose={() => setEditingTestId(null)}
+          onApply={(newText) => handleApplyEdit(editingTestId, newText)}
+        />
+      )}
     </div>
   );
 }
@@ -469,8 +586,11 @@ function ScenarioListCard({
   isPaused,
   runId,
   onVerify,
-  canRetry,
-  onRetry,
+  canEdit,
+  checkedIds,
+  onToggleChecked,
+  onEditRequest,
+  getEffectiveScenario,
 }: {
   cases: TestCase[];
   filteredCases: TestCase[];
@@ -484,8 +604,11 @@ function ScenarioListCard({
   isPaused: boolean;
   runId: string;
   onVerify: () => void;
-  canRetry: boolean;
-  onRetry: () => void;
+  canEdit: boolean;
+  checkedIds: Set<string>;
+  onToggleChecked: (testId: string) => void;
+  onEditRequest: (testId: string) => void;
+  getEffectiveScenario: (tc: TestCase) => string;
 }) {
   const tabs = [
     { key: "all" as const, label: "전체", count: cases.length },
@@ -531,19 +654,15 @@ function ScenarioListCard({
               isPaused={isPaused}
               runId={runId}
               onVerify={onVerify}
+              canEdit={canEdit}
+              isChecked={checkedIds.has(tc.testId)}
+              onToggleChecked={() => onToggleChecked(tc.testId)}
+              onEditRequest={() => onEditRequest(tc.testId)}
+              displayScenario={getEffectiveScenario(tc)}
             />
           ))
         )}
       </div>
-
-      {canRetry && (
-        <button
-          onClick={onRetry}
-          className="mt-5 w-full py-3 rounded-lg bg-blue-50 text-blue-600 font-semibold text-sm hover:bg-blue-100 transition-all duration-200 active:scale-[0.98]"
-        >
-          시나리오 수정 후 재시도
-        </button>
-      )}
     </div>
   );
 }
@@ -555,6 +674,11 @@ function ScenarioCard({
   isPaused,
   runId,
   onVerify,
+  canEdit,
+  isChecked,
+  onToggleChecked,
+  onEditRequest,
+  displayScenario,
 }: {
   tc: TestCase;
   isSelected: boolean;
@@ -562,6 +686,11 @@ function ScenarioCard({
   isPaused: boolean;
   runId: string;
   onVerify: () => void;
+  canEdit: boolean;
+  isChecked: boolean;
+  onToggleChecked: () => void;
+  onEditRequest: () => void;
+  displayScenario: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [verifying, setVerifying] = useState(false);
@@ -600,10 +729,11 @@ function ScenarioCard({
       </svg>
     );
 
-  const lines = tc.scenario.split("\n").filter(Boolean);
-  const isLong = tc.scenario.length > 90 || lines.length > 2;
+  const lines = displayScenario.split("\n").filter(Boolean);
+  const isLong = displayScenario.length > 90 || lines.length > 2;
 
   const duration = formatDuration(tc.durationMs);
+  const isFail = tc.status === "Fail";
 
   return (
     <div
@@ -613,6 +743,15 @@ function ScenarioCard({
       }`}
     >
       <div className="flex items-start gap-2.5">
+        {canEdit && (
+          <input
+            type="checkbox"
+            checked={isChecked}
+            onClick={(e) => e.stopPropagation()}
+            onChange={onToggleChecked}
+            className="mt-1 w-4 h-4 flex-shrink-0 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition-transform duration-150 active:scale-90"
+          />
+        )}
         <div className="flex-shrink-0 mt-0.5">{icon}</div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2 mb-1">
@@ -629,18 +768,31 @@ function ScenarioCard({
                 </span>
               )}
             </div>
-            {duration && (
-              <span className="flex items-center gap-1 text-[11px] font-medium text-gray-400 flex-shrink-0">
-                <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <circle cx="12" cy="12" r="9" />
-                  <path d="M12 7v5l3 2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                {duration}
-              </span>
-            )}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {canEdit && isFail && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEditRequest();
+                  }}
+                  className="flex items-center gap-1 text-[11px] font-semibold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md transition-all duration-200 active:scale-95 hover:bg-indigo-100"
+                >
+                  ✏️ 수정
+                </button>
+              )}
+              {duration && (
+                <span className="flex items-center gap-1 text-[11px] font-medium text-gray-400">
+                  <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M12 7v5l3 2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  {duration}
+                </span>
+              )}
+            </div>
           </div>
           <p className={`text-sm text-gray-700 whitespace-pre-line ${!expanded ? "line-clamp-2" : ""}`}>
-            {tc.scenario}
+            {displayScenario}
           </p>
           {isLong && (
             <button
@@ -755,6 +907,174 @@ function TimelineCard({ tc }: { tc: TestCase | null }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FLOATING ACTION BAR — 선택된 시나리오 일괄 재시도
+// ─────────────────────────────────────────────────────────────────────────────
+
+function FloatingActionBar({
+  count,
+  onRetry,
+  onCancel,
+}: {
+  count: number;
+  onRetry: () => void;
+  onCancel: () => void;
+}) {
+  const visible = count > 0;
+
+  return (
+    <div
+      className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-40 transition-all duration-300 ease-out ${
+        visible ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-4 pointer-events-none"
+      }`}
+    >
+      <div className="flex items-center gap-4 bg-gray-800 text-white rounded-full shadow-lg pl-5 pr-2.5 py-2.5">
+        <span className="text-sm font-medium whitespace-nowrap">{count}개 시나리오 선택됨</span>
+        <button
+          onClick={onCancel}
+          className="text-xs text-gray-300 hover:text-white px-2 transition-colors duration-200"
+        >
+          선택 해제
+        </button>
+        <button
+          onClick={onRetry}
+          className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-full transition-all duration-200 active:scale-95 whitespace-nowrap"
+        >
+          선택 시나리오 재시도
+          <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SCENARIO EDIT MODAL — 단계별 인터랙티브 에디터
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ScenarioEditModal({
+  testId,
+  scenarioText,
+  onClose,
+  onApply,
+}: {
+  testId: string;
+  scenarioText: string;
+  onClose: () => void;
+  onApply: (newScenarioText: string) => void;
+}) {
+  const [steps, setSteps] = useState<ScenarioStep[]>(() => parseScenarioToSteps(scenarioText));
+
+  const updateStep = (id: string, patch: Partial<ScenarioStep>) => {
+    setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+  };
+
+  const removeStep = (id: string) => {
+    setSteps((prev) => prev.filter((s) => s.id !== id));
+  };
+
+  const addStep = () => {
+    setSteps((prev) => [...prev, { id: nextStepId(), actionType: "click", target: "" }]);
+  };
+
+  const handleApply = () => {
+    const cleaned = steps.filter((s) => s.target.trim().length > 0);
+    onApply(stepsToScenarioText(cleaned));
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 animate-[fadeIn_0.2s_ease-out]"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-xl shadow-xl w-full max-w-xl max-h-[80vh] flex flex-col mx-4"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
+          <div>
+            <h2 className="text-base font-bold text-gray-900">시나리오 수정</h2>
+            <p className="text-xs text-gray-400 mt-0.5 font-mono">{testId}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors duration-200 p-1 rounded-md hover:bg-gray-100"
+          >
+            <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Body: Step editor */}
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+          <div className="flex flex-col gap-2.5">
+            {steps.map((step, i) => (
+              <div key={step.id} className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-gray-400 w-5 flex-shrink-0">{i + 1}.</span>
+                <select
+                  value={step.actionType}
+                  onChange={(e) => updateStep(step.id, { actionType: e.target.value as StepActionType })}
+                  className="text-sm border border-gray-300 rounded-lg px-2 py-2 flex-shrink-0 w-32 transition-colors duration-200 focus:border-indigo-400 focus:outline-none"
+                >
+                  {ACTION_TYPE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  value={step.target}
+                  onChange={(e) => updateStep(step.id, { target: e.target.value })}
+                  placeholder="대상 또는 값을 입력하세요"
+                  className="text-sm border border-gray-300 rounded-lg px-3 py-2 flex-1 min-w-0 transition-colors duration-200 focus:border-indigo-400 focus:outline-none"
+                />
+                <button
+                  onClick={() => removeStep(step.id)}
+                  className="text-gray-400 hover:text-red-500 flex-shrink-0 p-1.5 rounded-md transition-all duration-200 active:scale-90 hover:bg-red-50"
+                >
+                  🗑️
+                </button>
+              </div>
+            ))}
+
+            <button
+              onClick={addStep}
+              className="mt-1 w-full py-2.5 rounded-lg border-2 border-dashed border-gray-300 text-gray-400 text-sm font-medium transition-all duration-200 hover:border-indigo-300 hover:text-indigo-500 active:scale-[0.98]"
+            >
+              + 단계 추가
+            </button>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-gray-200 flex-shrink-0">
+          <button
+            onClick={onClose}
+            className="text-sm font-semibold px-4 py-2 rounded-lg border border-gray-300 text-gray-600 transition-all duration-200 active:scale-95 hover:bg-gray-50"
+          >
+            취소
+          </button>
+          <button
+            onClick={handleApply}
+            className="text-sm font-semibold px-4 py-2 rounded-lg bg-indigo-600 text-white transition-all duration-200 active:scale-95 hover:bg-indigo-700"
+          >
+            적용
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
