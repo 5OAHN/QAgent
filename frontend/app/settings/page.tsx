@@ -309,7 +309,6 @@ export default function SettingsPage() {
   const handleSaveApiKeys = async () => {
     const body: Record<string, string> = {};
     if (anthropicKey.trim()) body.anthropicApiKey = anthropicKey.trim();
-    if (geminiKey.trim()) body.geminiApiKey = geminiKey.trim();
     if (!Object.keys(body).length) return;
 
     setApiKeySaving(true);
@@ -321,8 +320,8 @@ export default function SettingsPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        setApiKeyStatus({ hasAnthropic: data.masked.hasAnthropic, hasGemini: data.masked.hasGemini, anthropicMasked: data.masked.anthropicApiKey || "", geminiMasked: data.masked.geminiApiKey || "" });
-        setAnthropicKey(""); setGeminiKey("");
+        setApiKeyStatus({ hasAnthropic: data.masked.hasAnthropic, hasGemini: data.masked.hasGemini, anthropicMasked: data.masked.anthropicApiKey || "", geminiMasked: "" });
+        setAnthropicKey("");
         showToast("API 키가 저장되었습니다", "ok");
       } else {
         showToast("저장에 실패했습니다. Worker 서버를 확인하세요.", "err");
@@ -365,7 +364,7 @@ export default function SettingsPage() {
 
   if (!unlocked) return <AdminGate onUnlock={() => setUnlocked(true)} />;
 
-  const canSaveKeys = !!(anthropicKey.trim() || geminiKey.trim());
+  const canSaveKeys = !!anthropicKey.trim();
 
   return (
     <>
@@ -397,7 +396,7 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <p style={{ fontSize: 13, fontWeight: 700, color: "#1d1d1f" }}>AI API 키 관리</p>
-                  <p style={{ fontSize: 11, color: "#9ca3af", marginTop: 1 }}>Claude와 Gemini API 키를 등록하면 실제 AI 테스트 자동화에 사용됩니다</p>
+                  <p style={{ fontSize: 11, color: "#9ca3af", marginTop: 1 }}>Claude API 키를 등록하면 실제 AI 테스트 자동화에 사용됩니다</p>
                 </div>
               </div>
             </div>
@@ -406,7 +405,6 @@ export default function SettingsPage() {
               {/* 등록 상태 배지 */}
               <div style={{ display: "flex", gap: 10 }}>
                 <ProviderBadge name="Claude" active={apiKeyStatus.hasAnthropic} masked={apiKeyStatus.anthropicMasked} color="#8b5cf6" />
-                <ProviderBadge name="Gemini" active={apiKeyStatus.hasGemini} masked={apiKeyStatus.geminiMasked} color="#1a73e8" />
               </div>
 
               {/* Claude 키 입력 */}
@@ -422,22 +420,9 @@ export default function SettingsPage() {
                 verifyState={anthropicVerify}
               />
 
-              {/* Gemini 키 입력 */}
-              <ApiKeyRow
-                label="Google API Key (Gemini)"
-                dot="#1a73e8"
-                placeholder={apiKeyStatus.hasGemini ? `현재: ${apiKeyStatus.geminiMasked}` : "AIzaSy…"}
-                value={geminiKey}
-                onChange={(v) => { setGeminiKey(v); setGeminiVerify("idle"); }}
-                show={showGemini}
-                onToggle={() => setShowGemini((v) => !v)}
-                onVerify={() => verifyKey("gemini", geminiKey, setGeminiVerify)}
-                verifyState={geminiVerify}
-              />
-
               {/* 안내 박스 */}
               <div style={{ background: "rgba(0,102,204,0.04)", border: "1px solid rgba(0,102,204,0.12)", borderRadius: 10, padding: "10px 14px", fontSize: 11, color: "#6b7280", lineHeight: 1.7 }}>
-                <strong style={{ color: "#0066cc" }}>작동 방식:</strong> 두 키가 모두 등록되면 Claude 크레딧을 먼저 사용하고, 소진 시 자동으로 Gemini로 전환합니다.
+                <strong style={{ color: "#0066cc" }}>작동 방식:</strong> 등록된 Claude API 키로 AI 테스트 자동화가 실행됩니다.
               </div>
 
               {/* 저장 버튼 */}
