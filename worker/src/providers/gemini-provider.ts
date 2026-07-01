@@ -117,36 +117,10 @@ Please respond with a JSON object containing:
 
         if (!response.ok) {
           const errorMsg = data.error?.message || "Unknown error";
-          // 429 → 60초 후 1회 재시도
-          if (response.status === 429) {
-            console.warn("  [Gemini] 429 rate limit — 60초 대기 후 재시도");
-            await new Promise((r) => setTimeout(r, 60_000));
-            const retry = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models/${VISION_MODEL}:generateContent?key=${this.apiKey}`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-                  contents: [{ parts: [{ inline_data: { mime_type: "image/jpeg", data: base64 } }, { text: prompt }] }],
-                  generationConfig: { maxOutputTokens: 1024, temperature: 0.7 },
-                }),
-              }
-            );
-            if (!retry.ok) throw new Error("GEMINI_QUOTA_EXCEEDED");
-            const retryData = await retry.json();
-            if (retryData.usageMetadata) {
-              totalTokens += (retryData.usageMetadata.promptTokenCount || 0) + (retryData.usageMetadata.candidatesTokenCount || 0);
-            }
-            const retryContent = retryData.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (!retryContent) throw new Error("GEMINI_QUOTA_EXCEEDED");
-            // 재시도 성공 시 retryContent로 이어서 처리 — 아래 content 변수 대신 임시 override
-            (data as any)._retryContent = retryContent;
-          } else if (errorMsg.includes("quota") || errorMsg.includes("exhausted")) {
+          if (response.status === 429 || errorMsg.includes("quota") || errorMsg.includes("exhausted")) {
             throw new Error("GEMINI_QUOTA_EXCEEDED");
-          } else {
-            throw new Error(errorMsg);
           }
+          throw new Error(errorMsg);
         }
 
         // 토큰 사용량 수집
@@ -158,7 +132,7 @@ Please respond with a JSON object containing:
           };
         }
 
-        const content = (data as any)._retryContent ?? data.candidates?.[0]?.content?.parts?.[0]?.text;
+        const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!content) {
           return { success: false, steps, failReason: "Gemini가 응답을 제공하지 못했습니다.", totalTokens };
         }
