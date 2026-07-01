@@ -314,7 +314,7 @@ export function RunResultDashboard({ runId }: { runId: string }) {
         body: JSON.stringify({
           url: data.targetUrl,
           scenarios: selectedScenarios,
-          loginConfig: data.loginStatus ? undefined : undefined,
+          loginConfig: (data as any).loginConfig ?? undefined,
         }),
       });
       const result = await res.json();

@@ -26,6 +26,7 @@ export interface RunResult {
   loginStatus?: "running" | "success" | "fail";
   loginFailReason?: string;
   loginSteps?: string[];
+  loginConfig?: LoginConfig;
 }
 
 export function getAllRuns(): RunResult[] {
@@ -178,6 +179,7 @@ export async function runNaturalLanguagePipeline(
     targetUrl,
     scenarios: scenarioList.join("\n\n---\n\n"),
     executor,
+    loginConfig,
   };
   activeRuns.set(runId, run);
   saveRun(run);
