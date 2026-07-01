@@ -156,14 +156,27 @@ export async function executeSmartLogin(
     const plan = await planLoginSelectors(elements, fields);
     if (!plan) throw new Error("LLM이 셀렉터를 반환하지 못했습니다.");
 
+    const beforeUrl = page.url();
     await fillAndSubmit(page, elements, fields, plan.fieldQids, plan.submitQid);
-    await page.waitForLoadState("domcontentloaded", { timeout: 10000 }).catch(() => {});
+
+    // URL이 변경될 때까지 대기 — 로그인 성공 시 반드시 페이지가 이동함
+    try {
+      await page.waitForURL((url) => url.toString() !== beforeUrl, { timeout: 8000 });
+    } catch {
+      throw new Error("로그인 후 페이지가 변경되지 않았습니다. 계정 정보가 올바른지 확인하세요.");
+    }
+
+    // URL이 바뀌었어도 다시 로그인 페이지로 redirect된 경우 체크
+    const afterUrl = page.url();
+    if (/login|signin|auth/i.test(afterUrl) && afterUrl === beforeUrl) {
+      throw new Error("로그인에 실패했습니다. 계정 정보를 확인하세요.");
+    }
 
     const doneStep: VisionStep = {
       stepNum: 2,
-      thought: "DOM 분석 후 셀렉터 매칭 — 룰베이스로 즉시 입력 및 제출 완료",
+      thought: `로그인 완료 — ${afterUrl} 으로 이동됨`,
       action: "done",
-      details: `${fields.length}개 필드 입력 + 제출 버튼 클릭`,
+      details: `${fields.length}개 필드 입력 + 제출 → 페이지 이동 확인`,
     };
     onStep?.(doneStep);
 
