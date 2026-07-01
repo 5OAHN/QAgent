@@ -438,6 +438,10 @@ export function RunResultDashboard({ runId }: { runId: string }) {
 
             {data.targetUrl && <TargetUrlCard url={data.targetUrl} />}
 
+            {(data as any).loginConfig?.fields?.length > 0 && (
+              <LoginInfoCard fields={(data as any).loginConfig.fields} status={data.loginStatus} />
+            )}
+
             {data.loginStatus && (
               <LoginStatusCard
                 status={data.loginStatus}
@@ -610,6 +614,51 @@ function TargetUrlCard({ url }: { url: string }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // LEFT: Login Failure Accordion
 // ─────────────────────────────────────────────────────────────────────────────
+
+function LoginInfoCard({ fields, status }: { fields: { label: string; value: string; isPassword: boolean }[]; status?: string }) {
+  const [open, setOpen] = useState(false);
+  const statusColor = status === "success" ? "text-green-600" : status === "fail" ? "text-red-500" : "text-gray-400";
+  const statusLabel = status === "success" ? "로그인 성공" : status === "fail" ? "로그인 실패" : status === "running" ? "로그인 진행 중" : "";
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden flex-shrink-0">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 gap-2.5 hover:bg-gray-50 transition-colors"
+      >
+        <div className="flex items-center gap-2.5 min-w-0">
+          <svg width="14" height="14" fill="none" stroke="#6b7280" strokeWidth="1.8" viewBox="0 0 24 24" className="flex-shrink-0">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
+          <span className="text-xs font-semibold text-gray-700">로그인 계정 정보</span>
+          <span className="text-xs text-gray-400">— {fields.map(f => f.isPassword ? "••••••" : f.value).join(" / ")}</span>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {statusLabel && <span className={`text-[11px] font-medium ${statusColor}`}>{statusLabel}</span>}
+          <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
+            className={`text-gray-400 transition-transform ${open ? "rotate-180" : ""}`}>
+            <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+      </button>
+
+      {open && (
+        <div className="px-4 pb-3 pt-1 border-t border-gray-100 bg-gray-50/50">
+          <div className="flex flex-col gap-1.5 mt-1">
+            {fields.map((f, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <span className="text-[11px] text-gray-400 w-20 flex-shrink-0">{f.label || `필드 ${i + 1}`}</span>
+                <span className="text-[12px] font-medium text-gray-700">
+                  {f.isPassword ? "••••••••" : f.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function LoginStatusCard({ status, reason, steps }: { status: "running" | "success" | "fail"; reason?: string; steps?: string[] }) {
   const [open, setOpen] = useState(false);
