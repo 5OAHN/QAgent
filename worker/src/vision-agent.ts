@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { Page } from "playwright";
+import { resolveAnthropicKey } from "./api-keys";
 
 const VISION_MODEL = "claude-haiku-4-5";
 
@@ -124,7 +125,7 @@ export async function analyzeUX(
   task: string,
   steps: VisionStep[]
 ): Promise<{ area: string; issue: string; suggestion: string }[]> {
-  const client = new Anthropic();
+  const client = new Anthropic({ apiKey: resolveAnthropicKey() || undefined });
   const screenshot = await page.screenshot({ type: "png" });
   const base64 = screenshot.toString("base64");
   const actionSummary = steps
@@ -173,7 +174,7 @@ export async function runVisionAgent(
   onStep?: (step: VisionStep) => void,
   control?: RunControl
 ): Promise<VisionResult> {
-  const client = new Anthropic();
+  const client = new Anthropic({ apiKey: resolveAnthropicKey() || undefined });
   const steps: VisionStep[] = [];
   const actionHistory: string[] = [];
   let totalTokens = 0;

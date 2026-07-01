@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { Page } from "playwright";
 import { runVisionAgent, VisionResult, VisionStep, RunControl } from "./vision-agent";
+import { resolveAnthropicKey } from "./api-keys";
 
 const PLAN_MODEL = "claude-haiku-4-5";
 
@@ -77,7 +78,7 @@ async function planLoginSelectors(
   elements: DomElement[],
   fields: LoginField[]
 ): Promise<{ fieldQids: number[]; submitQid: number } | null> {
-  const client = new Anthropic();
+  const client = new Anthropic({ apiKey: resolveAnthropicKey() || undefined });
 
   const systemPrompt = [
     "당신은 웹페이지의 로그인 폼을 분석하는 역할만 수행합니다.",
