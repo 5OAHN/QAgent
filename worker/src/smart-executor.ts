@@ -86,8 +86,8 @@ const PLAN_STEP_TOOL = {
     properties: {
       action: {
         type: "string",
-        enum: ["click", "fill", "assert_text", "wait", "press", "goto"],
-        description: "click=클릭, fill=텍스트입력, assert_text=텍스트가 보이는지 확인, wait=대기, press=키 입력, goto=URL 이동",
+        enum: ["click", "fill", "search", "assert_text", "wait", "press", "goto"],
+        description: "click=클릭, fill=텍스트입력(제출 없음), search=검색창에 입력 후 Enter(검색 실행), assert_text=텍스트가 보이는지 확인, wait=대기, press=키 입력, goto=URL 이동. 검색창에 값을 입력하고 검색하는 경우 반드시 search를 사용할 것",
       },
       qid: { type: "number", description: "click/fill 대상 요소의 qid. 해당 없거나 못 찾으면 -1" },
       value: {
@@ -147,6 +147,11 @@ async function executeStep(page: Page, plan: { action: string; qid: number; valu
     case "fill":
       if (plan.qid === -1) throw new Error("입력할 요소를 찾지 못했습니다.");
       await page.fill(selector, plan.value, { timeout: 6000 });
+      break;
+    case "search":
+      if (plan.qid === -1) throw new Error("검색창을 찾지 못했습니다.");
+      await page.fill(selector, plan.value, { timeout: 6000 });
+      await page.keyboard.press("Enter");
       break;
     case "assert_text":
       await page.getByText(plan.value, { exact: false }).first().waitFor({ state: "visible", timeout: 8000 });
