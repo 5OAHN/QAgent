@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { Page } from "playwright";
 import { VisionResult, VisionStep, RunControl, ProviderConfig } from "./providers/types";
 import { ProviderManager } from "./providers/provider-manager";
-import { resolveAnthropicKey, resolveGeminiKey } from "./api-keys";
+import { resolveAnthropicKey } from "./api-keys";
 
 const PLAN_MODEL = "claude-haiku-4-5";
 
@@ -23,22 +23,8 @@ function getProviderConfigs(): ProviderConfig[] {
     });
   }
 
-  // Gemini 설정 (저장된 키 우선, 없으면 환경변수)
-  const geminiApiKey = resolveGeminiKey();
-  const geminiPriority = parseInt(process.env.GEMINI_PRIORITY || "2", 10);
-  const geminiEnabled = process.env.GEMINI_ENABLED !== "false";
-
-  if (geminiApiKey && geminiEnabled) {
-    configs.push({
-      type: "gemini",
-      priority: geminiPriority,
-      apiKey: geminiApiKey,
-      enabled: true,
-    });
-  }
-
   if (configs.length === 0) {
-    throw new Error("No vision providers configured. Set ANTHROPIC_API_KEY or GEMINI_API_KEY");
+    throw new Error("Claude API 키가 설정되지 않았습니다. 설정 페이지에서 API 키를 등록하세요.");
   }
 
   return configs;

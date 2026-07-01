@@ -25,6 +25,10 @@ interface DomElement {
 
 // ── Step 1: DOM 경량화 추출 — 레이아웃 태그는 무시하고 입력 가능한 요소만 ──
 async function extractLoginElements(page: Page): Promise<DomElement[]> {
+  // JS 렌더링 완료까지 대기 — domcontentloaded 후 SPA 입력 필드가 늦게 마운트될 수 있음
+  await page.waitForSelector('input', { timeout: 8000 }).catch(() => {});
+  await page.waitForTimeout(500);
+
   return page.evaluate(() => {
     const candidates = Array.from(
       document.querySelectorAll('input, button, a, [role="textbox"], [role="button"]')
@@ -119,18 +123,23 @@ async function fillAndSubmit(
   fieldQids: number[],
   submitQid: number
 ): Promise<void> {
-  if (submitQid === -1 || !elements.some((el) => el.qid === submitQid)) {
-    throw new Error("제출 버튼을 찾지 못했습니다.");
-  }
   if (fieldQids.length !== fields.length || fieldQids.some((q) => q === -1)) {
     throw new Error("일부 입력 필드를 찾지 못했습니다.");
   }
 
   for (let i = 0; i < fields.length; i++) {
     const selector = `[data-qagent-id="${fieldQids[i]}"]`;
+    await page.click(selector, { timeout: 5000 });
     await page.fill(selector, fields[i].value, { timeout: 5000 });
   }
-  await page.click(`[data-qagent-id="${submitQid}"]`, { timeout: 5000 });
+
+  // 제출 버튼 클릭 — 못 찾으면 마지막 필드에서 Enter
+  if (submitQid !== -1 && elements.some((el) => el.qid === submitQid)) {
+    await page.click(`[data-qagent-id="${submitQid}"]`, { timeout: 5000 });
+  } else {
+    const lastSelector = `[data-qagent-id="${fieldQids[fieldQids.length - 1]}"]`;
+    await page.press(lastSelector, "Enter");
+  }
 }
 
 // ── 통합 함수 — Plan(LLM) → Execute(Playwright) 순서로 실행, 실패 시 비전 에이전트로 폴백 ──
@@ -165,10 +174,13 @@ export async function executeSmartLogin(
     onStep?.({ stepNum: 2, action: "fallback", thought: `룰베이스 로그인 실패(${err.message}) — 화면 인식 기반으로 재시도합니다.`, details: "비전 에이전트 전환" });
 
     const loginTask = [
-      "[로그인 선행 작업 — 아래 정보로 로그인 후 완료(done)하세요]",
-      ...fields.map((f) => `- ${f.label || "필드"}: ${f.value}`),
+      "[로그인 선행 작업]",
+      "아래 순서대로 정확히 수행하세요:",
+      ...fields.map((f, i) => `${i + 1}. '${f.label || "필드"}' 입력 필드를 click한 직후 바로 type 액션으로 '${f.isPassword ? "(비밀번호)" : f.value}'를 입력하세요.`),
+      `${fields.length + 1}. 로그인/제출 버튼을 click하세요. 버튼을 찾지 못하면 press 액션으로 Enter를 누르세요.`,
       "",
-      "로그인 폼을 찾아 위 정보를 입력하고 로그인 버튼을 클릭하세요. 로그인이 완료되면 done 액션을 사용하세요.",
+      "중요: click 다음에는 반드시 같은 필드에 type을 수행하세요. 같은 필드를 두 번 click하지 마세요.",
+      "로그인 완료 후 URL이 변경되면 done 액션을 사용하세요.",
     ].join("\n");
     return runVisionAgent(page, loginTask, 15, onStep, control);
   }
