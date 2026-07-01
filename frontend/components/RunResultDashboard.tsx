@@ -438,8 +438,12 @@ export function RunResultDashboard({ runId }: { runId: string }) {
 
             {data.targetUrl && <TargetUrlCard url={data.targetUrl} />}
 
-            {data.loginStatus === "fail" && (
-              <LoginFailureAccordion reason={data.loginFailReason} steps={data.loginSteps} />
+            {data.loginStatus && (
+              <LoginStatusCard
+                status={data.loginStatus}
+                reason={data.loginFailReason}
+                steps={data.loginSteps}
+              />
             )}
 
             <ScenarioListCard
@@ -607,45 +611,40 @@ function TargetUrlCard({ url }: { url: string }) {
 // LEFT: Login Failure Accordion
 // ─────────────────────────────────────────────────────────────────────────────
 
-function LoginFailureAccordion({ reason, steps }: { reason?: string; steps?: string[] }) {
+function LoginStatusCard({ status, reason, steps }: { status: "running" | "success" | "fail"; reason?: string; steps?: string[] }) {
   const [open, setOpen] = useState(false);
 
+  const cfg = {
+    running: { border: "border-blue-200",   bg: "bg-blue-50/50",   text: "text-blue-600",   label: "로그인 진행 중", dot: "bg-blue-400" },
+    success: { border: "border-green-200",  bg: "bg-green-50/50",  text: "text-green-600",  label: "로그인 성공",    dot: "bg-green-500" },
+    fail:    { border: "border-red-300",    bg: "bg-red-50/50",    text: "text-red-600",    label: "로그인 실패",    dot: "bg-red-500"   },
+  }[status];
+
+  const hasDetail = steps && steps.length > 0;
+
   return (
-    <div className="bg-white rounded-xl border border-red-300 overflow-hidden flex-shrink-0">
+    <div className={`bg-white rounded-xl border ${cfg.border} overflow-hidden flex-shrink-0`}>
       <button
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-4 py-3 gap-2.5 transition-colors duration-200 hover:bg-red-50/50"
+        onClick={() => hasDetail && setOpen((v) => !v)}
+        className={`w-full flex items-center justify-between px-4 py-3 gap-2.5 transition-colors duration-200 ${hasDetail ? `hover:${cfg.bg}` : "cursor-default"}`}
       >
-        <div className="flex items-center gap-2.5 text-red-600 min-w-0">
-          <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" className="flex-shrink-0">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"
-            />
-          </svg>
-          <span className="text-xs font-semibold flex-shrink-0">로그인 실패</span>
-          {reason && <span className="text-xs text-red-400 truncate">— {reason}</span>}
+        <div className={`flex items-center gap-2.5 ${cfg.text} min-w-0`}>
+          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${cfg.dot}`} />
+          <span className="text-xs font-semibold flex-shrink-0">{cfg.label}</span>
+          {status === "fail" && reason && <span className="text-xs opacity-70 truncate">— {reason}</span>}
         </div>
-        <svg
-          width="14"
-          height="14"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          viewBox="0 0 24 24"
-          className={`text-red-500 flex-shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
-        >
-          <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        {hasDetail && (
+          <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
+            className={`${cfg.text} flex-shrink-0 transition-transform ${open ? "rotate-180" : ""}`}>
+            <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
       </button>
 
-      {open && steps && steps.length > 0 && (
-        <div className="px-4 pb-3 pt-1 border-t border-red-100 bg-red-50/50 max-h-48 overflow-y-auto">
-          {steps.map((s, i) => (
-            <p key={i} className="text-xs text-gray-600 whitespace-pre-line py-1">
-              {s}
-            </p>
+      {open && hasDetail && (
+        <div className={`px-4 pb-3 pt-1 border-t ${cfg.border} ${cfg.bg} max-h-48 overflow-y-auto`}>
+          {steps!.map((s, i) => (
+            <p key={i} className="text-xs text-gray-600 whitespace-pre-line py-1">{s}</p>
           ))}
         </div>
       )}

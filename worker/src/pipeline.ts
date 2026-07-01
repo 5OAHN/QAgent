@@ -332,6 +332,10 @@ export async function runNaturalLanguagePipeline(
       } catch (err: any) {
         result.status = "Fail";
         result.failReason = err.message;
+        try {
+          const screenshotBuffer = await page.screenshot({ fullPage: true });
+          result.screenshotBase64 = screenshotBuffer.toString("base64");
+        } catch {}
         run.failed++;
         console.error(`\n❌ [${testId}] 오류:`, err.message);
       } finally {
