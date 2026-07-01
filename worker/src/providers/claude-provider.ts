@@ -13,10 +13,11 @@ Analyze the screenshot carefully and decide the SINGLE next action to take.
 3. If an element has no text, describe it by its role + surrounding context (e.g. "submit button after password field").
 
 ## Action Guide:
-- **click**: Set "target" to the exact visible text on the button/link/element. Set "method" to "text", "role", or "label".
-  - "text": use when the element has visible text (most cases)
+- **click**: Set "target" to the visible text on the button/link/element. Set "method" to "text", "role", or "label".
+  - "text": use when the element has visible text (most cases). For search result links like "브리메이 스마트스토어" use the brand/store name visible on the link.
   - "role": use when you know the semantic role (button, link, checkbox, etc.)
   - "label": use when it's an input labeled by aria-label or form label
+  - If a link contains a logo or nested elements, use the most distinctive text visible in or near the link.
 - **type**: Type text into the currently focused input. Use AFTER clicking the input field.
 - **press**: Press a keyboard key (Enter, Tab, Escape, ArrowDown, etc.)
 - **scroll**: Scroll the page up or down to reveal hidden elements.
@@ -266,6 +267,18 @@ async function clickByText(page: Page, input: any): Promise<void> {
     async () => {
       await page.locator(`[placeholder*="${target}"]`).waitFor({ timeout: TIMEOUT });
       await page.locator(`[placeholder*="${target}"]`).click();
+    },
+    // href 기반 — 네이버 스마트스토어 등 중첩 HTML 링크
+    async () => {
+      const words = target.split(/\s+/).filter(Boolean);
+      const hrefPart = words.map((w: string) => `[href*="${w}"]`).join("");
+      await page.locator(`a${hrefPart}`).first().waitFor({ timeout: TIMEOUT });
+      await page.locator(`a${hrefPart}`).first().click();
+    },
+    // 텍스트 포함 <a> 태그 직접 — 중첩 span이 있는 링크 대응
+    async () => {
+      await page.locator(`a:has-text("${target}")`).first().waitFor({ timeout: TIMEOUT });
+      await page.locator(`a:has-text("${target}")`).first().click();
     }
   );
 

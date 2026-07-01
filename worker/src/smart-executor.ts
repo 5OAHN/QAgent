@@ -230,7 +230,7 @@ export async function runSmartScenario(
       collected.push(fallbackStep);
       onStep?.(fallbackStep);
 
-      const fallbackResult = await providerManager.runAgent(page, stepText, 6, (s) => {
+      const fallbackResult = await providerManager.runAgent(page, stepText, 12, (s) => {
         const wrapped = { ...s, stepNum: stepNum + s.stepNum * 0.1 };
         collected.push(wrapped);
         onStep?.(wrapped);
