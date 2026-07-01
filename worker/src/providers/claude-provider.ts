@@ -90,21 +90,7 @@ export class ClaudeProvider implements VisionProvider {
   }
 
   async isAvailable(): Promise<boolean> {
-    try {
-      // Simple health check
-      await this.client.messages.create({
-        model: VISION_MODEL,
-        max_tokens: 10,
-        messages: [{ role: "user", content: "ok" }],
-      });
-      return true;
-    } catch (err: any) {
-      if (err.status === 401 || err.status === 403) {
-        console.warn("Claude Provider: Authentication failed");
-        return false;
-      }
-      return true; // 다른 에러는 일시적일 수 있음
-    }
+    return !!this.client; // API 호출 없이 키 존재 여부만 확인
   }
 
   async runAgent(

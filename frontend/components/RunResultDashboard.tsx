@@ -56,6 +56,8 @@ function humanizeFailReason(raw?: string): string {
     return "Gemini API 할당량 초과";
   }
   if (/All providers failed/i.test(raw)) {
+    const lastErr = raw.match(/Last error:\s*(.+)/i)?.[1];
+    if (lastErr) return `AI 오류: ${lastErr.length > 30 ? lastErr.slice(0, 30) + "…" : lastErr}`;
     return "AI 제공자 연결 실패";
   }
   if (/credit balance is too low/i.test(raw)) {
