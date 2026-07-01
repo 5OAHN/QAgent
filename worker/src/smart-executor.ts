@@ -86,13 +86,13 @@ const PLAN_STEP_TOOL = {
     properties: {
       action: {
         type: "string",
-        enum: ["click", "fill", "search", "assert_text", "wait", "press", "goto"],
-        description: "click=클릭, fill=텍스트입력(제출 없음), search=검색창에 입력 후 Enter(검색 실행), assert_text=텍스트가 보이는지 확인, wait=대기, press=키 입력, goto=URL 이동. 검색창에 값을 입력하고 검색하는 경우 반드시 search를 사용할 것",
+        enum: ["click", "fill", "search", "click_href", "click_text", "assert_text", "wait", "press", "goto"],
+        description: "click=qid로 클릭, fill=텍스트입력(제출 없음), search=검색창에 입력 후 Enter(검색 실행), click_href=href에 특정 키워드가 포함된 링크 클릭(value에 키워드), click_text=화면에 보이는 텍스트로 링크/버튼 클릭(value에 텍스트), assert_text=텍스트가 보이는지 확인, wait=대기, press=키 입력, goto=URL 이동. 검색 결과에서 특정 사이트(스마트스토어 등)로 이동할 때는 click_href를 사용할 것",
       },
-      qid: { type: "number", description: "click/fill 대상 요소의 qid. 해당 없거나 못 찾으면 -1" },
+      qid: { type: "number", description: "click/fill 대상 요소의 qid. click_href/click_text/search/assert_text/wait/press/goto는 -1" },
       value: {
         type: "string",
-        description: "fill=입력할 텍스트, assert_text=찾을 텍스트, wait=밀리초(숫자), press=키 이름(Enter 등), goto=URL. 해당 없으면 빈 문자열",
+        description: "fill=입력할 텍스트, search=검색어, click_href=href에 포함될 키워드(예: smartstore.naver.com/brimay 또는 brimay), click_text=클릭할 요소의 텍스트, assert_text=찾을 텍스트, wait=밀리초(숫자), press=키 이름(Enter 등), goto=URL. 해당 없으면 빈 문자열",
       },
     },
     required: ["action", "qid", "value"],
@@ -153,6 +153,37 @@ async function executeStep(page: Page, plan: { action: string; qid: number; valu
       await page.fill(selector, plan.value, { timeout: 6000 });
       await page.keyboard.press("Enter");
       break;
+    case "click_href": {
+      // href에 value 키워드가 포함된 링크 클릭 — 검색결과 스마트스토어 등 중첩 HTML 링크에 유용
+      const keywords = plan.value.split(/[\s/]+/).filter(Boolean);
+      let found = false;
+      for (const kw of keywords) {
+        const loc = page.locator(`a[href*="${kw}"]`).first();
+        try {
+          await loc.waitFor({ state: "visible", timeout: 4000 });
+          await loc.click();
+          found = true;
+          break;
+        } catch {}
+      }
+      if (!found) throw new Error(`href에 "${plan.value}" 포함된 링크를 찾지 못했습니다.`);
+      break;
+    }
+    case "click_text": {
+      // 텍스트로 링크/버튼 클릭
+      const strategies = [
+        () => page.getByRole("link", { name: plan.value }).first().click(),
+        () => page.getByRole("button", { name: plan.value }).first().click(),
+        () => page.locator(`a:has-text("${plan.value}")`).first().click(),
+        () => page.getByText(plan.value, { exact: false }).first().click(),
+      ];
+      let clicked = false;
+      for (const s of strategies) {
+        try { await s(); clicked = true; break; } catch {}
+      }
+      if (!clicked) throw new Error(`"${plan.value}" 텍스트 요소를 찾지 못했습니다.`);
+      break;
+    }
     case "assert_text":
       await page.getByText(plan.value, { exact: false }).first().waitFor({ state: "visible", timeout: 8000 });
       break;
@@ -214,7 +245,8 @@ export async function runSmartScenario(
       const step: VisionStep = {
         stepNum, action: plan.action,
         thought: `룰베이스로 즉시 처리 — "${stepText}"`,
-        details: plan.action === "fill" ? `"${plan.value}"` : plan.value || `qid=${plan.qid}`,
+        details: ["fill", "search", "click_href", "click_text", "assert_text", "press", "goto"].includes(plan.action)
+          ? `"${plan.value}"` : plan.value || `qid=${plan.qid}`,
       };
       collected.push(step);
       onStep?.(step);
