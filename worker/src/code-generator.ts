@@ -33,6 +33,14 @@ const SYSTEM_PROMPT = `You are a Playwright automation code generator (NOT Playw
 - To wait for element: await page.waitForSelector('...', {state:'visible', timeout:10000})
 - To verify success: await page.waitForSelector('...', {state:'visible'}) — NOT expect()
 
+## REQUIRED: Final verification (MUST be the last line)
+- If the scenario involves page navigation: await page.waitForURL(/keyword/, {timeout:10000})
+  Example — navigated to product page: await page.waitForURL(/detail|product|item|goods/, {timeout:10000})
+  Example — navigated to store: await page.waitForURL(/smartstore|shop|store/, {timeout:10000})
+  Example — after login: await page.waitForURL(/dashboard|main|home|(?<!login)$/, {timeout:10000})
+- If no navigation expected: await page.waitForSelector('visibleElementOnSuccessPage', {state:'visible',timeout:10000})
+- This line MUST throw if the scenario did not actually complete — never use .catch(()=>{}) on the final verification
+
 ## Known selectors
 - 네이버 검색창: input[name="query"]
 - 구글 검색창: input[name="q"]`;
