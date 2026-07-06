@@ -5,8 +5,9 @@ import { chromium } from "playwright";
 import { UIDictionary } from "./parser";
 import { runTest, TestResult } from "./executor";
 import { analyzeFailure } from "./analyzer";
-import { runSmartScenario } from "./smart-executor";
 import { executeSmartLogin } from "./smart-login";
+import { generatePlaywrightCode, fixPlaywrightCode } from "./code-generator";
+import { runGeneratedCode } from "./code-runner";
 import { saveRun, loadAllRuns, deleteRun } from "./db";
 
 export interface RunResult {
@@ -283,49 +284,72 @@ export async function runNaturalLanguagePipeline(
 
       const caseStartedAt = Date.now();
       try {
-        console.log(`\n🤖 [${testId}] Vision 에이전트 시작 → ${page.url()}`);
+        console.log(`\n🤖 [${testId}] 코드 생성 시작 → ${page.url()}`);
 
         const liveStepLogs: string[] = [];
+        let totalTokens = 0;
 
-        const visionResult = await runSmartScenario(page, naturalText, 20, (step) => {
-          const icon = step.action === "done" ? "✅" : step.action === "failed" ? "❌" : `[${step.stepNum}]`;
-          liveStepLogs.push(`${icon} ${step.action.toUpperCase()} ${step.details}\n    💭 ${step.thought}`);
+        const pushLog = (icon: string, action: string, details: string, thought: string) => {
+          liveStepLogs.push(`${icon} ${action.toUpperCase()} ${details}\n    💭 ${thought}`);
           result.consoleLogs = [...liveStepLogs];
           run.cases = run.cases.map((c) => c.testId === testId ? { ...result } : c);
-        }, control);
+          saveRun(run);
+        };
 
-        result.consoleLogs = visionResult.steps.map((s) => {
-          const icon = s.action === "done" ? "✅" : s.action === "failed" ? "❌" : `[${s.stepNum}]`;
-          return `${icon} ${s.action.toUpperCase()} ${s.details}\n    💭 ${s.thought}`;
+        // ── 1단계: Playwright 코드 생성 ──────────────────────────────
+        pushLog("🧠", "codegen", "Playwright 코드 생성 중...", naturalText.slice(0, 80));
+        const { code, tokens: genTokens } = await generatePlaywrightCode(targetUrl, naturalText, loginConfig);
+        totalTokens += genTokens;
+        pushLog("📝", "codegen", `코드 생성 완료 (${code.split("\n").length}줄)`, code.split("\n")[0] || "");
+        console.log(`  [${testId}] 생성된 코드:\n${code}`);
+
+        // ── 2단계: 코드 실행 (실패 시 최대 2회 수정 재시도) ─────────
+        let runResult = await runGeneratedCode(page, code, (step) => {
+          const icon = step.action === "done" ? "✅" : step.action === "failed" ? "❌" : `[${step.stepNum}]`;
+          pushLog(icon, step.action, step.details, step.thought);
         });
 
-        // 토큰 사용량 저장
-        if (visionResult.totalTokens) {
-          result.tokenUsage = visionResult.totalTokens;
+        let currentCode = code;
+        let attempt = 0;
+        while (!runResult.success && attempt < 2) {
+          attempt++;
+          console.warn(`  [${testId}] 실행 실패 — 코드 수정 시도 ${attempt}/2: ${runResult.error}`);
+          pushLog("🔧", "fix", `코드 수정 중 (시도 ${attempt}/2)`, runResult.error?.slice(0, 80) || "");
+
+          const { code: fixedCode, tokens: fixTokens } = await fixPlaywrightCode(
+            currentCode, runResult.error || "", naturalText
+          );
+          totalTokens += fixTokens;
+          currentCode = fixedCode;
+          pushLog("📝", "fix", `수정 완료 (${fixedCode.split("\n").length}줄)`, fixedCode.split("\n")[0] || "");
+          console.log(`  [${testId}] 수정된 코드 (시도 ${attempt}):\n${fixedCode}`);
+
+          runResult = await runGeneratedCode(page, fixedCode, (step) => {
+            const icon = step.action === "done" ? "✅" : step.action === "failed" ? "❌" : `[${step.stepNum}]`;
+            pushLog(icon, step.action, step.details, step.thought);
+          });
         }
 
-        if (visionResult.success) {
+        result.tokenUsage = totalTokens;
+        // 최종 생성 코드를 저장해서 UI에서 확인 가능하게
+        (result as any).generatedCode = currentCode;
+
+        if (runResult.success) {
           result.status = "Pass";
-          result.verificationStatus = visionResult.verificationStatus || "approved";
-          result.reviewReason = visionResult.reviewReason;
-          if (visionResult.summary) result.consoleLogs.push(`✅ ${visionResult.summary}`);
+          result.verificationStatus = "approved";
           try {
             const screenshotBuffer = await page.screenshot({ fullPage: true });
             result.screenshotBase64 = screenshotBuffer.toString("base64");
-          } catch (shotErr: any) {
-            console.warn(`  [${testId}] 스크린샷 캡처 실패: ${shotErr.message}`);
-          }
+          } catch {}
           run.passed++;
-          console.log(`\n✅ [${testId}] 완료 (현재 URL: ${page.url()})${result.verificationStatus === "pending" ? " ⚠️ (검증 필요)" : ""}`);
+          console.log(`\n✅ [${testId}] 완료 (현재 URL: ${page.url()})`);
         } else {
           result.status = "Fail";
-          result.failReason = visionResult.failReason || "알 수 없는 오류";
+          result.failReason = runResult.error || "코드 실행 실패";
           try {
             const screenshotBuffer = await page.screenshot({ fullPage: true });
             result.screenshotBase64 = screenshotBuffer.toString("base64");
-          } catch (shotErr: any) {
-            console.warn(`  [${testId}] 스크린샷 캡처 실패: ${shotErr.message}`);
-          }
+          } catch {}
           run.failed++;
           console.log(`\n❌ [${testId}] 실패: ${result.failReason}`);
         }

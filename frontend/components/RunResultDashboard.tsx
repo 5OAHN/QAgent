@@ -1087,6 +1087,8 @@ function TimelineCard({
   createdAt: string;
 }) {
   const logs = tc?.consoleLogs ?? [];
+  const generatedCode = (tc as any)?.generatedCode as string | undefined;
+  const [activeTab, setActiveTab] = useState<"timeline" | "code">("timeline");
   const [copied, setCopied] = useState(false);
 
   const handleCopyReport = async () => {
@@ -1109,7 +1111,22 @@ function TimelineCard({
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex-1 min-h-0 flex flex-col">
       <div className="flex items-center justify-between mb-4 flex-shrink-0">
-        <h3 className="text-base font-bold text-gray-900">실행 타임라인</h3>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setActiveTab("timeline")}
+            className={`text-sm font-semibold px-3 py-1 rounded-md transition-colors ${activeTab === "timeline" ? "bg-gray-100 text-gray-900" : "text-gray-400 hover:text-gray-600"}`}
+          >
+            실행 타임라인
+          </button>
+          {generatedCode && (
+            <button
+              onClick={() => setActiveTab("code")}
+              className={`text-sm font-semibold px-3 py-1 rounded-md transition-colors ${activeTab === "code" ? "bg-gray-100 text-gray-900" : "text-gray-400 hover:text-gray-600"}`}
+            >
+              생성된 코드
+            </button>
+          )}
+        </div>
         {tc?.status === "Fail" && (
           <button
             onClick={handleCopyReport}
@@ -1152,7 +1169,13 @@ function TimelineCard({
         </div>
       )}
 
-      {logs.length === 0 ? (
+      {activeTab === "code" && generatedCode ? (
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <pre className="text-xs text-gray-700 bg-gray-50 rounded-lg p-4 whitespace-pre-wrap font-mono leading-relaxed border border-gray-200">
+            {generatedCode}
+          </pre>
+        </div>
+      ) : logs.length === 0 ? (
         <p className="text-sm text-gray-400 py-4">실행 로그가 없습니다</p>
       ) : (
         <div className="relative flex-1 min-h-0 overflow-y-auto pr-1">
