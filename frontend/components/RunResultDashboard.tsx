@@ -26,6 +26,7 @@ interface TestCase {
   reviewReason?: string;
   durationMs?: number;
   tokenUsage?: number;
+  stepPlan?: { action: string; verify: string; status: "pending" | "running" | "pass" | "fail" }[];
 }
 
 interface RunResult {
@@ -1166,6 +1167,28 @@ function TimelineCard({
             <span className="font-semibold">실패 사유 : </span>
             {humanizeFailReason(tc.failReason)}
           </p>
+        </div>
+      )}
+
+      {/* AI가 이해한 시나리오 — 단계별 진행 체크리스트 */}
+      {tc?.stepPlan && tc.stepPlan.length > 0 && activeTab === "timeline" && (
+        <div className="mb-4 px-4 py-3 rounded-lg border border-gray-200 bg-gray-50 flex-shrink-0">
+          <p className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">AI가 이해한 시나리오</p>
+          <div className="flex flex-col gap-1.5">
+            {tc.stepPlan.map((s, i) => (
+              <div key={i} className="flex items-start gap-2">
+                <span className="text-sm leading-5 flex-shrink-0 w-5 text-center">
+                  {s.status === "pass" ? "✅" : s.status === "fail" ? "❌" : s.status === "running" ? "⏳" : "▫️"}
+                </span>
+                <div className="min-w-0">
+                  <p className={`text-sm leading-5 ${s.status === "fail" ? "text-red-600 font-medium" : "text-gray-700"}`}>
+                    {i + 1}. {s.action}
+                  </p>
+                  <p className="text-xs text-gray-400">확인: {s.verify}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

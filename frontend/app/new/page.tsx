@@ -16,6 +16,26 @@ const CARD_PLACEHOLDER = `테스트 시나리오를 단계별로 작성하세요
 3. 이름에 "테스트", 이메일에 "test@test.com"을 입력하고 저장한다
 4. 목록에 "테스트" 사용자가 표시되면 성공`;
 
+// 실무 QA에서 빈도가 가장 높은 시나리오 유형 템플릿 — 클릭 한 번으로 골격 삽입
+const SCENARIO_TEMPLATES: { label: string; text: string }[] = [
+  {
+    label: "메뉴 진입 확인",
+    text: `1. "메뉴이름" 메뉴를 클릭한다\n2. "페이지 제목 또는 화면의 텍스트"가 표시되면 성공`,
+  },
+  {
+    label: "생성 → 확인",
+    text: `1. "추가/등록" 버튼을 클릭한다\n2. 이름에 "테스트 항목"을 입력한다\n3. 저장 버튼을 클릭한다\n4. 목록에 "테스트 항목"이 표시되면 성공`,
+  },
+  {
+    label: "검색 → 결과 확인",
+    text: `1. 검색창에 "검색어"를 입력하고 검색한다\n2. 결과 목록에 "기대하는 텍스트"가 표시되면 성공`,
+  },
+  {
+    label: "삭제 → 팝업 확인",
+    text: `1. 목록 최상단 항목의 체크박스를 클릭한다\n2. "선택 삭제" 버튼을 클릭한다\n3. 확인 팝업에서 "삭제" 버튼을 클릭한다\n4. 해당 항목이 목록에서 사라지면 성공`,
+  },
+];
+
 const LOGIN_LABEL_OPTIONS = ["아이디 / 이메일", "비밀번호", "테넌시 ID", "워크스페이스 코드", "기관 코드", "직접 입력"];
 
 const DEFAULT_LOGIN_FIELDS = (): LoginField[] => [
@@ -458,6 +478,19 @@ function NewTestForm() {
                         onKeyDown={(e) => handleScenarioKeyDown(card.id, e)}
                         placeholder={CARD_PLACEHOLDER} rows={6}
                         style={{ width: "100%", resize: "none", background: "transparent", padding: "8px 14px 12px", fontSize: 13, color: A.ink, outline: "none", border: "none", boxSizing: "border-box" }} />
+                      {!card.text.trim() && (
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", padding: "0 14px 12px" }}>
+                          {SCENARIO_TEMPLATES.map((t) => (
+                            <button key={t.label} onClick={() => updateCard(card.id, t.text)}
+                              style={{ fontSize: 11, color: A.inkMuted, background: A.divider, border: "none", borderRadius: 20, padding: "5px 10px", cursor: "pointer", transition: "all .15s" }}
+                              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(0,102,204,0.08)"; e.currentTarget.style.color = A.blue; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.background = A.divider; e.currentTarget.style.color = A.inkMuted; }}
+                            >
+                              + {t.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                   <button onClick={addCard} style={{

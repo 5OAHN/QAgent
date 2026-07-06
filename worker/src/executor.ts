@@ -18,6 +18,8 @@ export interface TestResult {
   verificationStatus?: "approved" | "rejected" | "pending";
   reviewReason?: string;
   tokenUsage?: number;
+  /** AI가 정규화한 단계별 계획과 진행 상태 — 비개발자용 체크리스트 */
+  stepPlan?: { action: string; verify: string; status: "pending" | "running" | "pass" | "fail" }[];
 }
 
 const BASE_URL = process.env.WORKER_BASE_URL || "http://localhost:8001";

@@ -7,6 +7,7 @@ import { runTest, TestResult } from "./executor";
 import { analyzeFailure } from "./analyzer";
 import { executeSmartLogin } from "./smart-login";
 import { runAgentScenario } from "./agent-executor";
+import { planScenario } from "./scenario-planner";
 import { saveRun, loadAllRuns, deleteRun } from "./db";
 
 export interface RunResult {
@@ -289,31 +290,76 @@ export async function runNaturalLanguagePipeline(
         console.log(`\n🤖 [${testId}] AI 에이전트 시작 → ${page.url()}`);
 
         const liveStepLogs: string[] = [];
+        let totalTokens = 0;
 
-        const agentResult = await runAgentScenario(page, naturalText, {
-          maxSteps: 25,
-          onStep: (step) => {
-            const icon = step.action === "done" ? "✅" : step.action === "fail" || step.action === "error" ? "❌" : `[${step.stepNum}]`;
-            liveStepLogs.push(`${icon} ${step.action.toUpperCase()} ${step.details}\n    💭 ${step.thought}`);
-            result.consoleLogs = [...liveStepLogs];
-            run.cases = run.cases.map((c) => c.testId === testId ? { ...result } : c);
-            saveRun(run);
-          },
-          control,
-        });
+        const sync = () => {
+          result.consoleLogs = [...liveStepLogs];
+          run.cases = run.cases.map((c) => c.testId === testId ? { ...result } : c);
+          saveRun(run);
+        };
 
-        // 에이전트가 새 탭으로 전환했으면 이후 시나리오도 그 페이지에서 이어간다
-        page = agentResult.finalPage;
-        result.tokenUsage = agentResult.totalTokens;
+        // ── 1단계: 시나리오 정규화 — 행동/검증 단위로 분해 (LLM 1회) ──
+        liveStepLogs.push(`🧠 PLAN 시나리오 분석 중\n    💭 시나리오를 실행 가능한 단계로 분해합니다.`);
+        sync();
+        const plan = await planScenario(naturalText, targetUrl, run.loginStatus === "success");
+        totalTokens += plan.tokens;
+        result.stepPlan = plan.steps.map((s) => ({ ...s, status: "pending" as const }));
+        liveStepLogs.push(
+          `📋 PLAN ${plan.steps.length}개 단계로 분해 완료\n    💭 ${plan.steps.map((s, i) => `${i + 1}. ${s.action}`).join(" / ")}`
+        );
+        sync();
+        console.log(`  [${testId}] 계획:\n${plan.steps.map((s, i) => `    ${i + 1}. ${s.action} → 확인: ${s.verify}`).join("\n")}`);
 
-        if (agentResult.success) {
-          result.status = "Pass";
-          result.verificationStatus = agentResult.verificationStatus || "approved";
-          result.reviewReason = agentResult.reviewReason;
-          if (agentResult.summary) {
-            liveStepLogs.push(`✅ 완료 근거: ${agentResult.summary}`);
-            result.consoleLogs = [...liveStepLogs];
+        // ── 2단계: 단계별 실행 — 각 단계는 명확한 완료 조건을 가진 작은 과업 ──
+        let scenarioFailed = false;
+        let failDetail = "";
+
+        for (let sIdx = 0; sIdx < plan.steps.length; sIdx++) {
+          if (control.isCancelled()) { scenarioFailed = true; failDetail = "사용자에 의해 중지되었습니다."; break; }
+
+          const planned = plan.steps[sIdx];
+          result.stepPlan![sIdx].status = "running";
+          sync();
+
+          const stepTask = [
+            `[단계 ${sIdx + 1}/${plan.steps.length}] ${planned.action}`,
+            `완료 조건: ${planned.verify}`,
+            "",
+            "이 단계 하나만 수행하세요. 완료 조건이 화면에서 확인되면 done, 확인되지 않거나 진행 불가면 fail 하세요.",
+          ].join("\n");
+
+          const agentResult = await runAgentScenario(page, stepTask, {
+            maxSteps: 8,
+            onStep: (step) => {
+              const icon = step.action === "done" ? "✅" : step.action === "fail" || step.action === "error" ? "❌" : `[${sIdx + 1}.${step.stepNum}]`;
+              liveStepLogs.push(`${icon} ${step.action.toUpperCase()} ${step.details}\n    💭 ${step.thought}`);
+              sync();
+            },
+            control,
+          });
+
+          page = agentResult.finalPage;
+          totalTokens += agentResult.totalTokens || 0;
+
+          if (agentResult.success) {
+            result.stepPlan![sIdx].status = "pass";
+            sync();
+            console.log(`  [${testId}] 단계 ${sIdx + 1}/${plan.steps.length} 통과`);
+          } else {
+            result.stepPlan![sIdx].status = "fail";
+            scenarioFailed = true;
+            failDetail = `단계 ${sIdx + 1}(${planned.action})에서 실패: ${agentResult.failReason}`;
+            sync();
+            break;
           }
+        }
+
+        result.tokenUsage = totalTokens;
+
+        if (!scenarioFailed) {
+          result.status = "Pass";
+          result.verificationStatus = "approved";
+          liveStepLogs.push(`✅ 완료: ${plan.steps.length}개 단계 모두 통과`);
           try {
             const screenshotBuffer = await page.screenshot({ fullPage: true });
             result.screenshotBase64 = screenshotBuffer.toString("base64");
@@ -322,7 +368,7 @@ export async function runNaturalLanguagePipeline(
           console.log(`\n✅ [${testId}] 완료 (현재 URL: ${page.url()})`);
         } else {
           result.status = "Fail";
-          result.failReason = agentResult.failReason || "에이전트 실행 실패";
+          result.failReason = failDetail || "에이전트 실행 실패";
           try {
             const screenshotBuffer = await page.screenshot({ fullPage: true });
             result.screenshotBase64 = screenshotBuffer.toString("base64");
@@ -330,6 +376,7 @@ export async function runNaturalLanguagePipeline(
           run.failed++;
           console.log(`\n❌ [${testId}] 실패: ${result.failReason}`);
         }
+        sync();
       } catch (err: any) {
         result.status = "Fail";
         result.failReason = err.message;
