@@ -80,9 +80,10 @@ async function main() {
   assert(after1?.checked === true, `"상담 기록 1" 클릭 후 checked=true`);
   assert(after2?.checked === false, `"상담 기록 2"는 여전히 unchecked (오클릭 없음)`);
 
-  console.log("\n[B4] 텍스트 상태 검증 — 'items left' 카운터");
-  const pageText = await session.getPage().evaluate(() => document.body.innerText);
-  assert(pageText.includes("1 item left"), `카운터 "1 item left" 확인 (완료 처리 반영됨)`);
+  console.log("\n[B4] 스냅샷 pageText 검증 — 에이전트가 성공 증거를 직접 볼 수 있어야 함");
+  snap = await snapshotPage(session.getPage());
+  assert(snap.pageText.includes("1 item left"), `스냅샷 pageText에 "1 item left" 포함 (에이전트가 카운터를 읽을 수 있음)`);
+  assert(snap.pageText.includes("상담 기록 1"), `스냅샷 pageText에 항목 텍스트 포함`);
 
   await browser.close();
   console.log(process.exitCode ? "\n❌ 일부 검증 실패" : "\n🎉 기계 레이어 전체 검증 통과");

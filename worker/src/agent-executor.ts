@@ -64,6 +64,8 @@ export interface PageSnapshot {
   title: string;
   elements: SnapshotElement[];
   truncated: boolean;
+  /** 화면에 보이는 일반 텍스트 (카운터, 안내문, 에러 메시지 등 비상호작용 콘텐츠) */
+  pageText: string;
 }
 
 const MAX_ELEMENTS = 200;
@@ -168,7 +170,10 @@ export async function snapshotPage(page: Page): Promise<PageSnapshot> {
       }
     }
 
-    return { elements: result, truncated };
+    // 비상호작용 텍스트도 수집 — 카운터/안내문/에러 배너 등은 성공 판정의 핵심 근거
+    const pageText = (document.body?.innerText || "").replace(/\n{2,}/g, "\n").trim().slice(0, 1500);
+
+    return { elements: result, truncated, pageText };
   }, MAX_ELEMENTS);
 
   return {
@@ -176,6 +181,7 @@ export async function snapshotPage(page: Page): Promise<PageSnapshot> {
     title: await page.title().catch(() => ""),
     elements: raw.elements,
     truncated: raw.truncated,
+    pageText: raw.pageText,
   };
 }
 
@@ -324,7 +330,12 @@ export async function executeAction(
         await page.locator(sel).first().selectOption({ label: act.value || "" }, { timeout: 5000 });
         break;
       case "press":
-        await page.keyboard.press(act.value || "Enter");
+        // F5는 헤드리스에서 무동작 — 실제 리로드로 매핑
+        if ((act.value || "").toUpperCase() === "F5") {
+          await page.reload({ waitUntil: "domcontentloaded", timeout: 20000 });
+        } else {
+          await page.keyboard.press(act.value || "Enter");
+        }
         break;
       case "scroll":
         await page.mouse.wheel(0, act.value === "up" ? -600 : 600);
@@ -364,7 +375,8 @@ export async function executeAction(
 
 const SYSTEM_PROMPT = `당신은 실제 브라우저를 조작하는 시니어 QA 자동화 에이전트입니다.
 
-매 턴마다 현재 페이지의 DOM 스냅샷(상호작용 가능한 요소 목록)을 받고, browser_action 도구로 다음 액션 하나를 결정합니다.
+매 턴마다 현재 페이지의 스냅샷을 받고, browser_action 도구로 다음 액션 하나를 결정합니다.
+스냅샷은 두 부분입니다: "화면에 보이는 텍스트"(카운터·안내문·상태 메시지 등)와 "상호작용 요소 목록"(ref 번호 포함).
 
 ## 절대 규칙
 1. ref는 반드시 현재 스냅샷에 존재하는 번호만 사용하세요. 추측하거나 만들어내지 마세요.
@@ -381,6 +393,7 @@ const SYSTEM_PROMPT = `당신은 실제 브라우저를 조작하는 시니어 Q
 
 ## 완료 판정 (중요)
 - done은 과업의 모든 단계가 실제로 완료된 것을 현재 스냅샷에서 확인했을 때만 사용하세요.
+- "~가 표시되면 성공" 류의 조건은 "화면에 보이는 텍스트" 섹션에서 확인하세요.
 - evidence에 완료를 증명하는 구체적 근거(현재 URL, 화면에 보이는 텍스트)를 반드시 적으세요.
 - 확인되지 않았는데 done 하지 마세요. 이는 가장 심각한 오류입니다.
 - 로그인 벽, CAPTCHA, 권한 부족 등으로 진행 불가면 fail로 명확한 이유를 보고하세요.
@@ -407,7 +420,9 @@ function formatSnapshot(snap: PageSnapshot): string {
   return [
     `URL: ${snap.url}`,
     `제목: ${snap.title}`,
-    `요소 ${snap.elements.length}개${snap.truncated ? " (일부 생략됨)" : ""}:`,
+    `### 화면에 보이는 텍스트`,
+    snap.pageText || "(없음)",
+    `### 상호작용 요소 ${snap.elements.length}개${snap.truncated ? " (일부 생략됨)" : ""}`,
     ...lines,
   ].join("\n");
 }
@@ -458,6 +473,7 @@ export async function runAgentScenario(
   let totalTokens = 0;
   // 과거 턴은 요약 텍스트로 압축해 토큰을 절약한다
   const history: string[] = [];
+  const recentSigs: string[] = [];
 
   const emit = (action: string, details: string, thought: string) => {
     const step: AgentStep = { stepNum: steps.length + 1, action, details, thought };
@@ -529,6 +545,14 @@ export async function runAgentScenario(
         ? `성공${outcome.newTab ? " (새 탭으로 전환됨)" : ""}${urlChanged ? ` → ${outcome.urlAfter}` : ""}`
         : `실패: ${outcome.error}`;
       history.push(`${i + 1}. ${act.action} ${desc} → ${resultNote}`);
+
+      // 루프 감지 — 같은 액션이 3회 반복되면 경고를 히스토리에 주입해 방향 전환을 유도
+      const sig = `${act.action}|${act.ref}|${act.value}`;
+      recentSigs.push(sig);
+      if (recentSigs.length > 3) recentSigs.shift();
+      if (recentSigs.length === 3 && recentSigs.every((s) => s === sig)) {
+        history.push(`⚠️ 경고: 같은 액션을 3회 반복했습니다. 이 방법은 효과가 없습니다. 화면 텍스트를 다시 읽고 완전히 다른 접근을 하거나, 과업 달성이 불가능하다고 판단되면 fail로 보고하세요.`);
+      }
 
       if (!outcome.ok) {
         emit("error", outcome.error || "액션 실패", "다음 스냅샷을 보고 다른 방법을 시도합니다.");
