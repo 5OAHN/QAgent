@@ -33,13 +33,17 @@ const SYSTEM_PROMPT = `You are a Playwright automation code generator (NOT Playw
 - To wait for element: await page.waitForSelector('...', {state:'visible', timeout:10000})
 - To verify success: await page.waitForSelector('...', {state:'visible'}) — NOT expect()
 
-## REQUIRED: Final verification (MUST be the last line)
-- If the scenario involves page navigation: await page.waitForURL(/keyword/, {timeout:10000})
-  Example — navigated to product page: await page.waitForURL(/detail|product|item|goods/, {timeout:10000})
-  Example — navigated to store: await page.waitForURL(/smartstore|shop|store/, {timeout:10000})
-  Example — after login: await page.waitForURL(/dashboard|main|home|(?<!login)$/, {timeout:10000})
-- If no navigation expected: await page.waitForSelector('visibleElementOnSuccessPage', {state:'visible',timeout:10000})
-- This line MUST throw if the scenario did not actually complete — never use .catch(()=>{}) on the final verification
+## REQUIRED: Final verification (MUST be the last lines)
+- ALWAYS save the URL before the last navigation action, then verify it changed:
+  ```
+  const __urlBefore = page.url();
+  await page.locator('...').click();
+  await page.waitForLoadState('domcontentloaded');
+  await page.waitForFunction(url => location.href !== url, __urlBefore, {timeout:15000});
+  ```
+- NEVER use regex patterns like /keyword/ in waitForURL — they cause syntax errors
+- NEVER use .catch(()=>{}) on the final verification — it must throw on failure
+- If no navigation expected (e.g. modal appeared): await page.waitForSelector('selector', {state:'visible',timeout:10000})
 
 ## Known selectors
 - 네이버 검색창: input[name="query"]
