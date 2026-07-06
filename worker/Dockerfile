@@ -1,5 +1,6 @@
 # Node.js + Chromium 사전 탑재 공식 이미지
-FROM mcr.microsoft.com/playwright:v1.44.0-jammy
+# 이미지 버전은 package.json의 playwright 버전과 일치해야 함
+FROM mcr.microsoft.com/playwright:v1.61.0-noble
 
 WORKDIR /app
 

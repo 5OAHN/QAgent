@@ -7,13 +7,14 @@ type Mode = "natural" | "excel";
 interface ScenarioCard { id: number; text: string; }
 interface LoginField { id: number; label: string; customLabel?: string; value: string; isPassword: boolean; }
 
-const CARD_PLACEHOLDER = `테스트 시나리오를 자유롭게 작성하세요.
+const CARD_PLACEHOLDER = `테스트 시나리오를 단계별로 작성하세요.
+마지막에 "무엇이 보이면 성공"인지 적으면 검증이 정확해집니다.
 
 예시)
-1. 메인 대시보드가 표시되는지 확인한다
-2. 사용자 관리 메뉴를 클릭한다
-3. 새 사용자 추가 버튼을 클릭한다
-4. 이름과 이메일을 입력하고 저장한다`;
+1. 사용자 관리 메뉴를 클릭한다
+2. 새 사용자 추가 버튼을 클릭한다
+3. 이름에 "테스트", 이메일에 "test@test.com"을 입력하고 저장한다
+4. 목록에 "테스트" 사용자가 표시되면 성공`;
 
 const LOGIN_LABEL_OPTIONS = ["아이디 / 이메일", "비밀번호", "테넌시 ID", "워크스페이스 코드", "기관 코드", "직접 입력"];
 
@@ -220,7 +221,7 @@ function NewTestForm() {
           {/* 제목 */}
           <div style={{ textAlign: "center", marginBottom: 4 }}>
             <h1 style={{ fontSize: 28, fontWeight: 600, color: A.ink, letterSpacing: "-0.5px", marginBottom: 6 }}>새 테스트 실행</h1>
-            <p style={{ fontSize: 13, color: A.inkMuted }}>AI가 화면을 보며 시나리오를 자동으로 수행합니다</p>
+            <p style={{ fontSize: 13, color: A.inkMuted }}>AI 에이전트가 실제 화면 구조를 분석하며 시나리오를 단계별로 수행합니다</p>
           </div>
 
           {/* 폼 카드 */}

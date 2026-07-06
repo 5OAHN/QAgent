@@ -1,7 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { Page } from "playwright";
-import { runVisionAgent, VisionResult, VisionStep, RunControl } from "./vision-agent";
+import { runAgentScenario, AgentResult, AgentStep, RunControl, SecretField } from "./agent-executor";
 import { resolveAnthropicKey } from "./api-keys";
+
+export type VisionResult = AgentResult;
+export type VisionStep = AgentStep;
+export type { RunControl };
 
 const PLAN_MODEL = "claude-haiku-4-5";
 
@@ -182,19 +186,32 @@ export async function executeSmartLogin(
 
     return { success: true, steps: [doneStep] };
   } catch (err: any) {
-    // 스마트 로그인 실패 — 기존 비전 에이전트(화면 인식 기반)로 폴백
-    console.warn(`  [smart-login] 룰베이스 로그인 실패, 비전 에이전트로 전환: ${err.message}`);
-    onStep?.({ stepNum: 2, action: "fallback", thought: `룰베이스 로그인 실패(${err.message}) — 화면 인식 기반으로 재시도합니다.`, details: "비전 에이전트 전환" });
+    // 스마트 로그인 실패 — DOM 스냅샷 에이전트로 폴백 (비밀번호는 시크릿 토큰으로 보호)
+    console.warn(`  [smart-login] 룰베이스 로그인 실패, DOM 에이전트로 전환: ${err.message}`);
+    onStep?.({ stepNum: 2, action: "fallback", thought: `룰베이스 로그인 실패(${err.message}) — DOM 스냅샷 에이전트로 재시도합니다.`, details: "에이전트 전환" });
+
+    const secrets: SecretField[] = fields.map((f, i) => ({
+      token: `{{SECRET_${i}}}`,
+      value: f.value,
+      masked: f.isPassword ? "(비밀번호)" : f.value,
+    }));
 
     const loginTask = [
-      "[로그인 선행 작업]",
-      "아래 순서대로 정확히 수행하세요:",
-      ...fields.map((f, i) => `${i + 1}. '${f.label || "필드"}' 입력 필드를 click한 직후 바로 type 액션으로 '${f.isPassword ? "(비밀번호)" : f.value}'를 입력하세요.`),
-      `${fields.length + 1}. 로그인/제출 버튼을 click하세요. 버튼을 찾지 못하면 press 액션으로 Enter를 누르세요.`,
+      "[로그인 과업]",
+      "아래 필드를 로그인 폼에 입력하고 제출하세요:",
+      ...fields.map((f, i) => `${i + 1}. '${f.label || `필드${i + 1}`}' 필드에 {{SECRET_${i}}} 입력${f.isPassword ? " (비밀번호 필드)" : ""}`),
+      `${fields.length + 1}. 로그인/제출 버튼 클릭 (없으면 마지막 필드에서 Enter)`,
       "",
-      "중요: click 다음에는 반드시 같은 필드에 type을 수행하세요. 같은 필드를 두 번 click하지 마세요.",
-      "로그인 완료 후 URL이 변경되면 done 액션을 사용하세요.",
+      "로그인 후 URL이 변경되고 로그인 폼이 사라진 것을 확인한 뒤 done 하세요.",
+      "URL이 그대로이거나 에러 메시지가 보이면 fail로 보고하세요.",
     ].join("\n");
-    return runVisionAgent(page, loginTask, 15, onStep, control);
+
+    const result = await runAgentScenario(page, loginTask, {
+      maxSteps: 12,
+      secrets,
+      onStep,
+      control,
+    });
+    return result;
   }
 }

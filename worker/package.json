@@ -4,7 +4,8 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/main.ts",
     "build": "tsc",
-    "start": "node dist/main.js"
+    "start": "node dist/main.js",
+    "test:engine": "ts-node --transpile-only test-engine.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.1",

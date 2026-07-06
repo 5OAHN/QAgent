@@ -6,8 +6,7 @@ import { UIDictionary } from "./parser";
 import { runTest, TestResult } from "./executor";
 import { analyzeFailure } from "./analyzer";
 import { executeSmartLogin } from "./smart-login";
-import { generatePlaywrightCode, fixPlaywrightCode } from "./code-generator";
-import { runGeneratedCode } from "./code-runner";
+import { runAgentScenario } from "./agent-executor";
 import { saveRun, loadAllRuns, deleteRun } from "./db";
 
 export interface RunResult {
@@ -149,7 +148,7 @@ export async function runExcelPipeline(
   return run;
 }
 
-// ── 자연어 파이프라인 (Vision 에이전트) ──────────────────────────────
+// ── 자연어 파이프라인 (DOM 스냅샷 에이전트) ──────────────────────────────
 export interface LoginConfig {
   fields: { label: string; value: string; isPassword: boolean }[];
 }
@@ -199,7 +198,7 @@ export async function runNaturalLanguagePipeline(
   // 브라우저 + 컨텍스트 + 페이지를 런 전체에서 공유 — 세션이 끊기지 않음
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
-  const page = await context.newPage();
+  let page = await context.newPage();
 
   try {
     // 첫 페이지 로드
@@ -224,6 +223,9 @@ export async function runNaturalLanguagePipeline(
           run.loginSteps!.push(`${icon} ${step.action.toUpperCase()} ${step.details}\n    💭 ${step.thought}`);
           saveRun(run);
         }, control);
+
+        // 로그인 에이전트가 새 탭으로 전환했을 수 있음
+        page = (loginResult as any).finalPage ?? page;
 
         if (loginResult.success) {
           run.loginStatus = "success";
@@ -271,7 +273,7 @@ export async function runNaturalLanguagePipeline(
 
       const result: TestResult = {
         testId,
-        feature: "Vision 에이전트",
+        feature: "AI 에이전트",
         scenario: naturalText.slice(0, 80),
         status: "Pending",
         failReason: "",
@@ -284,59 +286,34 @@ export async function runNaturalLanguagePipeline(
 
       const caseStartedAt = Date.now();
       try {
-        console.log(`\n🤖 [${testId}] 코드 생성 시작 → ${page.url()}`);
+        console.log(`\n🤖 [${testId}] AI 에이전트 시작 → ${page.url()}`);
 
         const liveStepLogs: string[] = [];
-        let totalTokens = 0;
 
-        const pushLog = (icon: string, action: string, details: string, thought: string) => {
-          liveStepLogs.push(`${icon} ${action.toUpperCase()} ${details}\n    💭 ${thought}`);
-          result.consoleLogs = [...liveStepLogs];
-          run.cases = run.cases.map((c) => c.testId === testId ? { ...result } : c);
-          saveRun(run);
-        };
-
-        // ── 1단계: Playwright 코드 생성 ──────────────────────────────
-        pushLog("🧠", "codegen", "Playwright 코드 생성 중...", naturalText.slice(0, 80));
-        const { code, tokens: genTokens } = await generatePlaywrightCode(targetUrl, naturalText, loginConfig);
-        totalTokens += genTokens;
-        pushLog("📝", "codegen", `코드 생성 완료 (${code.split("\n").length}줄)`, code.split("\n")[0] || "");
-        console.log(`  [${testId}] 생성된 코드:\n${code}`);
-
-        // ── 2단계: 코드 실행 (실패 시 최대 2회 수정 재시도) ─────────
-        let runResult = await runGeneratedCode(page, code, (step) => {
-          const icon = step.action === "done" ? "✅" : step.action === "failed" ? "❌" : `[${step.stepNum}]`;
-          pushLog(icon, step.action, step.details, step.thought);
+        const agentResult = await runAgentScenario(page, naturalText, {
+          maxSteps: 25,
+          onStep: (step) => {
+            const icon = step.action === "done" ? "✅" : step.action === "fail" || step.action === "error" ? "❌" : `[${step.stepNum}]`;
+            liveStepLogs.push(`${icon} ${step.action.toUpperCase()} ${step.details}\n    💭 ${step.thought}`);
+            result.consoleLogs = [...liveStepLogs];
+            run.cases = run.cases.map((c) => c.testId === testId ? { ...result } : c);
+            saveRun(run);
+          },
+          control,
         });
 
-        let currentCode = code;
-        let attempt = 0;
-        while (!runResult.success && attempt < 2) {
-          attempt++;
-          console.warn(`  [${testId}] 실행 실패 — 코드 수정 시도 ${attempt}/2: ${runResult.error}`);
-          pushLog("🔧", "fix", `코드 수정 중 (시도 ${attempt}/2)`, runResult.error?.slice(0, 80) || "");
+        // 에이전트가 새 탭으로 전환했으면 이후 시나리오도 그 페이지에서 이어간다
+        page = agentResult.finalPage;
+        result.tokenUsage = agentResult.totalTokens;
 
-          const { code: fixedCode, tokens: fixTokens } = await fixPlaywrightCode(
-            currentCode, runResult.error || "", naturalText
-          );
-          totalTokens += fixTokens;
-          currentCode = fixedCode;
-          pushLog("📝", "fix", `수정 완료 (${fixedCode.split("\n").length}줄)`, fixedCode.split("\n")[0] || "");
-          console.log(`  [${testId}] 수정된 코드 (시도 ${attempt}):\n${fixedCode}`);
-
-          runResult = await runGeneratedCode(page, fixedCode, (step) => {
-            const icon = step.action === "done" ? "✅" : step.action === "failed" ? "❌" : `[${step.stepNum}]`;
-            pushLog(icon, step.action, step.details, step.thought);
-          });
-        }
-
-        result.tokenUsage = totalTokens;
-        // 최종 생성 코드를 저장해서 UI에서 확인 가능하게
-        (result as any).generatedCode = currentCode;
-
-        if (runResult.success) {
+        if (agentResult.success) {
           result.status = "Pass";
-          result.verificationStatus = "approved";
+          result.verificationStatus = agentResult.verificationStatus || "approved";
+          result.reviewReason = agentResult.reviewReason;
+          if (agentResult.summary) {
+            liveStepLogs.push(`✅ 완료 근거: ${agentResult.summary}`);
+            result.consoleLogs = [...liveStepLogs];
+          }
           try {
             const screenshotBuffer = await page.screenshot({ fullPage: true });
             result.screenshotBase64 = screenshotBuffer.toString("base64");
@@ -345,7 +322,7 @@ export async function runNaturalLanguagePipeline(
           console.log(`\n✅ [${testId}] 완료 (현재 URL: ${page.url()})`);
         } else {
           result.status = "Fail";
-          result.failReason = runResult.error || "코드 실행 실패";
+          result.failReason = agentResult.failReason || "에이전트 실행 실패";
           try {
             const screenshotBuffer = await page.screenshot({ fullPage: true });
             result.screenshotBase64 = screenshotBuffer.toString("base64");
@@ -387,7 +364,7 @@ export async function runNaturalLanguagePipeline(
     if (run.cases.some((c) => c.testId === testId)) continue;
     run.cases.push({
       testId,
-      feature: "Vision 에이전트",
+      feature: "AI 에이전트",
       scenario: scenarioList[i].slice(0, 80),
       status: "Fail",
       failReason: wasCancelled ? "실행이 중지되어 처리되지 않음" : "실행이 중단되어 처리되지 않음",
