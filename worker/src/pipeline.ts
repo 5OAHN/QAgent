@@ -219,7 +219,7 @@ export async function runNaturalLanguagePipeline(
 
         const loginFields = loginConfig.fields.filter((f) => f.value.trim());
         const loginResult = await executeSmartLogin(page, loginFields, (step) => {
-          const icon = step.action === "done" ? "✅" : step.action === "failed" ? "❌" : `[${step.stepNum}]`;
+          const icon = step.action === "done" ? "✅" : step.action === "fail" || step.action === "error" ? "❌" : `[${step.stepNum}]`;
           run.loginSteps!.push(`${icon} ${step.action.toUpperCase()} ${step.details}\n    💭 ${step.thought}`);
           saveRun(run);
         }, control);
