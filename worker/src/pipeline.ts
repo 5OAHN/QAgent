@@ -298,15 +298,33 @@ export async function runNaturalLanguagePipeline(
           saveRun(run);
         };
 
-        // ── 1단계: 시나리오 정규화 — 행동/검증 단위로 분해 (LLM 1회) ──
-        liveStepLogs.push(`🧠 PLAN 시나리오 분석 중\n    💭 시나리오를 실행 가능한 단계로 분해합니다.`);
+        // ── 1단계: 시나리오 분석 — 실행 가능성 판정 + 행동/검증 단위 분해 (LLM 1회) ──
+        liveStepLogs.push(`🧠 PLAN 시나리오 분석 중\n    💭 실행 가능성을 판정하고 단계를 분해합니다.`);
         sync();
         const plan = await planScenario(naturalText, targetUrl, run.loginStatus === "success");
         totalTokens += plan.tokens;
+
+        // AI가 테스트 불가로 판정 — 에이전트를 실행하지 않고 사유와 보완 가이드를 보고
+        if (plan.decision === "blocked") {
+          result.status = "Blocked";
+          result.blockReason = plan.blockReason || "AI가 이 시나리오를 자동화 테스트로 진행할 수 없다고 판정했습니다.";
+          result.failReason = result.blockReason;
+          result.tokenUsage = totalTokens;
+          liveStepLogs.push(`⚠️ BLOCKED 테스트 진행 불가 판정\n    💭 ${result.blockReason}`);
+          run.failed++; // 집계상 실패로 계산 (성공은 아니므로)
+          console.log(`\n⚠️ [${testId}] 진행 불가 판정: ${result.blockReason}`);
+          sync();
+          continue;
+        }
+
         result.stepPlan = plan.steps.map((s) => ({ ...s, status: "pending" as const }));
+        result.assumptions = plan.assumptions;
         liveStepLogs.push(
           `📋 PLAN ${plan.steps.length}개 단계로 분해 완료\n    💭 ${plan.steps.map((s, i) => `${i + 1}. ${s.action}`).join(" / ")}`
         );
+        if (plan.assumptions.length > 0) {
+          liveStepLogs.push(`💡 가정 선언\n    💭 ${plan.assumptions.join(" / ")}`);
+        }
         sync();
         console.log(`  [${testId}] 계획:\n${plan.steps.map((s, i) => `    ${i + 1}. ${s.action} → 확인: ${s.verify}`).join("\n")}`);
 
@@ -321,15 +339,26 @@ export async function runNaturalLanguagePipeline(
           result.stepPlan![sIdx].status = "running";
           sync();
 
+          // 복잡한 시나리오 대응 — 전체 흐름과 완료된 단계를 컨텍스트로 전달해
+          // 에이전트가 "지금 어디까지 왔는지"를 알고 판단하게 한다
+          const flowContext = [
+            `전체 시나리오 흐름: ${plan.steps.map((s, i) => `${i + 1}. ${s.action}`).join(" → ")}`,
+            sIdx > 0 ? `이미 완료된 단계: ${plan.steps.slice(0, sIdx).map((s, i) => `${i + 1}. ${s.action}`).join(" / ")}` : "",
+            plan.assumptions.length > 0 ? `해석 가정: ${plan.assumptions.join(" / ")}` : "",
+          ].filter(Boolean).join("\n");
+
           const stepTask = [
-            `[단계 ${sIdx + 1}/${plan.steps.length}] ${planned.action}`,
+            flowContext,
+            "",
+            `[현재 단계 ${sIdx + 1}/${plan.steps.length}] ${planned.action}`,
             `완료 조건: ${planned.verify}`,
             "",
             "이 단계 하나만 수행하세요. 완료 조건이 화면에서 확인되면 done, 확인되지 않거나 진행 불가면 fail 하세요.",
+            "단계에 조건('~라면')이 있으면 현재 화면을 보고 조건 충족 여부를 먼저 판단하세요. 조건이 해당되지 않으면 그 사실을 evidence에 적고 done 하세요.",
           ].join("\n");
 
           const agentResult = await runAgentScenario(page, stepTask, {
-            maxSteps: 8,
+            maxSteps: 12,
             onStep: (step) => {
               const icon = step.action === "done" ? "✅" : step.action === "fail" || step.action === "error" ? "❌" : `[${sIdx + 1}.${step.stepNum}]`;
               liveStepLogs.push(`${icon} ${step.action.toUpperCase()} ${step.details}\n    💭 ${step.thought}`);

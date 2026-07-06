@@ -10,15 +10,40 @@ export interface PlannedStep {
   verify: string;
 }
 
+export interface ScenarioPlan {
+  /** proceed=실행 진행, blocked=실행 불가/보류 판정 */
+  decision: "proceed" | "blocked";
+  /** blocked일 때 — 왜 진행할 수 없는지, 시나리오를 어떻게 고치면 되는지 */
+  blockReason?: string;
+  /** proceed일 때 — 모호한 부분을 AI가 어떻게 해석했는지 선언 (투명성) */
+  assumptions: string[];
+  steps: PlannedStep[];
+  tokens: number;
+}
+
 const PLAN_TOOL = {
   name: "plan_scenario",
-  description: "자연어 QA 시나리오를 실행 가능한 단계 목록으로 정규화한다",
+  description: "자연어 QA 시나리오를 분석해 실행 가능 여부를 판정하고, 가능하면 실행 단계로 정규화한다",
   input_schema: {
     type: "object" as const,
     properties: {
+      decision: {
+        type: "string",
+        enum: ["proceed", "blocked"],
+        description: "proceed=브라우저 자동화로 테스트 가능, blocked=진행 불가(이유 필수)",
+      },
+      block_reason: {
+        type: "string",
+        description: "blocked일 때만 — 진행 불가 이유 + 시나리오를 어떻게 보완하면 되는지 구체적 안내. 한국어로.",
+      },
+      assumptions: {
+        type: "array",
+        items: { type: "string" },
+        description: "시나리오의 모호한 부분을 해석한 가정 목록. 명확한 시나리오면 빈 배열. 예: '\"설정 메뉴\"는 상단 네비게이션의 설정 링크로 해석'",
+      },
       steps: {
         type: "array",
-        description: "순서대로 실행할 단계 목록",
+        description: "proceed일 때 — 순서대로 실행할 단계 목록. blocked면 빈 배열",
         items: {
           type: "object",
           properties: {
@@ -35,27 +60,40 @@ const PLAN_TOOL = {
         },
       },
     },
-    required: ["steps"],
+    required: ["decision", "assumptions", "steps"],
   },
 };
 
-const SYSTEM_PROMPT = `당신은 시니어 QA 엔지니어입니다. 비개발자가 작성한 자연어 테스트 시나리오를 브라우저 자동화 에이전트가 실행할 수 있는 단계 목록으로 정규화합니다.
+const SYSTEM_PROMPT = `당신은 시니어 QA 리드입니다. 비개발자가 작성한 자연어 테스트 시나리오를 받아 두 가지를 수행합니다:
+(1) 브라우저 자동화 에이전트가 이 시나리오를 테스트할 수 있는지 판정
+(2) 가능하다면 실행 단계 목록으로 정규화
 
-## 규칙
-1. 각 단계(action)는 하나의 사용자 행동 단위입니다. 여러 행동이 뭉쳐있으면 분해하세요.
-   - "로그인하고 대시보드 진입" → 두 단계가 아니라, 로그인이 이미 완료된 상태라면 "대시보드 메뉴 클릭" 하나로.
-2. verify는 그 행동 직후 화면에서 관찰 가능한 결과여야 합니다 (표시되는 텍스트, URL 변화, 목록 변화 등).
-3. 시나리오에 "~가 보이면 성공", "~를 확인한다" 같은 기대결과가 있으면 해당 단계의 verify로 반영하세요.
-4. 기대결과가 없으면 행동의 자연스러운 결과를 추론해 verify를 작성하세요. 추측이 어려우면 "다음 화면으로 진행됨" 수준으로.
-5. 순수 확인 단계("~가 표시되는지 확인")는 action을 "화면에서 ~ 확인"으로, verify를 그 내용으로 작성하세요.
-6. 단계를 불필요하게 잘게 쪼개지 마세요. 보통 시나리오 하나는 2~6단계입니다.
-7. 시나리오에 없는 행동을 만들어내지 마세요.`;
+## 판정 기준 — blocked로 판정해야 하는 경우
+- 브라우저 UI 조작 범위를 벗어남: 이메일/SMS 수신 확인, 실제 결제 승인, 전화, 물리 장치, 타 시스템 데이터 검증
+- 파괴적이거나 되돌릴 수 없는 실운영 행위가 명백함: 실제 고객 데이터 삭제, 실제 주문/결제 실행 (테스트 환경 명시가 없을 때)
+- 검증 기준을 세울 수 없음: "빨라야 한다", "예뻐야 한다", "잘 되는지 확인" 같이 관찰 가능한 결과로 변환 불가능한 요구만 있는 경우
+- 필수 정보 누락: 특정 계정/데이터가 반드시 필요한데 시나리오에 없음 (예: "관리자 계정으로 승인" — 관리자 로그인 정보 없음)
+- blocked일 때 block_reason에 반드시 포함: ① 왜 불가한지 ② 시나리오를 어떻게 고치면 진행 가능한지
+
+## 판정 시 주의 — 웬만하면 proceed
+- 표현이 다소 모호해도 화면에서 합리적으로 해석 가능하면 proceed + assumptions에 해석을 선언
+- "N번째 항목", "아무 제품이나" 같은 지시는 실행 가능 — 가정 선언 후 proceed
+- 조건부 시나리오("~라면 ~한다")도 proceed — 단계의 action에 조건을 그대로 담으면 에이전트가 화면을 보고 판단
+
+## 정규화 규칙 (proceed일 때)
+1. 각 단계(action)는 하나의 사용자 행동 단위. 뭉쳐있으면 분해.
+2. verify는 그 행동 직후 화면에서 관찰 가능한 결과 (표시되는 텍스트, URL 변화, 목록 변화 등).
+3. 시나리오에 명시된 기대결과("~가 보이면 성공")는 해당 단계의 verify로 반영.
+4. 기대결과가 없으면 자연스러운 결과를 추론해 verify 작성.
+5. 순수 확인 단계는 action을 "화면에서 ~ 확인"으로.
+6. 조건부 단계는 action에 조건을 포함: "장바구니가 비어있지 않다면 비우기 버튼 클릭 (비어있으면 이 단계는 통과로 간주)"
+7. 보통 2~6단계. 시나리오에 없는 행동을 만들어내지 마세요.`;
 
 export async function planScenario(
   naturalText: string,
   targetUrl: string,
   loginDone: boolean
-): Promise<{ steps: PlannedStep[]; tokens: number }> {
+): Promise<ScenarioPlan> {
   const apiKey = resolveAnthropicKey();
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY가 설정되지 않았습니다.");
   const client = new Anthropic({ apiKey });
@@ -70,7 +108,7 @@ export async function planScenario(
 
   const res = await client.messages.create({
     model: PLAN_MODEL,
-    max_tokens: 1500,
+    max_tokens: 2000,
     system: SYSTEM_PROMPT,
     tools: [PLAN_TOOL],
     tool_choice: { type: "tool", name: "plan_scenario" },
@@ -82,8 +120,32 @@ export async function planScenario(
   if (!toolBlock || toolBlock.type !== "tool_use") {
     throw new Error("시나리오 분석에 실패했습니다.");
   }
-  const input = toolBlock.input as { steps: PlannedStep[] };
+  const input = toolBlock.input as {
+    decision: "proceed" | "blocked";
+    block_reason?: string;
+    assumptions?: string[];
+    steps?: PlannedStep[];
+  };
+
   const steps = (input.steps || []).filter((s) => s.action?.trim());
-  if (steps.length === 0) throw new Error("시나리오에서 실행 가능한 단계를 찾지 못했습니다.");
-  return { steps, tokens };
+  const decision = input.decision === "blocked" ? "blocked" : "proceed";
+
+  if (decision === "proceed" && steps.length === 0) {
+    // 모델이 proceed라면서 단계를 안 준 경우 — 스키마 불일치 방어
+    return {
+      decision: "blocked",
+      blockReason: "시나리오에서 실행 가능한 단계를 추출하지 못했습니다. 시나리오를 행동 단위로 다시 작성해주세요. (예: 1. ~메뉴를 클릭한다 2. ~버튼을 클릭한다)",
+      assumptions: [],
+      steps: [],
+      tokens,
+    };
+  }
+
+  return {
+    decision,
+    blockReason: input.block_reason,
+    assumptions: input.assumptions || [],
+    steps,
+    tokens,
+  };
 }

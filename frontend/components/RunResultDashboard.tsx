@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from "react";
 // ─────────────────────────────────────────────────────────────────────────────
 
 type RunStatus = "running" | "completed" | "failed";
-type CaseStatus = "Pass" | "Fail" | "Pending";
+type CaseStatus = "Pass" | "Fail" | "Pending" | "Blocked";
 type ControlAction = "cancel" | "pause" | "resume";
 
 interface TestCase {
@@ -27,6 +27,8 @@ interface TestCase {
   durationMs?: number;
   tokenUsage?: number;
   stepPlan?: { action: string; verify: string; status: "pending" | "running" | "pass" | "fail" }[];
+  blockReason?: string;
+  assumptions?: string[];
 }
 
 interface RunResult {
@@ -365,13 +367,13 @@ export function RunResultDashboard({ runId }: { runId: string }) {
 
   const passCount = displayCases.filter((c) => c.status === "Pass" && c.verificationStatus !== "rejected").length;
   const failCount = displayCases.filter((c) => c.status === "Fail").length;
-  const reviewCount = displayCases.filter((c) => c.verificationStatus === "pending").length;
+  const reviewCount = displayCases.filter((c) => c.verificationStatus === "pending" || c.status === "Blocked").length;
 
   const filteredCases = displayCases.filter((c) => {
     if (filterStatus === "all") return true;
     if (filterStatus === "pass") return c.status === "Pass" && c.verificationStatus !== "rejected";
     if (filterStatus === "fail") return c.status === "Fail";
-    if (filterStatus === "review") return c.verificationStatus === "pending";
+    if (filterStatus === "review") return c.verificationStatus === "pending" || c.status === "Blocked";
     return true;
   });
 
@@ -886,6 +888,8 @@ function ScenarioCard({
   const icon =
     tc.status === "Pending" ? (
       <span className="w-4 h-4 rounded-full bg-indigo-500 animate-pulse inline-block" />
+    ) : tc.status === "Blocked" ? (
+      <span className="text-base">🚧</span>
     ) : isReview ? (
       <span className="text-base">⚠️</span>
     ) : tc.status === "Pass" ? (
@@ -904,7 +908,7 @@ function ScenarioCard({
   const isLong = displayScenario.length > 90 || lines.length > 2;
 
   const duration = formatDuration(tc.durationMs);
-  const isFail = tc.status === "Fail";
+  const isFail = tc.status === "Fail" || tc.status === "Blocked";
 
   return (
     <div
@@ -1161,12 +1165,27 @@ function TimelineCard({
         )}
       </div>
 
-      {tc?.status === "Fail" && tc.failReason && (
+      {tc?.status === "Blocked" ? (
+        <div className="mb-5 px-4 py-3 rounded-lg border border-amber-300 bg-amber-50 flex-shrink-0">
+          <p className="text-sm font-semibold text-amber-700 mb-1">🚧 AI 판단: 이 시나리오는 자동화 테스트로 진행할 수 없습니다</p>
+          <p className="text-sm text-amber-800 whitespace-pre-line">{tc.blockReason || tc.failReason}</p>
+        </div>
+      ) : tc?.status === "Fail" && tc.failReason ? (
         <div className="mb-5 px-4 py-3 rounded-lg border border-red-300 bg-red-50 flex-shrink-0">
           <p className="text-sm text-red-600">
             <span className="font-semibold">실패 사유 : </span>
             {humanizeFailReason(tc.failReason)}
           </p>
+        </div>
+      ) : null}
+
+      {/* AI가 선언한 해석 가정 — 투명성 */}
+      {tc?.assumptions && tc.assumptions.length > 0 && activeTab === "timeline" && (
+        <div className="mb-4 px-4 py-2.5 rounded-lg border border-blue-200 bg-blue-50/50 flex-shrink-0">
+          <p className="text-xs font-bold text-blue-500 mb-1 uppercase tracking-wide">AI 해석 가정</p>
+          {tc.assumptions.map((a, i) => (
+            <p key={i} className="text-xs text-blue-700 leading-relaxed">· {a}</p>
+          ))}
         </div>
       )}
 

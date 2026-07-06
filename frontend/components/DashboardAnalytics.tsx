@@ -22,7 +22,7 @@ interface TestResult {
   testId: string;
   feature: string;
   scenario: string;
-  status: "Pass" | "Fail" | "Pending";
+  status: "Pass" | "Fail" | "Pending" | "Blocked";
   failReason: string;
   consoleLogs: string[];
   durationMs?: number;
@@ -128,7 +128,7 @@ function buildTrend(cases: CaseWithRun[]) {
     const bucket = days.find((d) => d.date === key);
     if (!bucket) continue;
     if (c.status === "Pass") bucket.pass++;
-    else if (c.status === "Fail") bucket.fail++;
+    else if (c.status === "Fail" || c.status === "Blocked") bucket.fail++;
   }
   return days;
 }

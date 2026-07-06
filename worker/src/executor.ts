@@ -7,7 +7,7 @@ export interface TestResult {
   testId: string;
   feature: string;
   scenario: string;
-  status: "Pass" | "Fail" | "Pending";
+  status: "Pass" | "Fail" | "Pending" | "Blocked";
   failReason: string;
   videoUrl: string;
   screenshotUrl: string;
@@ -20,6 +20,10 @@ export interface TestResult {
   tokenUsage?: number;
   /** AI가 정규화한 단계별 계획과 진행 상태 — 비개발자용 체크리스트 */
   stepPlan?: { action: string; verify: string; status: "pending" | "running" | "pass" | "fail" }[];
+  /** Blocked 판정 사유 + 보완 가이드 */
+  blockReason?: string;
+  /** AI가 모호한 표현을 해석한 가정 목록 */
+  assumptions?: string[];
 }
 
 const BASE_URL = process.env.WORKER_BASE_URL || "http://localhost:8001";
