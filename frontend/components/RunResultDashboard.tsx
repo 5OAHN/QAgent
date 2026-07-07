@@ -3,6 +3,8 @@
 import useSWR from "swr";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { getAdminToken, setAdminToken, clearAdminToken } from "@/lib/admin";
+import AdminAuthModal from "@/components/AdminAuthModal";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -255,6 +257,7 @@ export function RunResultDashboard({ runId }: { runId: string }) {
   const [editedScenarios, setEditedScenarios] = useState<Record<string, string>>({});
   const [editingTestId, setEditingTestId] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
+  const [retryAuthOpen, setRetryAuthOpen] = useState(false);
   const prevCasesRef = useRef<Map<string, CaseStatus>>(new Map());
 
   const { data, error, isLoading, mutate } = useSWR<RunResult>(
@@ -315,7 +318,7 @@ export function RunResultDashboard({ runId }: { runId: string }) {
     try {
       const res = await fetch("/api/trigger", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-qagent-admin-token": getAdminToken() },
         body: JSON.stringify({
           url: data.targetUrl,
           scenarios: selectedScenarios,
@@ -323,14 +326,21 @@ export function RunResultDashboard({ runId }: { runId: string }) {
         }),
       });
       const result = await res.json();
+      if (res.status === 403) {
+        // 인증 후 재시도할 수 있도록 선택 상태는 유지
+        clearAdminToken();
+        setRetryAuthOpen(true);
+        setRetrying(false);
+        return;
+      }
       if (result.run_id) {
         router.push(`/dashboard/${result.run_id}`);
       }
+      setCheckedIds(new Set());
     } catch {
       /* noop */
     } finally {
       setRetrying(false);
-      setCheckedIds(new Set());
     }
   };
 
@@ -439,6 +449,7 @@ export function RunResultDashboard({ runId }: { runId: string }) {
               total={data.total}
               passed={passCount}
               failed={failCount}
+              testName={(data as any).testName}
             />
 
             {data.targetUrl && <TargetUrlCard url={data.targetUrl} />}
@@ -502,6 +513,18 @@ export function RunResultDashboard({ runId }: { runId: string }) {
           onApply={(newText) => handleApplyEdit(editingTestId, newText)}
         />
       )}
+
+      {/* ── 재시도 관리자 인증 모달 ─────────────────────────────────────────── */}
+      {retryAuthOpen && (
+        <AdminAuthModal
+          onClose={() => setRetryAuthOpen(false)}
+          onVerified={(token) => {
+            setAdminToken(token);
+            setRetryAuthOpen(false);
+            handleRetrySelected();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -517,6 +540,7 @@ function ExecutionSummaryCard({
   total,
   passed,
   failed,
+  testName,
 }: {
   createdAt: string;
   statusBadge: { label: string; className: string };
@@ -524,11 +548,12 @@ function ExecutionSummaryCard({
   total: number;
   passed: number;
   failed: number;
+  testName?: string;
 }) {
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
       <div className="flex items-center justify-between mb-1">
-        <h1 className="text-lg font-bold text-gray-900">실행 결과</h1>
+        <h1 className="text-lg font-bold text-gray-900">{testName || "실행 결과"}</h1>
         <span className={`text-xs font-bold px-3 py-1 rounded-full border ${statusBadge.className}`}>
           {statusBadge.label}
         </span>

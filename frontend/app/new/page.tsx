@@ -2,10 +2,11 @@
 
 import { useState, useRef, DragEvent, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { getAdminToken, setAdminToken, clearAdminToken } from "@/lib/admin";
 
 type Mode = "natural" | "excel";
 interface ScenarioCard { id: number; text: string; }
-interface LoginField { id: number; label: string; customLabel?: string; value: string; isPassword: boolean; }
+interface LoginField { id: number; label: string; customLabel?: string; value: string; isPassword: boolean; hasStored?: boolean; }
 
 const CARD_PLACEHOLDER = `테스트 시나리오를 단계별로 작성하세요.
 마지막에 "무엇이 보이면 성공"인지 적으면 검증이 정확해집니다.
@@ -76,17 +77,18 @@ export default function NewPage() {
   return <Suspense><NewTestForm /></Suspense>;
 }
 
-const ADMIN_VERIFIED_KEY = "qagent_admin_verified";
-
 function NewTestForm() {
   const [adminVerified, setAdminVerified] = useState(false);
-  const [adminChecked, setAdminChecked]   = useState(false); // sessionStorage 확인 완료 여부 (깜빡임 방지)
+  const [adminChecked, setAdminChecked]   = useState(false); // localStorage 확인 완료 여부 (깜빡임 방지)
+  const [testName, setTestName]         = useState("");
+  const [editId, setEditId]             = useState<string | null>(null);
   const [targetUrl, setTargetUrl]       = useState("");
   const [mode, setMode]                 = useState<Mode>("natural");
   const [file, setFile]                 = useState<File | null>(null);
   const [cards, setCards]               = useState<ScenarioCard[]>([{ id: 1, text: "" }]);
   const [isDragging, setIsDragging]     = useState(false);
   const [isLoading, setIsLoading]       = useState(false);
+  const [savingOnly, setSavingOnly]     = useState(false);
   const [error, setError]               = useState("");
   const [loginOpen, setLoginOpen]       = useState(false);
   const [loginFields, setLoginFields]   = useState<LoginField[]>(DEFAULT_LOGIN_FIELDS());
@@ -100,11 +102,34 @@ function NewTestForm() {
     const sc  = searchParams.get("scenarios");
     if (url) setTargetUrl(url);
     if (sc)  { setMode("natural"); setCards([{ id: 1, text: sc }]); }
+
+    // 수정 모드 — 저장된 테스트를 폼에 로드
+    const edit = searchParams.get("edit");
+    if (edit) {
+      fetch("/api/tests")
+        .then((r) => r.json())
+        .then((tests: any[]) => {
+          const t = Array.isArray(tests) ? tests.find((x) => x.id === edit) : null;
+          if (!t) return;
+          setEditId(t.id);
+          setTestName(t.name || "");
+          setTargetUrl(t.targetUrl || "");
+          setMode("natural");
+          setCards(t.scenarios.map((text: string, i: number) => ({ id: i + 1, text })));
+          nextCardId = t.scenarios.length + 1;
+          if (t.loginConfig?.fields?.length) {
+            setLoginFields(t.loginConfig.fields.map((f: any, i: number) => ({ id: i + 1, label: f.label, value: f.value, isPassword: f.isPassword, hasStored: !!f.hasStoredValue })));
+            nextFieldId = t.loginConfig.fields.length + 1;
+            setLoginOpen(true);
+          }
+        })
+        .catch(() => {});
+    }
   }, []);
 
-  // 새 테스트 생성(=API 크레딧 소비)은 관리자 비밀번호 인증 후에만 가능
+  // 테스트 실행(=API 크레딧 소비)은 관리자 인증 후에만 가능 — 토큰은 브라우저에 보관
   useEffect(() => {
-    if (sessionStorage.getItem(ADMIN_VERIFIED_KEY) === "1") setAdminVerified(true);
+    if (getAdminToken()) setAdminVerified(true);
     setAdminChecked(true);
   }, []);
 
@@ -171,35 +196,79 @@ function NewTestForm() {
     else setError(".xlsx 파일만 업로드할 수 있습니다.");
   };
 
+  // 자동 이름 — 사용자가 이름을 비워두면 URL 도메인 + 날짜로 생성
+  const autoName = () => {
+    const domain = normalizeUrl(targetUrl).replace(/^https?:\/\//, "").split("/")[0] || "테스트";
+    const d = new Date();
+    return `${domain} 테스트 (${d.getMonth() + 1}/${d.getDate()})`;
+  };
+
+  // 저장(생성 또는 수정) → SavedTest 반환
+  const saveTest = async (): Promise<{ id: string } | null> => {
+    const loginConfig = hasLogin
+      ? { fields: loginFields.map(({ label, value, isPassword }) => ({ label, value, isPassword })) }
+      : undefined;
+    const payload = {
+      name: testName.trim() || autoName(),
+      targetUrl: normalizeUrl(targetUrl),
+      scenarios: filledCards.map((c) => c.text.trim()),
+      loginConfig,
+    };
+    const res = await fetch(editId ? `/api/tests/${editId}` : "/api/tests", {
+      method: editId ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) { setError(data.error || "저장에 실패했습니다."); return null; }
+    return data;
+  };
+
+  // 저장만 (실행 안 함)
+  const handleSaveOnly = async () => {
+    if (!isReady || isLoading || savingOnly || mode === "excel") return;
+    setSavingOnly(true); setError("");
+    try {
+      const saved = await saveTest();
+      if (saved) router.push("/tests");
+    } catch {
+      setError("Worker에 연결할 수 없습니다.");
+    } finally {
+      setSavingOnly(false);
+    }
+  };
+
+  // 저장 후 실행
   const handleSubmit = async () => {
     if (!isReady || isLoading) return;
     setIsLoading(true); setError("");
     try {
-      let res: Response;
-      const loginConfig = hasLogin
-        ? { fields: loginFields.map(({ label, value, isPassword }) => ({ label, value, isPassword })) }
-        : undefined;
-
-      const url = normalizeUrl(targetUrl);
-
       if (mode === "excel") {
         const form = new FormData();
         form.append("excel", file!);
-        form.append("url", url);
-        res = await fetch("/api/trigger", { method: "POST", body: form });
-      } else {
-        res = await fetch("/api/trigger", {
+        form.append("url", normalizeUrl(targetUrl));
+        const res = await fetch("/api/trigger", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            mode: "natural",
-            url,
-            scenarios: filledCards.map((c) => c.text.trim()),
-            loginConfig,
-          }),
+          headers: { "x-qagent-admin-token": getAdminToken() },
+          body: form,
         });
+        const data = await res.json();
+        if (res.status === 403) { clearAdminToken(); setAdminVerified(false); return; }
+        if (data.run_id) router.push(`/dashboard/${data.run_id}`);
+        else setError(data.error || "실행에 실패했습니다.");
+        return;
       }
+
+      const saved = await saveTest();
+      if (!saved) return;
+
+      const res = await fetch(`/api/tests/${saved.id}/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-qagent-admin-token": getAdminToken() },
+        body: JSON.stringify({}),
+      });
       const data = await res.json();
+      if (res.status === 403) { clearAdminToken(); setAdminVerified(false); return; }
       if (data.run_id) router.push(`/dashboard/${data.run_id}`);
       else setError(data.error || "실행에 실패했습니다.");
     } catch {
@@ -209,10 +278,10 @@ function NewTestForm() {
     }
   };
 
-  // 관리자 인증 전: 본 폼 대신 비밀번호 모달만 노출 (sessionStorage 확인 전엔 깜빡임 방지를 위해 빈 화면)
+  // 관리자 인증 전: 본 폼 대신 비밀번호 모달만 노출 (localStorage 확인 전엔 깜빡임 방지를 위해 빈 화면)
   if (!adminChecked) return null;
   if (!adminVerified) {
-    return <AdminGateModal onVerified={() => { sessionStorage.setItem(ADMIN_VERIFIED_KEY, "1"); setAdminVerified(true); }} />;
+    return <AdminGateModal onVerified={(token) => { setAdminToken(token); setAdminVerified(true); }} />;
   }
 
   return (
@@ -254,6 +323,19 @@ function NewTestForm() {
             flexDirection: "column",
             gap: 20,
           }}>
+
+            {/* ⓪ 테스트 이름 */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: A.inkMuted, letterSpacing: "0.08em", textTransform: "uppercase" }}>테스트 이름</label>
+              <input
+                type="text" value={testName}
+                onChange={(e) => setTestName(e.target.value)}
+                placeholder="예: 상담 분석 삭제 플로우 (비워두면 자동 생성)"
+                style={inputStyle}
+                onFocus={(e) => { e.target.style.borderColor = A.blue; e.target.style.boxShadow = `0 0 0 3px rgba(0,102,204,0.1)`; }}
+                onBlur={(e) => { e.target.style.borderColor = A.hairline; e.target.style.boxShadow = "none"; }}
+              />
+            </div>
 
             {/* ① URL */}
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -334,7 +416,7 @@ function NewTestForm() {
                           type={field.isPassword ? "password" : "text"}
                           value={field.value}
                           onChange={(e) => updateLoginField(field.id, "value", e.target.value)}
-                          placeholder="값 입력"
+                          placeholder={field.hasStored ? "저장된 값 유지됨 (변경 시에만 입력)" : "값 입력"}
                           style={{ ...inputStyle, fontSize: 13, padding: "8px 34px 8px 10px" }}
                           onFocus={(e) => { e.target.style.borderColor = A.blue; e.target.style.boxShadow = `0 0 0 3px rgba(0,102,204,0.1)`; }}
                           onBlur={(e) => { e.target.style.borderColor = A.hairline; e.target.style.boxShadow = "none"; }}
@@ -517,27 +599,43 @@ function NewTestForm() {
               </div>
             )}
 
-            {/* 제출 버튼 */}
-            <button
-              onClick={handleSubmit}
-              disabled={!isReady || isLoading}
-              style={{
-                width: "100%", borderRadius: 12, padding: "13px",
-                fontSize: 14, fontWeight: 600, letterSpacing: "-0.2px",
-                border: "none", cursor: isReady && !isLoading ? "pointer" : "not-allowed",
-                background: isReady && !isLoading ? A.blue : A.parchment,
-                color: isReady && !isLoading ? "#fff" : A.inkMuted,
-                transition: "background .15s",
-              }}
-              onMouseEnter={(e) => { if (isReady && !isLoading) e.currentTarget.style.background = A.blueDark; }}
-              onMouseLeave={(e) => { if (isReady && !isLoading) e.currentTarget.style.background = A.blue; }}
-            >
-              {isLoading
-                ? "실행 중…"
-                : mode === "natural"
-                  ? `테스트 시작${filledCards.length > 0 ? ` (${filledCards.length}개 케이스)` : ""}`
-                  : "테스트 시작"}
-            </button>
+            {/* 제출 버튼 — 저장 후 실행(주) + 저장만(부) */}
+            <div style={{ display: "flex", gap: 8 }}>
+              {mode === "natural" && (
+                <button
+                  onClick={handleSaveOnly}
+                  disabled={!isReady || isLoading || savingOnly}
+                  style={{
+                    flex: 1, borderRadius: 12, padding: "13px",
+                    fontSize: 14, fontWeight: 600,
+                    border: `1px solid ${A.hairline}`, cursor: isReady && !savingOnly ? "pointer" : "not-allowed",
+                    background: A.canvas, color: isReady ? A.ink : A.inkMuted,
+                  }}
+                >
+                  {savingOnly ? "저장 중…" : editId ? "수정 저장" : "저장만"}
+                </button>
+              )}
+              <button
+                onClick={handleSubmit}
+                disabled={!isReady || isLoading}
+                style={{
+                  flex: 2, borderRadius: 12, padding: "13px",
+                  fontSize: 14, fontWeight: 600, letterSpacing: "-0.2px",
+                  border: "none", cursor: isReady && !isLoading ? "pointer" : "not-allowed",
+                  background: isReady && !isLoading ? A.blue : A.parchment,
+                  color: isReady && !isLoading ? "#fff" : A.inkMuted,
+                  transition: "background .15s",
+                }}
+                onMouseEnter={(e) => { if (isReady && !isLoading) e.currentTarget.style.background = A.blueDark; }}
+                onMouseLeave={(e) => { if (isReady && !isLoading) e.currentTarget.style.background = A.blue; }}
+              >
+                {isLoading
+                  ? "실행 중…"
+                  : mode === "natural"
+                    ? `${editId ? "수정 " : ""}저장 후 실행${filledCards.length > 0 ? ` (${filledCards.length}개 케이스)` : ""}`
+                    : "테스트 시작"}
+              </button>
+            </div>
           </div>
         </div>
       </main>
@@ -549,7 +647,7 @@ function NewTestForm() {
 // ADMIN GATE MODAL — 새 테스트 생성(API 크레딧 소비) 보호용 2차 비밀번호
 // ─────────────────────────────────────────────────────────────────────────────
 
-function AdminGateModal({ onVerified }: { onVerified: () => void }) {
+function AdminGateModal({ onVerified }: { onVerified: (token: string) => void }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -568,7 +666,7 @@ function AdminGateModal({ onVerified }: { onVerified: () => void }) {
       });
       const data = await res.json();
       if (res.ok && data.ok) {
-        onVerified();
+        onVerified(data.adminToken || "");
       } else {
         setError(data.error || "관리자 비밀번호가 올바르지 않습니다.");
       }
@@ -601,7 +699,7 @@ function AdminGateModal({ onVerified }: { onVerified: () => void }) {
           <h2 style={{ fontSize: 16, fontWeight: 700, color: A.ink }}>관리자 인증 필요</h2>
         </div>
         <p style={{ fontSize: 12.5, color: A.inkMuted, marginBottom: 16, lineHeight: 1.5 }}>
-          새 테스트 실행은 AI API 비용이 발생하므로, 관리자 비밀번호 확인이 필요합니다.
+          테스트 실행은 AI API 비용이 발생합니다. 한 번 인증하면 이 브라우저에서는 다시 묻지 않습니다.
         </p>
 
         <form onSubmit={handleSubmit}>

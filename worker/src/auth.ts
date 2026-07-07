@@ -76,3 +76,15 @@ export function changeAdminPassword(currentPassword: string, newPassword: string
   fs.writeFileSync(ADMIN_AUTH_PATH, JSON.stringify({ passwordHash: hash(newPassword), version: state.version + 1 }));
   return true;
 }
+
+// ── 관리자 토큰 — 비밀번호 검증 성공 시 발급, 실행 요청에 비밀번호 대신 사용. ──
+// 브라우저에 비밀번호 원문을 저장하지 않기 위한 파생 토큰. 비밀번호를 바꾸면
+// passwordHash가 바뀌어 기존 토큰이 전부 무효화된다.
+export function issueAdminToken(): string {
+  const state = readAdminState();
+  return crypto.createHash("sha256").update(`${state.passwordHash}:qagent-admin-token:v${state.version}`).digest("hex");
+}
+
+export function verifyAdminToken(token: string): boolean {
+  return !!token && token === issueAdminToken();
+}

@@ -6,6 +6,8 @@ const KEYS_PATH = process.env.API_KEYS_PATH || path.resolve("data/api-keys.json"
 interface ApiKeys {
   anthropicApiKey?: string;
   geminiApiKey?: string;
+  /** 실행 완료 알림 웹훅 URL (Slack Incoming Webhook 호환) */
+  webhookUrl?: string;
 }
 
 function readKeys(): ApiKeys {
@@ -52,7 +54,8 @@ export function getMaskedKeys() {
   return {
     anthropicApiKey: mask(keys.anthropicApiKey),
     geminiApiKey: mask(keys.geminiApiKey),
-    hasAnthropic: !!keys.anthropicApiKey,
+    hasAnthropic: !!keys.anthropicApiKey || !!process.env.ANTHROPIC_API_KEY,
     hasGemini: !!keys.geminiApiKey,
+    webhookUrl: keys.webhookUrl || "",
   };
 }

@@ -13,11 +13,11 @@ export async function POST(req: NextRequest) {
       headers: { "Content-Type": "application/json", "x-qagent-key": WORKER_API_KEY },
       body: JSON.stringify({ password }),
     });
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
       return NextResponse.json({ error: data.error || "인증에 실패했습니다." }, { status: res.status });
     }
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, adminToken: data.adminToken || "" });
   } catch {
     return NextResponse.json({ error: "Worker에 연결할 수 없습니다." }, { status: 503 });
   }

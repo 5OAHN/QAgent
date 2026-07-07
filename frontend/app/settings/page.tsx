@@ -251,6 +251,27 @@ export default function SettingsPage() {
   const [apiKeyStatus, setApiKeyStatus] = useState({ hasAnthropic: false, hasGemini: false, anthropicMasked: "", geminiMasked: "" });
   const [apiKeySaving, setApiKeySaving] = useState(false);
 
+  /* 완료 알림 웹훅 */
+  const [webhookUrl, setWebhookUrl] = useState("");
+  const [webhookSaving, setWebhookSaving] = useState(false);
+
+  const handleSaveWebhook = async () => {
+    setWebhookSaving(true);
+    try {
+      const res = await fetch("/api/settings/api-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ webhookUrl: webhookUrl.trim() }),
+      });
+      if (res.ok) showToast(webhookUrl.trim() ? "완료 알림이 설정되었습니다" : "완료 알림이 해제되었습니다", "ok");
+      else showToast("저장에 실패했습니다", "err");
+    } catch {
+      showToast("Worker 서버에 연결할 수 없습니다", "err");
+    } finally {
+      setWebhookSaving(false);
+    }
+  };
+
   /* 비밀번호 변경 */
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -265,6 +286,7 @@ export default function SettingsPage() {
       if (res.ok) {
         const data = await res.json();
         setApiKeyStatus({ hasAnthropic: data.hasAnthropic, hasGemini: data.hasGemini, anthropicMasked: data.anthropicApiKey || "", geminiMasked: data.geminiApiKey || "" });
+        if (data.webhookUrl) setWebhookUrl(data.webhookUrl);
       }
     } catch {}
   }, []);
@@ -442,6 +464,49 @@ export default function SettingsPage() {
                   onMouseLeave={(e) => { if (canSaveKeys && !apiKeySaving) e.currentTarget.style.background = "#0066cc"; }}
                 >
                   {apiKeySaving ? "저장 중…" : "API 키 저장"}
+                </button>
+              </div>
+            </div>
+          </section>
+
+          {/* ── 완료 알림 웹훅 ──────────────────────────────────── */}
+          <section style={sectionCard}>
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid rgba(229,231,235,0.5)", background: "rgba(0,102,204,0.03)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 9, background: "rgba(0,102,204,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <svg width="15" height="15" fill="none" stroke="#0066cc" strokeWidth="1.7" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </div>
+                <div>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: "#1d1d1f" }}>완료 알림</p>
+                  <p style={{ fontSize: 11, color: "#9ca3af", marginTop: 1 }}>테스트가 끝나면 Slack 등으로 결과를 알려드립니다 — 지켜보고 있을 필요가 없어집니다</p>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+              <div>
+                <label style={labelStyle}>웹훅 URL (Slack Incoming Webhook 호환)</label>
+                <input
+                  type="text" value={webhookUrl}
+                  onChange={(e) => setWebhookUrl(e.target.value)}
+                  placeholder="https://hooks.slack.com/services/…"
+                  style={inputStyle}
+                  onFocus={(e) => { e.target.style.borderColor = "#0066cc"; e.target.style.boxShadow = "0 0 0 3px rgba(0,102,204,0.1)"; }}
+                  onBlur={(e) => { e.target.style.borderColor = "rgba(209,213,219,0.8)"; e.target.style.boxShadow = "none"; }}
+                />
+              </div>
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <button
+                  onClick={handleSaveWebhook}
+                  disabled={webhookSaving}
+                  style={{
+                    padding: "9px 22px", borderRadius: 9, fontSize: 13, fontWeight: 600, border: "none",
+                    background: !webhookSaving ? "#0066cc" : "#f5f5f7",
+                    color: !webhookSaving ? "#fff" : "#9ca3af",
+                    cursor: !webhookSaving ? "pointer" : "not-allowed",
+                  }}
+                >
+                  {webhookSaving ? "저장 중…" : "알림 설정 저장"}
                 </button>
               </div>
             </div>

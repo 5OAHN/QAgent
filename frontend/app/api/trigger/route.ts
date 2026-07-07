@@ -5,14 +5,17 @@ const WORKER_API_KEY = process.env.WORKER_API_KEY || "";
 
 export async function POST(req: NextRequest) {
   const contentType = req.headers.get("content-type") || "";
+  const adminToken = req.headers.get("x-qagent-admin-token") || "";
 
   try {
     // 자연어 모드: JSON body
     if (contentType.includes("application/json")) {
       const body = await req.json();
+      // 완료 알림 링크용 프론트엔드 origin 자동 첨부
+      body.dashboardBaseUrl = body.dashboardBaseUrl || req.nextUrl.origin;
       const res = await fetch(`${WORKER_URL}/trigger/natural`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-qagent-key": WORKER_API_KEY },
+        headers: { "Content-Type": "application/json", "x-qagent-key": WORKER_API_KEY, "x-qagent-admin-token": adminToken },
         body: JSON.stringify(body),
       });
       return NextResponse.json(await res.json(), { status: res.status });
@@ -32,7 +35,7 @@ export async function POST(req: NextRequest) {
 
     const res = await fetch(`${WORKER_URL}/trigger/excel`, {
       method: "POST",
-      headers: { "x-qagent-key": WORKER_API_KEY },
+      headers: { "x-qagent-key": WORKER_API_KEY, "x-qagent-admin-token": adminToken },
       body: workerForm,
     });
     return NextResponse.json(await res.json(), { status: res.status });

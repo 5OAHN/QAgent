@@ -31,16 +31,25 @@ async function main() {
   out = await act({ action: "press", value: "Enter" });
   assert(out.ok && out.urlAfter.includes("search.naver.com"), `검색 실행 → ${out.urlAfter.slice(0, 60)}`);
 
-  console.log("\n[A3] 스마트스토어 링크 클릭 → 새 탭 전환 검증");
+  console.log("\n[A3] 검색결과 스마트스토어 링크 (네이버가 세션별로 다른 결과를 주므로 정보성)");
   snap = await snapshotPage(session.getPage());
   const storeLink = snap.elements.find((e) => e.href?.includes("smartstore.naver.com"));
-  assert(!!storeLink, `스마트스토어 링크 존재 — ref=${storeLink?.ref}`);
-  out = await act({ action: "click", ref: storeLink!.ref });
+  console.log(storeLink ? `  ℹ️ 스마트스토어 링크 발견 — ref=${storeLink.ref}` : "  ℹ️ 이번 검색결과에는 스마트스토어 링크 없음 (네이버 응답 변동)");
+
+  console.log("\n[A4] 새 탭(target=_blank) 자동 전환 — 결정적 검증");
+  await session.getPage().setContent(
+    `<a href="https://demo.playwright.dev/todomvc/" target="_blank">스토어 새 탭으로 열기</a>`
+  );
+  snap = await snapshotPage(session.getPage());
+  const blankLink = snap.elements.find((e) => e.text?.includes("스토어 새 탭"));
+  assert(!!blankLink, `target=_blank 링크 스냅샷에 존재 — ref=${blankLink?.ref}`);
+  out = await act({ action: "click", ref: blankLink!.ref });
   assert(out.ok && out.newTab, `클릭 + 새 탭 전환 (newTab=${out.newTab})`);
-  assert(out.urlAfter.includes("smartstore.naver.com"), `스마트스토어 URL 도착: ${out.urlAfter.slice(0, 55)}`);
-  // 참고: 네이버 스마트스토어는 헤드리스 브라우저를 차단하므로 에러페이지가 나올 수 있음 (봇 방어 — 엔진 결함 아님)
-  const title = await session.getPage().title();
-  console.log(`  (도착 페이지 제목: "${title.slice(0, 40)}")`);
+  assert(out.urlAfter.includes("todomvc"), `새 탭 URL로 활성 페이지 전환됨: ${out.urlAfter.slice(0, 55)}`);
+
+  console.log("\n[A5] 늦은 팝업이 goto를 가로채지 않는지 검증");
+  out = await act({ action: "goto", value: "https://demo.playwright.dev/todomvc/" });
+  assert(out.ok && out.urlAfter.includes("todomvc"), `goto 후 활성 페이지 유지: ${out.urlAfter.slice(0, 55)}`);
 
   // ── Part B: SPA 리스트/체크박스 조작 (SaaS 패턴) ────────────────
   console.log("\n[B1] TodoMVC(React SPA) 진입");

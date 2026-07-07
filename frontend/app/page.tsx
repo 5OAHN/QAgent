@@ -88,6 +88,8 @@ export default function HomePage() {
       <main style={{ flex: 1, padding: "28px", overflowY: "auto", background: A.parchment }}>
         {isLoading ? (
           <LoadingState />
+        ) : runs.length === 0 ? (
+          <OnboardingChecklist />
         ) : (
           <>
             {/* 기간 필터 - 퀵버튼 */}
@@ -173,6 +175,65 @@ function generateUsageData(runs: RunSummary[]): UsageData {
     totalScenariosRun,
     topInefficiencies,
   };
+}
+
+/* ── 온보딩 체크리스트 — 첫 사용자를 3단계로 안내 ─────────────────── */
+function OnboardingChecklist() {
+  const { data: keyStatus } = useSWR<{ hasAnthropic: boolean }>("/api/settings/api-keys", fetcher);
+  const { data: tests } = useSWR<any[]>("/api/tests", fetcher);
+  const hasKey = !!keyStatus?.hasAnthropic;
+  const hasTest = Array.isArray(tests) && tests.length > 0;
+
+  const steps = [
+    { done: hasKey, title: "Claude API 키 등록", desc: "AI 에이전트가 사용할 API 키를 연결하세요", href: "/settings", cta: "설정으로 이동" },
+    { done: hasTest, title: "첫 테스트 만들기", desc: "자연어로 시나리오를 작성하면 AI가 알아서 실행합니다", href: "/new", cta: "테스트 만들기" },
+    { done: false, title: "실행하고 결과 확인", desc: "실행 후에는 이 대시보드에서 추이를 볼 수 있습니다", href: "/tests", cta: "내 테스트 보기" },
+  ];
+  const current = steps.findIndex((s) => !s.done);
+
+  return (
+    <div style={{ maxWidth: 560, margin: "40px auto 0" }}>
+      <div style={{ textAlign: "center", marginBottom: 28 }}>
+        <p style={{ fontSize: 36, marginBottom: 12 }}>👋</p>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: A.ink, marginBottom: 6 }}>QAgent에 오신 것을 환영합니다</h2>
+        <p style={{ fontSize: 13.5, color: A.inkMuted, lineHeight: 1.6 }}>
+          자연어로 시나리오를 쓰면 AI 에이전트가 브라우저에서 직접 테스트합니다.<br />세 단계면 시작할 수 있습니다.
+        </p>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {steps.map((s, i) => (
+          <div key={i} style={{
+            background: A.canvas, borderRadius: 12, padding: "16px 18px",
+            border: `1.5px solid ${i === current ? A.blue : A.hairline}`,
+            display: "flex", alignItems: "center", gap: 14,
+            opacity: s.done || i === current ? 1 : 0.55,
+          }}>
+            <span style={{
+              width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              background: s.done ? "rgba(22,163,74,0.1)" : i === current ? "rgba(0,102,204,0.1)" : A.divider,
+              color: s.done ? "#16a34a" : i === current ? A.blue : A.inkMuted,
+              fontSize: 13, fontWeight: 700,
+            }}>
+              {s.done ? "✓" : i + 1}
+            </span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 14, fontWeight: 600, color: A.ink }}>{s.title}</p>
+              <p style={{ fontSize: 12, color: A.inkMuted }}>{s.desc}</p>
+            </div>
+            {!s.done && i === current && (
+              <a href={s.href} style={{
+                padding: "8px 14px", borderRadius: 8, background: A.blue, color: "#fff",
+                fontSize: 12.5, fontWeight: 600, textDecoration: "none", flexShrink: 0,
+              }}>
+                {s.cta}
+              </a>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function StatsRow({ runs }: { runs: RunSummary[] }) {

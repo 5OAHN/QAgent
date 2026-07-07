@@ -8,6 +8,8 @@ import { analyzeFailure } from "./analyzer";
 import { executeSmartLogin } from "./smart-login";
 import { runAgentScenario } from "./agent-executor";
 import { planScenario } from "./scenario-planner";
+import { notifyRunComplete } from "./notifier";
+import { recordLastRun } from "./tests-store";
 import { saveRun, loadAllRuns, deleteRun } from "./db";
 
 export interface RunResult {
@@ -28,6 +30,9 @@ export interface RunResult {
   loginFailReason?: string;
   loginSteps?: string[];
   loginConfig?: LoginConfig;
+  /** 저장된 테스트에서 실행된 경우 — 원본 테스트 참조 */
+  testId?: string;
+  testName?: string;
 }
 
 export function getAllRuns(): RunResult[] {
@@ -154,12 +159,21 @@ export interface LoginConfig {
   fields: { label: string; value: string; isPassword: boolean }[];
 }
 
+export interface PipelineOpts {
+  /** 저장된 테스트에서 실행된 경우 */
+  testId?: string;
+  testName?: string;
+  /** 완료 알림 링크용 프론트엔드 origin */
+  dashboardBaseUrl?: string;
+}
+
 export async function runNaturalLanguagePipeline(
   runId: string,
   targetUrl: string,
   scenarioList: string[],
   executor?: string,
-  loginConfig?: LoginConfig
+  loginConfig?: LoginConfig,
+  opts?: PipelineOpts
 ): Promise<RunResult> {
   if (!process.env.ANTHROPIC_API_KEY) {
     const run: RunResult = {
@@ -181,6 +195,8 @@ export async function runNaturalLanguagePipeline(
     scenarios: scenarioList.join("\n\n---\n\n"),
     executor,
     loginConfig,
+    testId: opts?.testId,
+    testName: opts?.testName,
   };
   activeRuns.set(runId, run);
   saveRun(run);
@@ -456,5 +472,31 @@ export async function runNaturalLanguagePipeline(
   run.paused = false;
   run.status = run.total > 0 && run.failed === run.total ? "failed" : "completed";
   saveRun(run);
+
+  // 저장된 테스트에서 실행됐으면 마지막 실행 요약을 테스트에 기록
+  if (opts?.testId) {
+    recordLastRun(opts.testId, {
+      runId,
+      status: run.status,
+      passed: run.passed,
+      failed: run.failed,
+      total: run.total,
+      at: new Date().toISOString(),
+    });
+  }
+
+  // 완료 알림 (웹훅 미설정 시 no-op, 실패해도 무시)
+  const blockedCount = run.cases.filter((c) => c.status === "Blocked").length;
+  await notifyRunComplete({
+    runId,
+    testName: opts?.testName,
+    targetUrl,
+    passed: run.passed,
+    failed: run.failed - blockedCount,
+    blocked: blockedCount,
+    total: run.total,
+    dashboardBaseUrl: opts?.dashboardBaseUrl,
+  });
+
   return run;
 }

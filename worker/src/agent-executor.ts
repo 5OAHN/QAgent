@@ -191,8 +191,12 @@ export async function snapshotPage(page: Page): Promise<PageSnapshot> {
 
 export interface BrowserSession {
   getPage: () => Page;
-  /** 액션 후 호출 — 새 탭이 열렸으면 활성 페이지를 전환하고 true 반환 */
-  syncActivePage: () => Promise<boolean>;
+  /**
+   * 액션 후 호출 — 새 탭이 열렸으면 활성 페이지를 전환하고 true 반환.
+   * adopt=false면 대기 중인 새 탭을 무시하고 큐만 비운다
+   * (goto/scroll 등 사용자 클릭이 아닌 액션이 이전 액션의 늦은 팝업에 가로채이지 않도록).
+   */
+  syncActivePage: (adopt?: boolean) => Promise<boolean>;
   dispose: () => void;
 }
 
@@ -211,9 +215,13 @@ export function createBrowserSession(initialPage: Page): BrowserSession {
 
   return {
     getPage: () => activePage,
-    syncActivePage: async () => {
-      // 큐에 쌓인 새 페이지 중 마지막(가장 최근)으로 전환
+    syncActivePage: async (adopt: boolean = true) => {
       if (pendingPages.length === 0) return false;
+      if (!adopt) {
+        pendingPages.length = 0;
+        return false;
+      }
+      // 큐에 쌓인 새 페이지 중 마지막(가장 최근)으로 전환
       const newest = pendingPages[pendingPages.length - 1];
       pendingPages.length = 0;
       try {
@@ -350,15 +358,17 @@ export async function executeAction(
     }
 
     // 액션 후 안정화 — 새 탭 감지 → 네비게이션 대기 → URL 안정화(리다이렉트 체인 추적)
-    await page.waitForTimeout(500);
-    const newTab = await session.syncActivePage();
+    // 탭 전환 채택은 사용자 상호작용(click/press)에서만 — goto/scroll이 늦은 팝업에 가로채이지 않도록
+    const interactive = act.action === "click" || act.action === "press";
+    await page.waitForTimeout(interactive ? 800 : 300);
+    const newTab = await session.syncActivePage(interactive);
     const after = session.getPage();
     await after.waitForLoadState("domcontentloaded", { timeout: 5000 }).catch(() => {});
     await waitForUrlStable(after);
 
     return { ok: true, urlBefore, urlAfter: after.url(), newTab };
   } catch (err: any) {
-    const newTab = await session.syncActivePage();
+    const newTab = await session.syncActivePage(act.action === "click" || act.action === "press");
     return {
       ok: false,
       error: (err.message || String(err)).split("\n")[0].slice(0, 200),

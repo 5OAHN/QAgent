@@ -16,6 +16,16 @@ const NAV_ITEMS = [
     ),
   },
   {
+    label: "내 테스트",
+    href: "/tests",
+    icon: (
+      <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+        <path d="M9 3h6M10 3v5.5L5.5 16a2.5 2.5 0 002.2 3.7h8.6a2.5 2.5 0 002.2-3.7L14 8.5V3" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M7.5 13.5h9" strokeLinecap="round"/>
+      </svg>
+    ),
+  },
+  {
     label: "테스트 이력",
     href: "/history",
     icon: (
