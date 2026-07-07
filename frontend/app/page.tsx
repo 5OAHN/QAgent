@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import DashboardAnalytics from "@/components/DashboardAnalytics";
 import UsageWidget, { UsageData } from "@/components/UsageWidget";
+import { IconSparkles } from "@/components/icons";
 
 interface RunSummary {
   runId: string;
@@ -194,7 +195,12 @@ function OnboardingChecklist() {
   return (
     <div style={{ maxWidth: 560, margin: "40px auto 0" }}>
       <div style={{ textAlign: "center", marginBottom: 28 }}>
-        <p style={{ fontSize: 36, marginBottom: 12 }}>👋</p>
+        <div style={{
+          width: 56, height: 56, borderRadius: 16, margin: "0 auto 14px",
+          background: "rgba(0,102,204,0.08)", display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <IconSparkles size={26} color={A.blue} strokeWidth={1.6} />
+        </div>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: A.ink, marginBottom: 6 }}>QAgent에 오신 것을 환영합니다</h2>
         <p style={{ fontSize: 13.5, color: A.inkMuted, lineHeight: 1.6 }}>
           자연어로 시나리오를 쓰면 AI 에이전트가 브라우저에서 직접 테스트합니다.<br />세 단계면 시작할 수 있습니다.

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { getAdminToken, setAdminToken, clearAdminToken } from "@/lib/admin";
 import AdminAuthModal from "@/components/AdminAuthModal";
+import { IconFlask } from "@/components/icons";
 
 interface SavedTest {
   id: string;
@@ -117,7 +118,12 @@ export default function TestsPage() {
             <p style={{ fontSize: 13, color: A.inkMuted, padding: 20 }}>불러오는 중…</p>
           ) : isEmpty ? (
             <div style={{ background: A.canvas, borderRadius: 14, border: `1px dashed ${A.hairline}`, padding: "48px 24px", textAlign: "center" }}>
-              <p style={{ fontSize: 32, marginBottom: 10 }}>🧪</p>
+              <div style={{
+                width: 52, height: 52, borderRadius: 14, margin: "0 auto 14px",
+                background: "rgba(0,102,204,0.08)", display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <IconFlask size={24} color={A.blue} strokeWidth={1.6} />
+              </div>
               <p style={{ fontSize: 15, fontWeight: 600, color: A.ink, marginBottom: 6 }}>아직 저장된 테스트가 없습니다</p>
               <p style={{ fontSize: 13, color: A.inkMuted, marginBottom: 18 }}>테스트를 만들어두면 언제든 클릭 한 번으로 다시 실행할 수 있습니다.</p>
               <button

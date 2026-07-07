@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { getAdminToken, setAdminToken, clearAdminToken } from "@/lib/admin";
 import AdminAuthModal from "@/components/AdminAuthModal";
+import { IconAlertTriangle, IconConstruction, IconCheckCircle, IconXCircle, IconClock, IconCircleDashed, IconPencil, IconTrash } from "@/components/icons";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -914,9 +915,9 @@ function ScenarioCard({
     tc.status === "Pending" ? (
       <span className="w-4 h-4 rounded-full bg-indigo-500 animate-pulse inline-block" />
     ) : tc.status === "Blocked" ? (
-      <span className="text-base">🚧</span>
+      <IconConstruction size={18} className="text-amber-500" />
     ) : isReview ? (
-      <span className="text-base">⚠️</span>
+      <IconAlertTriangle size={18} className="text-amber-500" />
     ) : tc.status === "Pass" ? (
       <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="text-green-500">
         <circle cx="12" cy="12" r="10" />
@@ -965,7 +966,8 @@ function ScenarioCard({
                   }}
                   className="flex items-center gap-1 text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md transition-all duration-200 active:scale-95 hover:bg-indigo-100"
                 >
-                  ✏️ 수정
+                  <IconPencil size={12} />
+                  수정
                 </button>
               )}
               {tc.status === "Pending" && (
@@ -1192,7 +1194,10 @@ function TimelineCard({
 
       {tc?.status === "Blocked" ? (
         <div className="mb-5 px-4 py-3 rounded-lg border border-amber-300 bg-amber-50 flex-shrink-0">
-          <p className="text-sm font-semibold text-amber-700 mb-1">🚧 AI 판단: 이 시나리오는 자동화 테스트로 진행할 수 없습니다</p>
+          <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-700 mb-1">
+            <IconConstruction size={14} />
+            AI 판단: 이 시나리오는 자동화 테스트로 진행할 수 없습니다
+          </p>
           <p className="text-sm text-amber-800 whitespace-pre-line">{tc.blockReason || tc.failReason}</p>
         </div>
       ) : tc?.status === "Fail" && tc.failReason ? (
@@ -1221,8 +1226,16 @@ function TimelineCard({
           <div className="flex flex-col gap-1.5">
             {tc.stepPlan.map((s, i) => (
               <div key={i} className="flex items-start gap-2">
-                <span className="text-sm leading-5 flex-shrink-0 w-5 text-center">
-                  {s.status === "pass" ? "✅" : s.status === "fail" ? "❌" : s.status === "running" ? "⏳" : "▫️"}
+                <span className="flex-shrink-0 w-5 flex justify-center pt-0.5">
+                  {s.status === "pass" ? (
+                    <IconCheckCircle size={14} className="text-green-500" />
+                  ) : s.status === "fail" ? (
+                    <IconXCircle size={14} className="text-red-500" />
+                  ) : s.status === "running" ? (
+                    <IconClock size={14} className="text-indigo-500" />
+                  ) : (
+                    <IconCircleDashed size={14} className="text-gray-300" />
+                  )}
                 </span>
                 <div className="min-w-0">
                   <p className={`text-sm leading-5 ${s.status === "fail" ? "text-red-600 font-medium" : "text-gray-700"}`}>
@@ -1410,7 +1423,7 @@ function ScenarioEditModal({
                   onClick={() => removeStep(step.id)}
                   className="text-gray-400 hover:text-red-500 flex-shrink-0 p-1.5 rounded-md transition-all duration-200 active:scale-90 hover:bg-red-50"
                 >
-                  🗑️
+                  <IconTrash size={14} />
                 </button>
               </div>
             ))}

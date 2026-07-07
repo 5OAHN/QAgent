@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import useSWR from "swr";
 import FilterDropdown, { FilterOption } from "@/components/FilterDropdown";
+import { IconLock, IconUserPlus, IconCreditCard } from "@/components/icons";
 
 interface RunSummary {
   runId: string;
@@ -519,7 +520,7 @@ function EmptyState() {
           템플릿으로 빠르게 시작
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
-          {TEMPLATES.map(({ label, icon, scenario }) => (
+          {TEMPLATES.map(({ label, icon: Icon, scenario }) => (
             <Link
               key={label}
               href={`/new?scenarios=${encodeURIComponent(scenario)}`}
@@ -534,7 +535,7 @@ function EmptyState() {
               onMouseLeave={(e) => { e.currentTarget.style.borderColor = A.hairline; e.currentTarget.style.background = A.canvas; }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 16 }}>{icon}</span>
+                <Icon size={16} color={A.blue} strokeWidth={1.7} />
                 <span style={{ fontSize: 13, fontWeight: 500, color: A.ink }}>{label}</span>
               </div>
               <svg width="14" height="14" fill="none" stroke={A.blue} strokeWidth="1.8" viewBox="0 0 24 24">
@@ -551,7 +552,7 @@ function EmptyState() {
 const TEMPLATES = [
   {
     label: "로그인 플로우 테스트",
-    icon: "🔐",
+    icon: IconLock,
     scenario: `1. 로그인 페이지로 이동한다
 2. 아이디 입력칸에 테스트 계정을 입력한다
 3. 비밀번호 입력칸에 비밀번호를 입력한다
@@ -560,7 +561,7 @@ const TEMPLATES = [
   },
   {
     label: "회원가입 시나리오",
-    icon: "✍️",
+    icon: IconUserPlus,
     scenario: `1. 회원가입 페이지로 이동한다
 2. 이름, 이메일, 비밀번호를 입력한다
 3. 이용약관 동의 체크박스를 클릭한다
@@ -569,7 +570,7 @@ const TEMPLATES = [
   },
   {
     label: "결제 프로세스 검증",
-    icon: "💳",
+    icon: IconCreditCard,
     scenario: `1. 상품 목록 페이지로 이동한다
 2. 상품을 하나 선택하여 장바구니에 추가한다
 3. 장바구니 페이지로 이동한다

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { IconLightbulb, IconAlertTriangle } from "@/components/icons";
 
 interface InefficiencyScenario {
   testId: string;
@@ -64,8 +65,9 @@ export default function UsageWidget({ data, isLoading }: UsageWidgetProps) {
 
   return (
     <div style={{ marginTop: 28 }}>
-      <h2 style={{ fontSize: 13, fontWeight: 600, color: A.ink, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 14 }}>
-        💡 사용량 및 효율성
+      <h2 style={{ fontSize: 13, fontWeight: 600, color: A.ink, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 14, display: "flex", alignItems: "center", gap: 6 }}>
+        <IconLightbulb size={14} />
+        사용량 및 효율성
       </h2>
 
       {/* 사용량 통계 카드 */}
@@ -148,8 +150,9 @@ export default function UsageWidget({ data, isLoading }: UsageWidgetProps) {
             borderBottom: `1px solid ${A.divider}`,
             background: A.parchment,
           }}>
-            <h3 style={{ fontSize: 13, fontWeight: 600, color: A.ink, letterSpacing: "0.04em" }}>
-              ⚠️ 비효율 시나리오 TOP 3
+            <h3 style={{ fontSize: 13, fontWeight: 600, color: A.ink, letterSpacing: "0.04em", display: "flex", alignItems: "center", gap: 6 }}>
+              <IconAlertTriangle size={13} color="#d97706" />
+              비효율 시나리오 TOP 3
             </h3>
             <p style={{ fontSize: 11, color: A.inkMuted, marginTop: 4 }}>
               토큰을 가장 많이 소모하는 시나리오를 확인하고 최적화해보세요.

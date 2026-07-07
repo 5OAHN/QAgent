@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { IconKey } from "@/components/icons";
 
 // 관리자 인증 모달 — 성공 시 워커가 발급한 토큰을 콜백으로 전달.
 // 토큰은 호출 측에서 lib/admin.ts의 setAdminToken으로 저장한다.
@@ -42,7 +43,10 @@ export default function AdminAuthModal({
         onClick={(e) => e.stopPropagation()}
         style={{ background: "#fff", borderRadius: 14, padding: "28px 28px 24px", width: 360, boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}
       >
-        <h2 style={{ fontSize: 16, fontWeight: 700, color: "#1d1d1f", marginBottom: 6 }}>🔑 관리자 인증 필요</h2>
+        <h2 style={{ fontSize: 16, fontWeight: 700, color: "#1d1d1f", marginBottom: 6, display: "flex", alignItems: "center", gap: 7 }}>
+          <IconKey size={16} color="#0066cc" />
+          관리자 인증 필요
+        </h2>
         <p style={{ fontSize: 12.5, color: "#6b7280", marginBottom: 16, lineHeight: 1.5 }}>
           테스트 실행은 AI API 비용이 발생합니다. 한 번 인증하면 이 브라우저에서는 다시 묻지 않습니다.
         </p>
