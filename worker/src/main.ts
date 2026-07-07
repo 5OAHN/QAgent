@@ -348,8 +348,18 @@ app.post("/tests/:id/run", (req: Request, res: Response) => {
 });
 
 // ── 전체 실행 이력 조회 ──────────────────────────────────────────────
+// 목록/대시보드 화면은 스크린샷 base64, 생성 코드처럼 무거운 필드가 필요 없다 —
+// 실행이 쌓일수록 payload가 커져 로딩이 느려지는 것을 방지하기 위해 경량화해서 반환.
+// 상세 화면은 여전히 /status/:runId 에서 전체 데이터를 받는다.
 app.get("/runs", (_: Request, res: Response) => {
-  res.json(getAllRuns());
+  const lightweight = getAllRuns().map((run) => ({
+    ...run,
+    cases: (run.cases || []).map(
+      ({ screenshotBase64, screenshotUrl, videoUrl, consoleLogs, ...rest }) => rest
+    ),
+    loginSteps: undefined, // 로그인 단계별 로그도 목록에는 불필요
+  }));
+  res.json(lightweight);
 });
 
 // ── 상태 조회 ────────────────────────────────────────────────────────
