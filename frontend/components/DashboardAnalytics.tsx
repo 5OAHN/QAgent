@@ -148,22 +148,32 @@ function buildRecentFailures(cases: CaseWithRun[]) {
 }
 
 function buildTokenUsage(cases: CaseWithRun[]) {
-  const withTokens = cases.filter((c) => typeof (c as any).tokenUsage === "number");
-  if (withTokens.length === 0) return { avgTokens: null, hasData: false, byProvider: [] as { name: string; avg: number }[] };
-
-  const avg = withTokens.reduce((sum, c) => sum + ((c as any).tokenUsage as number), 0) / withTokens.length;
-
-  const byProv = new Map<string, { total: number; count: number }>();
-  for (const c of withTokens) {
-    const prov = (c as any).provider || "unknown";
-    const e = byProv.get(prov) || { total: 0, count: 0 };
-    e.total += (c as any).tokenUsage;
-    e.count += 1;
-    byProv.set(prov, e);
+  const withTokens = cases.filter((c) => typeof (c as any).tokenUsage === "number" && (c as any).tokenUsage > 0);
+  if (withTokens.length === 0) {
+    return {
+      hasData: false,
+      totalTokens: 0,
+      avgTokens: null as number | null,
+      measuredCount: 0,
+      topConsumers: [] as { runId: string; testId: string; scenario: string; tokens: number }[],
+    };
   }
-  const byProvider = Array.from(byProv.entries()).map(([name, v]) => ({ name, avg: Math.round(v.total / v.count) }));
 
-  return { avgTokens: Math.round(avg), hasData: true, byProvider };
+  const totalTokens = withTokens.reduce((sum, c) => sum + ((c as any).tokenUsage as number), 0);
+  const avgTokens = Math.round(totalTokens / withTokens.length);
+
+  // 토큰 최다 소모 시나리오 TOP 3 — 시나리오 최적화 대상 식별용 (실측)
+  const topConsumers = [...withTokens]
+    .sort((a, b) => ((b as any).tokenUsage as number) - ((a as any).tokenUsage as number))
+    .slice(0, 3)
+    .map((c) => ({
+      runId: c.runId,
+      testId: c.testId,
+      scenario: (c.scenario || "").replace(/\n/g, " ").slice(0, 40),
+      tokens: (c as any).tokenUsage as number,
+    }));
+
+  return { hasData: true, totalTokens, avgTokens, measuredCount: withTokens.length, topConsumers };
 }
 
 function buildExecTime(cases: CaseWithRun[]) {
@@ -231,9 +241,11 @@ export default function DashboardAnalytics() {
         loading={isLoading}
         hasData={execTime.hasData}
       />
-      <AvgTokenUsageWidget
+      <TokenUsageWidget
+        totalTokens={tokenUsage.totalTokens}
         avgTokens={tokenUsage.avgTokens}
-        byProvider={tokenUsage.byProvider}
+        measuredCount={tokenUsage.measuredCount}
+        topConsumers={tokenUsage.topConsumers}
         loading={isLoading}
         hasData={tokenUsage.hasData}
       />
@@ -413,55 +425,67 @@ function AvgExecTimeWidget({
 }
 
 /* ── 위젯 4: 시나리오당 평균 토큰 사용량 ─────────────────────────── */
-function AvgTokenUsageWidget({
+function TokenUsageWidget({
+  totalTokens,
   avgTokens,
-  byProvider,
+  measuredCount,
+  topConsumers,
   loading,
   hasData,
 }: {
+  totalTokens: number;
   avgTokens: number | null;
-  byProvider: { name: string; avg: number }[];
+  measuredCount: number;
+  topConsumers: { runId: string; testId: string; scenario: string; tokens: number }[];
   loading: boolean;
   hasData: boolean;
 }) {
-  const fmt = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
-  const providerLabel = (name: string) => name === "claude" ? "Claude" : name === "gemini" ? "Gemini" : name;
+  const router = useRouter();
+  const fmt = (n: number) =>
+    n >= 1000000 ? `${(n / 1000000).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
 
   return (
     <div className={`${cardClass} col-span-2 p-5 flex flex-col`} style={{ height: 160 }}>
-      <p className="text-[13px] font-semibold text-gray-900 mb-1">시나리오당 평균 사용량</p>
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-[13px] font-semibold text-gray-900">AI 토큰 사용량</p>
+        {hasData && <p className="text-[10px] text-gray-400">실측 {measuredCount}개 시나리오 기준</p>}
+      </div>
 
       {loading ? (
         <p className="text-[12px] text-gray-400 mt-2">불러오는 중…</p>
       ) : !hasData ? (
-        <p className="text-[12px] text-gray-400 mt-2">토큰 사용 데이터가 없습니다.</p>
+        <p className="text-[12px] text-gray-400 mt-2">아직 토큰 사용 데이터가 없습니다. 테스트를 실행하면 실측 데이터가 쌓입니다.</p>
       ) : (
-        <div className="flex items-end gap-8 mt-1 flex-1">
-          <div>
-            <p className="text-[28px] font-semibold" style={{ color: COLOR.ink, letterSpacing: "-0.5px" }}>
-              {fmt(avgTokens ?? 0)}
-            </p>
-            <p className="text-[11px] text-gray-400 mt-0.5">평균 토큰</p>
+        <div className="flex items-stretch gap-6 mt-1 flex-1 min-h-0">
+          <div className="flex flex-col justify-end gap-2 flex-shrink-0">
+            <div>
+              <p className="text-[24px] font-semibold leading-none" style={{ color: COLOR.ink, letterSpacing: "-0.5px" }}>
+                {fmt(totalTokens)}
+              </p>
+              <p className="text-[11px] text-gray-400 mt-1">누적 사용</p>
+            </div>
+            <div>
+              <p className="text-[15px] font-semibold leading-none text-gray-700">{fmt(avgTokens ?? 0)}</p>
+              <p className="text-[11px] text-gray-400 mt-0.5">시나리오당 평균</p>
+            </div>
           </div>
 
-          {byProvider.length > 0 && (
-            <div className="flex flex-col gap-1.5 pb-0.5">
-              {byProvider.map((p) => (
-                <div key={p.name} className="flex items-center gap-2">
-                  <span
-                    className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
-                    style={{
-                      background: p.name === "claude" ? "rgba(112,53,204,0.1)" : "rgba(26,115,232,0.1)",
-                      color: p.name === "claude" ? "#7035cc" : "#1a73e8",
-                    }}
-                  >
-                    {providerLabel(p.name)}
-                  </span>
-                  <span className="text-[12px] font-medium text-gray-700">{fmt(p.avg)} tok</span>
-                </div>
-              ))}
-            </div>
-          )}
+          {/* 토큰 최다 소모 TOP 3 — 클릭 시 해당 실행으로 이동 */}
+          <div className="flex-1 min-w-0 flex flex-col justify-end gap-1">
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">최다 소모 시나리오</p>
+            {topConsumers.map((t) => (
+              <button
+                key={`${t.runId}-${t.testId}`}
+                onClick={() => router.push(`/dashboard/${t.runId}`)}
+                className="flex items-center justify-between gap-2 text-left rounded px-1.5 py-0.5 hover:bg-gray-50 transition-colors"
+              >
+                <span className="text-[11px] text-gray-600 truncate">
+                  <span className="font-mono font-semibold text-gray-500">{t.testId}</span> {t.scenario}
+                </span>
+                <span className="text-[11px] font-semibold text-gray-700 flex-shrink-0">{fmt(t.tokens)} tok</span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>

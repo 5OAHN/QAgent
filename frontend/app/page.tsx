@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import DashboardAnalytics from "@/components/DashboardAnalytics";
-import UsageWidget, { UsageData } from "@/components/UsageWidget";
 import { IconSparkles } from "@/components/icons";
 
 interface RunSummary {
@@ -131,51 +130,11 @@ export default function HomePage() {
 
             {/* 분석 위젯 */}
             <DashboardAnalytics />
-
-            {/* 사용량 위젯 */}
-            <UsageWidget data={generateUsageData(filteredRuns)} />
           </>
         )}
       </main>
     </div>
   );
-}
-
-function generateUsageData(runs: RunSummary[]): UsageData {
-  // 실제 토큰 사용량 계산 - 일반적으로 시나리오당 평균 3000 tokens 추정
-  // 실제로는 백엔드에서 TestCase의 tokenUsage 정보를 받아야 정확함
-  const AVG_TOKENS_PER_SCENARIO = 3000;
-  const totalTokensThisMonth = runs.length * AVG_TOKENS_PER_SCENARIO;
-  const totalTokensLastMonth = Math.max(totalTokensThisMonth - Math.floor(Math.random() * 30000), 20000);
-  const totalScenariosRun = runs.length;
-  const averageTokensPerScenario = totalScenariosRun > 0 ? totalTokensThisMonth / totalScenariosRun : 0;
-
-  // 효율성 시나리오 추정 (completed가 아닌 runs를 비효율적이라 가정)
-  const inefficientRuns = runs
-    .filter((r) => r.status !== "running")
-    .map((r, idx) => ({
-      testId: `Run-${r.runId.slice(-6)}`,
-      tokenUsage: Math.floor(5000 + Math.random() * 4000),
-      lastExecutedAt: r.createdAt,
-      runId: r.runId,
-    }))
-    .sort((a, b) => b.tokenUsage - a.tokenUsage)
-    .slice(0, 3);
-
-  // 데이터가 충분하지 않으면 더미 데이터 사용
-  const topInefficiencies = inefficientRuns.length > 0 ? inefficientRuns : [
-    { testId: "V-001", tokenUsage: 8500, lastExecutedAt: new Date(Date.now() - 3600000).toISOString() },
-    { testId: "V-003", tokenUsage: 7200, lastExecutedAt: new Date(Date.now() - 86400000).toISOString() },
-    { testId: "V-005", tokenUsage: 6800, lastExecutedAt: new Date(Date.now() - 259200000).toISOString() },
-  ];
-
-  return {
-    totalTokensThisMonth,
-    totalTokensLastMonth,
-    averageTokensPerScenario,
-    totalScenariosRun,
-    topInefficiencies,
-  };
 }
 
 /* ── 온보딩 체크리스트 — 첫 사용자를 3단계로 안내 ─────────────────── */

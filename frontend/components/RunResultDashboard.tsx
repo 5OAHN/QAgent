@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { getAdminToken, setAdminToken, clearAdminToken } from "@/lib/admin";
 import AdminAuthModal from "@/components/AdminAuthModal";
-import { IconAlertTriangle, IconConstruction, IconCheckCircle, IconXCircle, IconClock, IconCircleDashed, IconPencil, IconTrash } from "@/components/icons";
+import { IconAlertTriangle, IconConstruction, IconCheckCircle, IconXCircle, IconClock, IconCircleDashed, IconPencil, IconTrash, IconSparkles, IconLightbulb } from "@/components/icons";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -489,9 +489,11 @@ export function RunResultDashboard({ runId }: { runId: string }) {
             />
           </div>
 
-          {/* ───────────── RIGHT COLUMN (60%) ───────────── */}
+          {/* ───────────── RIGHT COLUMN (60%) — 타임라인이 주인공, 미디어는 보조 ───────────── */}
           <div className="flex flex-col gap-4 min-h-0" style={{ width: "60%" }}>
-            <MediaViewerCard tc={selectedCase} isTerminal={isTerminal} />
+            <div style={{ height: "32%" }} className="flex flex-col min-h-0 flex-shrink-0">
+              <MediaViewerCard tc={selectedCase} isTerminal={isTerminal} />
+            </div>
             <TimelineCard tc={selectedCase} runId={runId} targetUrl={data.targetUrl} createdAt={data.createdAt} />
           </div>
         </div>
@@ -1219,34 +1221,9 @@ function TimelineCard({
         </div>
       )}
 
-      {/* AI가 이해한 시나리오 — 단계별 진행 체크리스트 */}
+      {/* AI가 이해한 시나리오 — 접을 수 있는 단계별 체크리스트 (타임라인 공간 확보) */}
       {tc?.stepPlan && tc.stepPlan.length > 0 && activeTab === "timeline" && (
-        <div className="mb-4 px-4 py-3 rounded-lg border border-gray-200 bg-gray-50 flex-shrink-0">
-          <p className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">AI가 이해한 시나리오</p>
-          <div className="flex flex-col gap-1.5">
-            {tc.stepPlan.map((s, i) => (
-              <div key={i} className="flex items-start gap-2">
-                <span className="flex-shrink-0 w-5 flex justify-center pt-0.5">
-                  {s.status === "pass" ? (
-                    <IconCheckCircle size={14} className="text-green-500" />
-                  ) : s.status === "fail" ? (
-                    <IconXCircle size={14} className="text-red-500" />
-                  ) : s.status === "running" ? (
-                    <IconClock size={14} className="text-indigo-500" />
-                  ) : (
-                    <IconCircleDashed size={14} className="text-gray-300" />
-                  )}
-                </span>
-                <div className="min-w-0">
-                  <p className={`text-sm leading-5 ${s.status === "fail" ? "text-red-600 font-medium" : "text-gray-700"}`}>
-                    {i + 1}. {s.action}
-                  </p>
-                  <p className="text-xs text-gray-400">확인: {s.verify}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <StepPlanCard stepPlan={tc.stepPlan} />
       )}
 
       {activeTab === "code" && generatedCode ? (
@@ -1258,18 +1235,154 @@ function TimelineCard({
       ) : logs.length === 0 ? (
         <p className="text-sm text-gray-400 py-4">실행 로그가 없습니다</p>
       ) : (
-        <div className="relative flex-1 min-h-0 overflow-y-auto pr-1">
-          <div className="absolute left-[5px] top-1 bottom-1 w-px bg-gray-200" />
-          <div className="flex flex-col gap-3">
+        <div className="relative flex-1 min-h-0 overflow-y-auto pr-1" style={{ minHeight: 200 }}>
+          <div className="absolute left-[7px] top-2 bottom-2 w-px bg-gray-200" />
+          <div className="flex flex-col gap-2">
             {logs.map((log, i) => (
-              <div key={i} className="flex gap-3 relative">
-                <span className="w-[11px] h-[11px] rounded-full bg-gray-300 border-2 border-white flex-shrink-0 mt-1 z-10" />
-                <div className="flex-1 bg-gray-100 rounded-lg px-3 py-2 text-xs text-gray-600 leading-relaxed whitespace-pre-line">
-                  {log}
-                </div>
-              </div>
+              <TimelineLogEntry key={i} log={log} />
             ))}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 타임라인 로그 엔트리 — 워커가 남긴 이모지 마커를 파싱해 SVG 아이콘으로 렌더링
+// ─────────────────────────────────────────────────────────────────────────────
+
+type LogKind = "plan" | "assume" | "ok" | "fail" | "warn" | "fix" | "step" | "info";
+
+function parseLog(raw: string): { kind: LogKind; stepNo?: string; text: string; thought?: string } {
+  const [firstLine, ...restLines] = raw.split("\n");
+  const thought = restLines.join("\n").replace(/^\s*💭\s*/, "").trim() || undefined;
+  let text = firstLine.trim();
+  let kind: LogKind = "info";
+  let stepNo: string | undefined;
+
+  const emojiMap: [RegExp, LogKind][] = [
+    [/^🧠\s*/, "plan"],
+    [/^📋\s*/, "plan"],
+    [/^💡\s*/, "assume"],
+    [/^✅\s*/, "ok"],
+    [/^❌\s*/, "fail"],
+    [/^⚠️\s*/, "warn"],
+    [/^🔧\s*/, "fix"],
+    [/^📝\s*/, "fix"],
+  ];
+  for (const [re, k] of emojiMap) {
+    if (re.test(text)) {
+      kind = k;
+      text = text.replace(re, "");
+      break;
+    }
+  }
+  if (kind === "info") {
+    const stepMatch = text.match(/^\[([\d.]+)\]\s*/);
+    if (stepMatch) {
+      kind = "step";
+      stepNo = stepMatch[1];
+      text = text.slice(stepMatch[0].length);
+    }
+  }
+  return { kind, stepNo, text, thought };
+}
+
+const LOG_STYLE: Record<LogKind, { icon: (p: { size?: number; className?: string }) => JSX.Element; iconClass: string; bg: string }> = {
+  plan:   { icon: (p) => <IconSparkles {...p} />,      iconClass: "text-blue-500",   bg: "bg-blue-50/60" },
+  assume: { icon: (p) => <IconLightbulb {...p} />,     iconClass: "text-blue-400",   bg: "bg-blue-50/60" },
+  ok:     { icon: (p) => <IconCheckCircle {...p} />,   iconClass: "text-green-500",  bg: "bg-green-50/70" },
+  fail:   { icon: (p) => <IconXCircle {...p} />,       iconClass: "text-red-500",    bg: "bg-red-50/70" },
+  warn:   { icon: (p) => <IconAlertTriangle {...p} />, iconClass: "text-amber-500",  bg: "bg-amber-50/70" },
+  fix:    { icon: (p) => <IconPencil {...p} />,        iconClass: "text-indigo-500", bg: "bg-indigo-50/60" },
+  step:   { icon: (p) => <IconClock {...p} />,         iconClass: "text-gray-400",   bg: "bg-gray-100" },
+  info:   { icon: (p) => <IconCircleDashed {...p} />,  iconClass: "text-gray-300",   bg: "bg-gray-100" },
+};
+
+function TimelineLogEntry({ log }: { log: string }) {
+  const { kind, stepNo, text, thought } = parseLog(log);
+  const style = LOG_STYLE[kind];
+
+  return (
+    <div className="flex gap-2.5 relative">
+      <span className="w-[15px] flex-shrink-0 flex justify-center mt-1.5 z-10 bg-gray-50 rounded-full py-0.5">
+        {style.icon({ size: 14, className: style.iconClass })}
+      </span>
+      <div className={`flex-1 min-w-0 rounded-lg px-3 py-2 ${style.bg}`}>
+        <div className="flex items-baseline gap-2">
+          {stepNo && (
+            <span className="text-[10px] font-mono font-semibold text-gray-400 flex-shrink-0">{stepNo}</span>
+          )}
+          <p className={`text-xs font-medium leading-relaxed ${kind === "fail" ? "text-red-700" : kind === "ok" ? "text-green-800" : "text-gray-700"}`}>
+            {text}
+          </p>
+        </div>
+        {thought && (
+          <p className="text-[11px] text-gray-400 leading-relaxed mt-0.5 whitespace-pre-line">{thought}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 스텝 플랜 카드 — 접기/펼치기로 타임라인 공간 확보
+// ─────────────────────────────────────────────────────────────────────────────
+
+function StepPlanCard({ stepPlan }: { stepPlan: NonNullable<TestCase["stepPlan"]> }) {
+  const hasActive = stepPlan.some((s) => s.status === "fail" || s.status === "running");
+  // 실행 중이거나 실패가 있으면 펼침, 전부 통과면 접어서 로그 공간 확보
+  const [open, setOpen] = useState(hasActive);
+  const passCount = stepPlan.filter((s) => s.status === "pass").length;
+
+  const statusIcon = (status: string, size = 14) =>
+    status === "pass" ? (
+      <IconCheckCircle size={size} className="text-green-500" />
+    ) : status === "fail" ? (
+      <IconXCircle size={size} className="text-red-500" />
+    ) : status === "running" ? (
+      <IconClock size={size} className="text-indigo-500" />
+    ) : (
+      <IconCircleDashed size={size} className="text-gray-300" />
+    );
+
+  return (
+    <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 flex-shrink-0">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-2.5 text-left"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide flex-shrink-0">AI가 이해한 시나리오</p>
+          <div className="flex items-center gap-1">
+            {stepPlan.map((s, i) => (
+              <span key={i}>{statusIcon(s.status, 12)}</span>
+            ))}
+          </div>
+          <span className="text-[11px] text-gray-400 flex-shrink-0">{passCount}/{stepPlan.length} 통과</span>
+        </div>
+        <svg
+          width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
+          className={`text-gray-400 flex-shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+        >
+          <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="px-4 pb-3 flex flex-col gap-1.5 max-h-44 overflow-y-auto border-t border-gray-200/70 pt-2.5">
+          {stepPlan.map((s, i) => (
+            <div key={i} className="flex items-start gap-2">
+              <span className="flex-shrink-0 w-5 flex justify-center pt-0.5">{statusIcon(s.status)}</span>
+              <div className="min-w-0">
+                <p className={`text-sm leading-5 ${s.status === "fail" ? "text-red-600 font-medium" : "text-gray-700"}`}>
+                  {i + 1}. {s.action}
+                </p>
+                <p className="text-xs text-gray-400">확인: {s.verify}</p>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
