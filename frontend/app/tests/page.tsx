@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { getAdminToken, setAdminToken, clearAdminToken } from "@/lib/admin";
 import AdminAuthModal from "@/components/AdminAuthModal";
-import { IconFlask } from "@/components/icons";
+import { IconFlask, IconClock } from "@/components/icons";
+
+interface ScheduleConfig {
+  frequency: "off" | "hourly" | "daily" | "weekdays";
+  hour?: number;
+}
 
 interface SavedTest {
   id: string;
@@ -15,6 +20,7 @@ interface SavedTest {
   loginConfig?: { fields: { label: string; value: string; isPassword: boolean }[] };
   createdAt: string;
   updatedAt: string;
+  schedule?: ScheduleConfig;
   lastRun?: {
     runId: string;
     status: "running" | "completed" | "failed";
@@ -22,7 +28,23 @@ interface SavedTest {
     failed: number;
     total: number;
     at: string;
+    triggeredBy?: "manual" | "schedule";
   };
+}
+
+const SCHEDULE_OPTIONS: { value: ScheduleConfig["frequency"]; label: string }[] = [
+  { value: "off", label: "예약 안 함" },
+  { value: "hourly", label: "매시간" },
+  { value: "daily", label: "매일" },
+  { value: "weekdays", label: "평일마다" },
+];
+
+function scheduleLabel(s?: ScheduleConfig): string {
+  if (!s || s.frequency === "off") return "예약 없음";
+  if (s.frequency === "hourly") return "매시간 자동 실행";
+  const hour = s.hour ?? 9;
+  const timeLabel = `${String(hour).padStart(2, "0")}:00`;
+  return s.frequency === "daily" ? `매일 ${timeLabel} 자동 실행` : `평일 ${timeLabel} 자동 실행`;
 }
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -46,8 +68,24 @@ export default function TestsPage() {
   const router = useRouter();
   const { data: tests, mutate } = useSWR<SavedTest[]>("/api/tests", fetcher, { refreshInterval: 5000 });
   const [runningId, setRunningId] = useState<string | null>(null);
-  const [authModalFor, setAuthModalFor] = useState<string | null>(null);
+  // 인증이 필요한 액션(실행 또는 예약 설정)을 인증 후 재시도하기 위해 보류 중인 액션을 기억
+  const [pendingAuthAction, setPendingAuthAction] = useState<{ type: "run" | "schedule"; testId: string; schedule?: ScheduleConfig } | null>(null);
   const [error, setError] = useState("");
+  const [scheduleOpenFor, setScheduleOpenFor] = useState<string | null>(null);
+
+  const updateSchedule = async (testId: string, schedule: ScheduleConfig, token?: string) => {
+    const res = await fetch(`/api/tests/${testId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "x-qagent-admin-token": token ?? getAdminToken() },
+      body: JSON.stringify({ schedule }),
+    });
+    if (res.status === 403) {
+      clearAdminToken();
+      setPendingAuthAction({ type: "schedule", testId, schedule });
+      return;
+    }
+    mutate();
+  };
 
   const runTest = async (testId: string, token?: string) => {
     setRunningId(testId);
@@ -61,7 +99,7 @@ export default function TestsPage() {
       const data = await res.json();
       if (res.status === 403) {
         clearAdminToken();
-        setAuthModalFor(testId);
+        setPendingAuthAction({ type: "run", testId });
         return;
       }
       if (data.run_id) {
@@ -159,8 +197,33 @@ export default function TestsPage() {
                       <p style={{ fontSize: 12, color: A.inkMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {t.targetUrl.replace(/^https?:\/\//, "")} · 시나리오 {t.scenarios.length}개
                         {t.loginConfig?.fields?.some((f) => f.value) ? " · 로그인 설정됨" : ""}
-                        {lr ? ` · 마지막 실행 ${timeAgo(lr.at)}` : ""}
+                        {lr ? ` · 마지막 실행 ${timeAgo(lr.at)}${lr.triggeredBy === "schedule" ? " (예약)" : ""}` : ""}
                       </p>
+                    </div>
+
+                    <div style={{ position: "relative", flexShrink: 0 }}>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setScheduleOpenFor(scheduleOpenFor === t.id ? null : t.id); }}
+                        title="자동 실행 예약"
+                        style={{
+                          display: "flex", alignItems: "center", gap: 6, padding: "8px 10px", borderRadius: 8,
+                          background: t.schedule && t.schedule.frequency !== "off" ? "rgba(0,102,204,0.08)" : "transparent",
+                          border: `1px solid ${t.schedule && t.schedule.frequency !== "off" ? "rgba(0,102,204,0.25)" : A.hairline}`,
+                          color: t.schedule && t.schedule.frequency !== "off" ? A.blue : A.inkMuted,
+                          fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
+                        }}
+                      >
+                        <IconClock size={13} />
+                        {t.schedule && t.schedule.frequency !== "off" ? scheduleLabel(t.schedule) : "예약"}
+                      </button>
+
+                      {scheduleOpenFor === t.id && (
+                        <SchedulePopover
+                          schedule={t.schedule}
+                          onChange={(s) => { updateSchedule(t.id, s); setScheduleOpenFor(null); }}
+                          onClose={() => setScheduleOpenFor(null)}
+                        />
+                      )}
                     </div>
 
                     <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
@@ -211,17 +274,89 @@ export default function TestsPage() {
         </div>
       </main>
 
-      {authModalFor && (
+      {pendingAuthAction && (
         <AdminAuthModal
-          onClose={() => setAuthModalFor(null)}
+          onClose={() => setPendingAuthAction(null)}
           onVerified={(token) => {
             setAdminToken(token);
-            const id = authModalFor;
-            setAuthModalFor(null);
-            runTest(id, token);
+            const action = pendingAuthAction;
+            setPendingAuthAction(null);
+            if (action.type === "run") runTest(action.testId, token);
+            else updateSchedule(action.testId, action.schedule!, token);
           }}
         />
       )}
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 자동 실행 예약 팝오버 — 여기서 설정해두면 사람이 버튼을 안 눌러도 정해진 시각에 실행됨
+// ─────────────────────────────────────────────────────────────────────────────
+
+function SchedulePopover({
+  schedule,
+  onChange,
+  onClose,
+}: {
+  schedule?: ScheduleConfig;
+  onChange: (s: ScheduleConfig) => void;
+  onClose: () => void;
+}) {
+  const [frequency, setFrequency] = useState<ScheduleConfig["frequency"]>(schedule?.frequency || "off");
+  const [hour, setHour] = useState<number>(schedule?.hour ?? 9);
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40" onClick={onClose} />
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 50,
+          width: 240, background: A.canvas, borderRadius: 12, border: `1px solid ${A.hairline}`,
+          boxShadow: "0 12px 32px rgba(0,0,0,0.12)", padding: 14,
+        }}
+      >
+        <p style={{ fontSize: 12, fontWeight: 700, color: A.ink, marginBottom: 10 }}>자동 실행 예약</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: frequency === "off" || frequency === "hourly" ? 0 : 10 }}>
+          {SCHEDULE_OPTIONS.map((opt) => (
+            <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: A.ink, cursor: "pointer" }}>
+              <input
+                type="radio" name="freq" checked={frequency === opt.value}
+                onChange={() => setFrequency(opt.value)}
+                style={{ accentColor: A.blue }}
+              />
+              {opt.label}
+            </label>
+          ))}
+        </div>
+
+        {(frequency === "daily" || frequency === "weekdays") && (
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ fontSize: 11, color: A.inkMuted, display: "block", marginBottom: 4 }}>실행 시각</label>
+            <select
+              value={hour}
+              onChange={(e) => setHour(Number(e.target.value))}
+              style={{ width: "100%", padding: "6px 8px", borderRadius: 8, border: `1px solid ${A.hairline}`, fontSize: 13 }}
+            >
+              {Array.from({ length: 24 }, (_, h) => (
+                <option key={h} value={h}>{String(h).padStart(2, "0")}:00</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <p style={{ fontSize: 10.5, color: A.inkMuted, lineHeight: 1.5, marginBottom: 10 }}>
+          예약 실행은 관리자 인증 없이 자동으로 진행되며, 완료되면 설정된 알림(Slack 등)으로 결과를 받습니다.
+        </p>
+
+        <button
+          onClick={() => onChange({ frequency, hour })}
+          style={{ width: "100%", padding: "8px 0", borderRadius: 8, background: A.blue, color: "#fff", border: "none", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+        >
+          저장
+        </button>
+      </div>
     </>
   );
 }

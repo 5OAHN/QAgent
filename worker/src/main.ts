@@ -5,7 +5,7 @@ import path from "path";
 import fs from "fs";
 import { runExcelPipeline, runNaturalLanguagePipeline, getRunResult, getAllRuns, cancelRun, pauseRun, resumeRun, deleteRunResult } from "./pipeline";
 import { verifyPassword, changePassword, verifyAdminPassword, changeAdminPassword, issueAdminToken, verifyAdminToken } from "./auth";
-import { listTests, getTest, createTest, updateTest, deleteTest } from "./tests-store";
+import { listTests, getTest, createTest, updateTest, deleteTest, getDueScheduledTests, markScheduledTrigger, currentTriggerKey } from "./tests-store";
 import { saveRun } from "./db";
 import { getMaskedKeys, saveApiKeys, resolveAnthropicKey, resolveGeminiKey } from "./api-keys";
 import Anthropic from "@anthropic-ai/sdk";
@@ -299,6 +299,11 @@ app.post("/tests", (req: Request, res: Response) => {
 });
 
 app.put("/tests/:id", (req: Request, res: Response) => {
+  // 예약 실행은 관리자 인증 없이도 계속 크레딧을 소비하므로, off가 아닌 스케줄을
+  // 설정하려면 새 테스트 실행과 동일하게 관리자 인증이 필요하다.
+  if (req.body?.schedule && req.body.schedule.frequency !== "off" && !checkRunAuth(req)) {
+    return res.status(403).json({ error: "예약 실행을 설정하려면 관리자 인증이 필요합니다.", code: "ADMIN_AUTH_REQUIRED" });
+  }
   const patch = { ...req.body };
   // 비밀번호 필드가 빈 값으로 오면 저장된 값을 유지 (마스킹된 폼 재제출 대응)
   if (patch.loginConfig?.fields) {
@@ -346,6 +351,39 @@ app.post("/tests/:id/run", (req: Request, res: Response) => {
 
   res.json({ run_id: runId, status: "queued" });
 });
+
+// ── 예약 실행 스케줄러 — 매분 확인, 관리자 인증 없이 서버 내부에서 직접 트리거 ──
+// 사람이 "실행" 버튼을 누르지 않아도 정해진 시각에 자동 실행되어야
+// 진짜로 손을 떼고 다른 업무를 볼 수 있다. 인증은 예약 등록 시점에 이미 이뤄졌다고 본다.
+// FRONTEND_URL이 설정되어야 알림 메시지에 결과 링크가 붙는다 (없으면 링크 없이 발송).
+const SCHEDULER_DASHBOARD_URL = process.env.FRONTEND_URL || "";
+
+function startScheduler() {
+  setInterval(() => {
+    let due: ReturnType<typeof getDueScheduledTests>;
+    try {
+      due = getDueScheduledTests(new Date());
+    } catch (err: any) {
+      console.warn(`  ⏰ 스케줄러 조회 실패: ${err.message}`);
+      return;
+    }
+    if (due.length === 0) return;
+
+    const triggerKey = currentTriggerKey(new Date());
+    for (const test of due) {
+      markScheduledTrigger(test.id, triggerKey);
+      const runId = crypto.randomUUID();
+      console.log(`\n⏰ [${runId}] 예약 실행 시작 → "${test.name}"`);
+      runNaturalLanguagePipeline(runId, test.targetUrl, test.scenarios, "예약 실행", test.loginConfig, {
+        testId: test.id,
+        testName: test.name,
+        dashboardBaseUrl: SCHEDULER_DASHBOARD_URL || undefined,
+        triggeredBySchedule: true,
+      }).catch((err) => console.error(`[${runId}] 예약 실행 오류:`, err.message));
+    }
+  }, 60_000);
+}
+startScheduler();
 
 // ── 전체 실행 이력 조회 ──────────────────────────────────────────────
 // 목록/대시보드 화면은 스크린샷 base64, 생성 코드처럼 무거운 필드가 필요 없다 —

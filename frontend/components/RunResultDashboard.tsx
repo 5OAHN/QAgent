@@ -32,6 +32,8 @@ interface TestCase {
   stepPlan?: { action: string; verify: string; status: "pending" | "running" | "pass" | "fail" }[];
   blockReason?: string;
   assumptions?: string[];
+  regression?: "new_failure" | "known_issue" | "fixed" | "first_run" | "stable";
+  retryCount?: number;
 }
 
 interface RunResult {
@@ -980,6 +982,28 @@ function ScenarioCard({
               {isReview && (
                 <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600">
                   확인 필요
+                </span>
+              )}
+              {tc.regression === "new_failure" && (
+                <span className="flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-50 text-red-600">
+                  <IconAlertTriangle size={10} />
+                  신규 실패
+                </span>
+              )}
+              {tc.regression === "known_issue" && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                  기존 이슈
+                </span>
+              )}
+              {tc.regression === "fixed" && (
+                <span className="flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-50 text-green-600">
+                  <IconCheckCircle size={10} />
+                  복구됨
+                </span>
+              )}
+              {!!tc.retryCount && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-500">
+                  자동 재시도 {tc.retryCount}회
                 </span>
               )}
             </div>

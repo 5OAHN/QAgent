@@ -5,7 +5,8 @@
     "dev": "ts-node-dev --respawn --transpile-only src/main.ts",
     "build": "tsc",
     "start": "node dist/main.js",
-    "test:engine": "ts-node --transpile-only test-engine.ts"
+    "test:engine": "ts-node --transpile-only test-engine.ts",
+    "test:scheduler": "ts-node --transpile-only test-scheduler.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.1",

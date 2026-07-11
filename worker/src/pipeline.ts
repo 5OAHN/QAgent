@@ -9,7 +9,7 @@ import { executeSmartLogin } from "./smart-login";
 import { runAgentScenario } from "./agent-executor";
 import { planScenario } from "./scenario-planner";
 import { notifyRunComplete } from "./notifier";
-import { recordLastRun } from "./tests-store";
+import { recordLastRun, getTest } from "./tests-store";
 import { saveRun, loadAllRuns, deleteRun } from "./db";
 
 export interface RunResult {
@@ -165,6 +165,19 @@ export interface PipelineOpts {
   testName?: string;
   /** 완료 알림 링크용 프론트엔드 origin */
   dashboardBaseUrl?: string;
+  /** 스케줄러가 자동으로 트리거한 실행인지 여부 — 이력/알림 표기에 사용 */
+  triggeredBySchedule?: boolean;
+}
+
+/** 직전 실행 대비 이번 케이스 상태를 분류 — 알림/리포트에서 "새로 터진 것"만 강조하기 위함 */
+function classifyRegression(
+  prevStatus: "Pass" | "Fail" | "Pending" | "Blocked" | undefined,
+  currentStatus: "Pass" | "Fail" | "Pending" | "Blocked"
+): "new_failure" | "known_issue" | "fixed" | "first_run" | "stable" {
+  const isFail = (s: string) => s === "Fail" || s === "Blocked";
+  if (prevStatus === undefined) return "first_run";
+  if (isFail(currentStatus)) return isFail(prevStatus) ? "known_issue" : "new_failure";
+  return isFail(prevStatus) ? "fixed" : "stable";
 }
 
 export async function runNaturalLanguagePipeline(
@@ -211,6 +224,18 @@ export async function runNaturalLanguagePipeline(
     isCancelled: () => cancelledRuns.has(runId),
     isPaused: () => pausedRuns.has(runId),
   };
+
+  // 저장된 테스트의 직전 실행을 찾아 testId별 이전 상태를 기록 — 회귀(신규 실패) 판정에 사용.
+  // 같은 시나리오 배열 순서를 쓰는 저장 테스트에서만 의미가 있다 (testId는 배열 인덱스 기반).
+  const previousStatusByTestId = new Map<string, "Pass" | "Fail" | "Pending" | "Blocked">();
+  if (opts?.testId) {
+    const savedTest = getTest(opts.testId);
+    const prevRunId = savedTest?.lastRun?.runId;
+    if (prevRunId) {
+      const prevRun = activeRuns.get(prevRunId);
+      for (const c of prevRun?.cases || []) previousStatusByTestId.set(c.testId, c.status);
+    }
+  }
 
   // 브라우저 + 컨텍스트 + 페이지를 런 전체에서 공유 — 세션이 끊기지 않음
   const browser = await chromium.launch({ headless: true });
@@ -328,6 +353,7 @@ export async function runNaturalLanguagePipeline(
           result.tokenUsage = totalTokens;
           liveStepLogs.push(`⚠️ BLOCKED 테스트 진행 불가 판정\n    💭 ${result.blockReason}`);
           run.failed++; // 집계상 실패로 계산 (성공은 아니므로)
+          result.regression = classifyRegression(previousStatusByTestId.get(testId), "Blocked");
           console.log(`\n⚠️ [${testId}] 진행 불가 판정: ${result.blockReason}`);
           sync();
           continue;
@@ -373,27 +399,39 @@ export async function runNaturalLanguagePipeline(
             "단계에 조건('~라면')이 있으면 현재 화면을 보고 조건 충족 여부를 먼저 판단하세요. 조건이 해당되지 않으면 그 사실을 evidence에 적고 done 하세요.",
           ].join("\n");
 
-          const agentResult = await runAgentScenario(page, stepTask, {
-            maxSteps: 12,
-            onStep: (step) => {
-              const icon = step.action === "done" ? "✅" : step.action === "fail" || step.action === "error" ? "❌" : `[${sIdx + 1}.${step.stepNum}]`;
-              liveStepLogs.push(`${icon} ${step.action.toUpperCase()} ${step.details}\n    💭 ${step.thought}`);
+          // 일시적 오류(네트워크 지연, 렌더링 타이밍 등) 필터링 — 실패 시 한 번 더 시도한 뒤에만
+          // 최종 실패로 확정한다. 사람이 알림을 받았을 때 "진짜 문제"라고 신뢰할 수 있게 하기 위함.
+          const MAX_STEP_ATTEMPTS = 2;
+          let agentResult: Awaited<ReturnType<typeof runAgentScenario>> | undefined;
+          for (let attempt = 1; attempt <= MAX_STEP_ATTEMPTS; attempt++) {
+            if (attempt > 1) {
+              result.retryCount = (result.retryCount || 0) + 1;
+              liveStepLogs.push(`🔁 RETRY 단계 ${sIdx + 1} 재시도 (${attempt}/${MAX_STEP_ATTEMPTS})\n    💭 일시적 오류일 수 있어 한 번 더 시도합니다: ${agentResult?.failReason}`);
               sync();
-            },
-            control,
-          });
+              await page.waitForTimeout(1500);
+            }
+            agentResult = await runAgentScenario(page, stepTask, {
+              maxSteps: 12,
+              onStep: (step) => {
+                const icon = step.action === "done" ? "✅" : step.action === "fail" || step.action === "error" ? "❌" : `[${sIdx + 1}.${step.stepNum}]`;
+                liveStepLogs.push(`${icon} ${step.action.toUpperCase()} ${step.details}\n    💭 ${step.thought}`);
+                sync();
+              },
+              control,
+            });
+            page = agentResult.finalPage;
+            totalTokens += agentResult.totalTokens || 0;
+            if (agentResult.success || control.isCancelled()) break;
+          }
 
-          page = agentResult.finalPage;
-          totalTokens += agentResult.totalTokens || 0;
-
-          if (agentResult.success) {
+          if (agentResult!.success) {
             result.stepPlan![sIdx].status = "pass";
             sync();
             console.log(`  [${testId}] 단계 ${sIdx + 1}/${plan.steps.length} 통과`);
           } else {
             result.stepPlan![sIdx].status = "fail";
             scenarioFailed = true;
-            failDetail = `단계 ${sIdx + 1}(${planned.action})에서 실패: ${agentResult.failReason}`;
+            failDetail = `단계 ${sIdx + 1}(${planned.action})에서 실패: ${agentResult!.failReason}`;
             sync();
             break;
           }
@@ -421,10 +459,12 @@ export async function runNaturalLanguagePipeline(
           run.failed++;
           console.log(`\n❌ [${testId}] 실패: ${result.failReason}`);
         }
+        result.regression = classifyRegression(previousStatusByTestId.get(testId), result.status);
         sync();
       } catch (err: any) {
         result.status = "Fail";
         result.failReason = err.message;
+        result.regression = classifyRegression(previousStatusByTestId.get(testId), "Fail");
         try {
           const screenshotBuffer = await page.screenshot({ fullPage: true });
           result.screenshotBase64 = screenshotBuffer.toString("base64");
@@ -482,11 +522,14 @@ export async function runNaturalLanguagePipeline(
       failed: run.failed,
       total: run.total,
       at: new Date().toISOString(),
+      triggeredBy: opts.triggeredBySchedule ? "schedule" : "manual",
     });
   }
 
-  // 완료 알림 (웹훅 미설정 시 no-op, 실패해도 무시)
+  // 완료 알림 (웹훅 미설정 시 no-op, 실패해도 무시) — 회귀(신규 실패)와 복구를 우선 강조
   const blockedCount = run.cases.filter((c) => c.status === "Blocked").length;
+  const newFailures = run.cases.filter((c) => c.regression === "new_failure");
+  const fixedCases = run.cases.filter((c) => c.regression === "fixed");
   await notifyRunComplete({
     runId,
     testName: opts?.testName,
@@ -496,6 +539,9 @@ export async function runNaturalLanguagePipeline(
     blocked: blockedCount,
     total: run.total,
     dashboardBaseUrl: opts?.dashboardBaseUrl,
+    newFailures: newFailures.map((c) => ({ testId: c.testId, scenario: c.scenario })),
+    fixedCount: fixedCases.length,
+    triggeredBySchedule: opts?.triggeredBySchedule,
   });
 
   return run;

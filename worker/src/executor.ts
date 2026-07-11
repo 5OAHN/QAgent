@@ -24,6 +24,10 @@ export interface TestResult {
   blockReason?: string;
   /** AI가 모호한 표현을 해석한 가정 목록 */
   assumptions?: string[];
+  /** 같은 저장 테스트의 직전 실행 대비 회귀 분류 — 저장된 테스트 실행에서만 채워짐 */
+  regression?: "new_failure" | "known_issue" | "fixed" | "first_run" | "stable";
+  /** 일시적 오류로 판단되어 자동 재시도된 횟수 */
+  retryCount?: number;
 }
 
 const BASE_URL = process.env.WORKER_BASE_URL || "http://localhost:8001";
