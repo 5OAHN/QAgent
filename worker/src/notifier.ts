@@ -14,6 +14,8 @@ export interface RunSummaryForNotify {
   /** 직전 실행에서 실패했다가 이번에 복구된 케이스 수 */
   fixedCount?: number;
   triggeredBySchedule?: boolean;
+  /** 설정 오류 등으로 실행 자체가 시작되지 못한 경우의 사유 — 최우선으로 강조해야 함 */
+  configError?: string;
 }
 
 /**
@@ -26,6 +28,22 @@ export interface RunSummaryForNotify {
 export async function notifyRunComplete(summary: RunSummaryForNotify): Promise<void> {
   const webhookUrl = (getApiKeys() as any).webhookUrl as string | undefined;
   if (!webhookUrl || !/^https?:\/\//.test(webhookUrl)) return;
+
+  if (summary.configError) {
+    const name = summary.testName || summary.targetUrl || "테스트";
+    const text = `🚫 QAgent 실행 불가 — ${name}\n${summary.configError}\n예약된 테스트가 계속 실행되지 못하고 있을 수 있습니다. 설정을 확인해주세요.`;
+    try {
+      await fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+        signal: AbortSignal.timeout(8000),
+      });
+    } catch (err: any) {
+      console.warn(`  🔔 설정 오류 알림 발송 실패: ${err.message}`);
+    }
+    return;
+  }
 
   const hasNewFailures = (summary.newFailures?.length || 0) > 0;
   const allPassed = summary.failed === 0 && summary.blocked === 0 && summary.total > 0;

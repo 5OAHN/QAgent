@@ -10,6 +10,7 @@ import { runAgentScenario } from "./agent-executor";
 import { planScenario } from "./scenario-planner";
 import { notifyRunComplete } from "./notifier";
 import { recordLastRun, getTest } from "./tests-store";
+import { resolveAnthropicKey } from "./api-keys";
 import { saveRun, loadAllRuns, deleteRun } from "./db";
 
 export interface RunResult {
@@ -188,15 +189,36 @@ export async function runNaturalLanguagePipeline(
   loginConfig?: LoginConfig,
   opts?: PipelineOpts
 ): Promise<RunResult> {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!resolveAnthropicKey()) {
     const run: RunResult = {
       runId, status: "failed", mode: "natural",
       total: 0, passed: 0, failed: 0, cases: [],
       createdAt: new Date().toISOString(),
-      error: "ANTHROPIC_API_KEY가 필요합니다.",
+      targetUrl,
+      testId: opts?.testId,
+      testName: opts?.testName,
+      error: "ANTHROPIC_API_KEY가 설정되지 않았습니다. 설정 페이지에서 API 키를 등록하세요.",
     };
     activeRuns.set(runId, run);
     saveRun(run);
+
+    // 설정 오류로 실행 자체가 시작조차 못했다는 것은 "손 떼고 맡긴" 사람이
+    // 가장 먼저 알아야 하는 상황이다 — 조용히 묻히지 않도록 기록과 알림을 남긴다.
+    if (opts?.testId) {
+      recordLastRun(opts.testId, {
+        runId, status: "failed", passed: 0, failed: 0, total: 0,
+        at: new Date().toISOString(),
+        triggeredBy: opts.triggeredBySchedule ? "schedule" : "manual",
+      });
+    }
+    notifyRunComplete({
+      runId, testName: opts?.testName, targetUrl,
+      passed: 0, failed: 0, blocked: 0, total: 0,
+      dashboardBaseUrl: opts?.dashboardBaseUrl,
+      configError: run.error,
+      triggeredBySchedule: opts?.triggeredBySchedule,
+    }).catch(() => {});
+
     return run;
   }
 
