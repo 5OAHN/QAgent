@@ -264,12 +264,12 @@ const ACTION_TOOL = {
     properties: {
       reasoning: {
         type: "string",
-        description: "한국어로: 현재 상태 판단 + 이 액션을 선택한 이유 (1-2문장)",
+        description: "한국어 1-2문장으로 짧게. 장문으로 쓰면 응답이 토큰 한도에서 잘려 action 필드가 유실되고 이 턴이 무효 처리됩니다.",
       },
       action: {
         type: "string",
         enum: ["click", "dblclick", "fill", "select", "press", "scroll", "goto", "wait", "done", "fail"],
-        description: "click=요소 클릭(자동 스크롤됨), dblclick=요소 더블클릭(인라인 편집 모드 진입 등), fill=입력필드에 값 입력, select=드롭다운 옵션 선택, press=키보드 키 입력, scroll=페이지 스크롤(lazy 로딩 콘텐츠 노출용), goto=URL 직접 이동, wait=대기, done=시나리오 완료, fail=수행 불가 판정",
+        description: "click=요소 클릭(자동 스크롤됨), dblclick=요소 더블클릭(인라인 편집 모드 진입 등), fill=입력필드에 값 입력(기존 값은 자동으로 대체됨 — 미리 지울 필요 없음), select=드롭다운 옵션 선택, press=키보드 키 입력, scroll=페이지 스크롤(lazy 로딩 콘텐츠 노출용), goto=URL 직접 이동, wait=대기, done=시나리오 완료, fail=수행 불가 판정",
       },
       ref: { type: "string", description: "click/dblclick/fill/select 대상 요소의 ref 번호. 스냅샷에 있는 ref만 사용" },
       value: {
@@ -284,6 +284,28 @@ const ACTION_TOOL = {
     required: ["reasoning", "action"],
   },
 };
+
+/** 일시적 API 오류(레이트리밋 429, 서버 5xx)는 지수 백오프로 재시도 —
+    한 번의 API 히컵이 스텝 실패로 번지지 않게 한다 */
+async function createWithRetry(
+  client: Anthropic,
+  params: Anthropic.MessageCreateParamsNonStreaming,
+  tries = 3
+): Promise<Anthropic.Message> {
+  let lastErr: any;
+  for (let attempt = 1; attempt <= tries; attempt++) {
+    try {
+      return await client.messages.create(params);
+    } catch (err: any) {
+      lastErr = err;
+      const status = err?.status ?? 0;
+      const retryable = status === 429 || status === 408 || status >= 500;
+      if (!retryable || attempt === tries) throw err;
+      await new Promise((r) => setTimeout(r, attempt * 2000));
+    }
+  }
+  throw lastErr;
+}
 
 /** 리다이렉트 체인이 끝나 URL이 700ms 동안 그대로일 때까지 대기 (최대 6초) */
 async function waitForUrlStable(page: Page, maxWaitMs = 6000): Promise<void> {
@@ -326,26 +348,40 @@ export async function executeAction(
     return out;
   };
 
+  // ref 요소가 DOM에서 사라졌으면(SPA 재렌더링으로 ref 무효화) 풀 타임아웃(5~8초)을
+  // 기다리지 말고 즉시, 에이전트가 스스로 고칠 수 있는 메시지로 실패시킨다.
+  const requireTarget = async () => {
+    if (!sel) throw new Error("ref가 필요합니다.");
+    if ((await page.locator(sel).count()) === 0) {
+      throw new Error(`ref=${act.ref} 요소가 현재 DOM에 없습니다(화면이 갱신되어 ref가 무효화됨). 다음 스냅샷의 새 ref 번호로 다시 시도하세요.`);
+    }
+    return page.locator(sel).first();
+  };
+
   try {
     switch (act.action) {
       case "click":
-        if (!sel) throw new Error("ref가 필요합니다.");
-        await page.locator(sel).first().click({ timeout: 8000 });
+        await (await requireTarget()).click({ timeout: 8000 });
         break;
       case "dblclick":
-        if (!sel) throw new Error("ref가 필요합니다.");
-        await page.locator(sel).first().dblclick({ timeout: 8000 });
+        await (await requireTarget()).dblclick({ timeout: 8000 });
         break;
       case "fill": {
-        if (!sel) throw new Error("ref가 필요합니다.");
+        const target = await requireTarget();
         const realValue = substitute(act.value || "");
-        await page.locator(sel).first().click({ timeout: 5000 }).catch(() => {});
-        await page.locator(sel).first().fill(realValue, { timeout: 5000 });
+        try {
+          await target.fill(realValue, { timeout: 5000 });
+        } catch {
+          // React 제어 컴포넌트 등에서 fill의 actionability 검사가 실패하는 경우 —
+          // 실제 사용자와 동일하게 클릭 → 전체선택 → 타이핑으로 폴백한다.
+          await target.click({ timeout: 3000 }).catch(() => {});
+          await page.keyboard.press("ControlOrMeta+a").catch(() => {});
+          await page.keyboard.type(realValue, { delay: 15 });
+        }
         break;
       }
       case "select":
-        if (!sel) throw new Error("ref가 필요합니다.");
-        await page.locator(sel).first().selectOption({ label: act.value || "" }, { timeout: 5000 });
+        await (await requireTarget()).selectOption({ label: act.value || "" }, { timeout: 5000 });
         break;
       case "press":
         // F5는 헤드리스에서 무동작 — 실제 리로드로 매핑
@@ -402,13 +438,15 @@ const SYSTEM_PROMPT = `당신은 실제 브라우저를 조작하는 시니어 Q
 스냅샷은 두 부분입니다: "화면에 보이는 텍스트"(카운터·안내문·상태 메시지 등)와 "상호작용 요소 목록"(ref 번호 포함).
 
 ## 절대 규칙
-1. ref는 반드시 현재 스냅샷에 존재하는 번호만 사용하세요. 추측하거나 만들어내지 마세요.
+1. ref는 반드시 **현재 턴 스냅샷**에 존재하는 번호만 사용하세요. ref는 매 턴 새로 매겨지므로 이전 턴의 ref는 무효입니다. 추측하거나 만들어내지 마세요.
 2. click: 요소를 한 번 클릭. 자동으로 스크롤됨. inView=false여도 가능.
 3. dblclick: 요소를 빠르게 두 번 클릭. 인라인 편집, 이름 변경 UI에서 사용.
    예: TodoMVC 목록 항목의 레이블을 dblclick하면 편집 input이 나타남.
-4. scroll 액션은 무한스크롤/lazy 로딩 콘텐츠를 새로 불러올 때만 사용하세요. 요소 클릭을 위해 스크롤할 필요는 없습니다.
-4. 검색: 검색 input에 fill한 다음 턴에 press Enter 하세요.
-5. {{SECRET_N}} 형태의 토큰이 과업에 있으면 fill의 value에 토큰 그대로 넣으세요. 실행 시 실제 값으로 치환됩니다.
+4. fill: 입력필드의 **기존 값을 자동으로 지우고 대체**합니다. Control+A나 Delete로 미리 지우는 턴을 낭비하지 마세요. 값 교체는 fill 한 번이면 됩니다.
+5. scroll 액션은 무한스크롤/lazy 로딩 콘텐츠를 새로 불러올 때만 사용하세요. 요소 클릭을 위해 스크롤할 필요는 없습니다.
+6. 검색: 검색 input에 fill한 다음 턴에 press Enter 하세요.
+7. {{SECRET_N}} 형태의 토큰이 과업에 있으면 fill의 value에 토큰 그대로 넣으세요. 실행 시 실제 값으로 치환됩니다.
+8. reasoning은 1-2문장으로 짧게. 장문 reasoning은 응답이 토큰 한도에서 잘려 그 턴이 무효 처리됩니다.
 
 ## 판단 규칙
 - 같은 액션이 2번 연속 실패하면 다른 요소나 다른 방법을 시도하세요.
@@ -498,6 +536,7 @@ export async function runAgentScenario(
   const steps: AgentStep[] = [];
   let totalTokens = 0;
   let invalidOutputs = 0;
+  let consecutiveActionFailures = 0;
   // 과거 턴은 요약 텍스트로 압축해 토큰을 절약한다
   const history: string[] = [];
   const recentSigs: string[] = [];
@@ -531,9 +570,9 @@ export async function runAgentScenario(
         `다음 액션 하나를 결정하세요. (${i + 1}/${maxSteps} 스텝)`,
       ].filter(Boolean).join("\n\n");
 
-      const response = await client.messages.create({
+      const response = await createWithRetry(client, {
         model: AGENT_MODEL,
-        max_tokens: 500,
+        max_tokens: 1024,
         system: SYSTEM_PROMPT,
         tools: [ACTION_TOOL],
         tool_choice: { type: "tool", name: "browser_action" },
@@ -551,21 +590,26 @@ export async function runAgentScenario(
       // 모델 출력 검증 — action 누락/enum 밖 값이 그대로 흘러가면 로그 콜백
       // (step.action.toUpperCase 등)에서 TypeError가 나 런 전체가 죽는다.
       // 크래시 대신 교정 피드백을 히스토리에 넣고 다음 턴에서 스스로 고치게 한다.
-      if (!act.action || !VALID_ACTIONS.has(act.action)) {
+      // 주요 원인은 장문 reasoning이 max_tokens에서 잘려 action이 유실되는 것.
+      const truncated = response.stop_reason === "max_tokens";
+      if (truncated || !act.action || !VALID_ACTIONS.has(act.action)) {
         invalidOutputs++;
-        const got = act.action ? `지원하지 않는 액션 "${act.action}"` : "action 필드 누락";
+        const got = truncated
+          ? "응답이 토큰 한도에서 잘림"
+          : act.action ? `지원하지 않는 액션 "${act.action}"` : "action 필드 누락";
         emit("error", `AI 출력 오류: ${got}`, "유효한 액션으로 다시 결정합니다.");
         history.push(
-          `${i + 1}. (무효 출력: ${got}) → action에는 click/dblclick/fill/select/press/scroll/goto/wait/done/fail 중 하나만 사용하세요.`
+          `${i + 1}. (무효 출력: ${got}) → reasoning은 1-2문장으로 짧게 쓰고, action 필드에 click/dblclick/fill/select/press/scroll/goto/wait/done/fail 중 하나를 반드시 포함하세요.`
         );
         if (invalidOutputs >= 3) {
           return {
             success: false, steps, totalTokens, finalPage: session.getPage(),
-            failReason: "AI가 유효한 액션을 3회 결정하지 못했습니다. 시나리오를 더 단순한 행동 단위로 나눠보세요.",
+            failReason: "AI가 유효한 액션을 3회 연속 결정하지 못했습니다. 시나리오를 더 단순한 행동 단위로 나눠보세요.",
           };
         }
         continue;
       }
+      invalidOutputs = 0; // 유효한 출력이 나오면 리셋 — 산발적 잘림으로 긴 시나리오가 중단되지 않게
 
       const desc = describeAction(act, secrets);
       emit(act.action, desc, act.reasoning || "");
@@ -602,7 +646,16 @@ export async function runAgentScenario(
       }
 
       if (!outcome.ok) {
+        consecutiveActionFailures++;
         emit("error", outcome.error || "액션 실패", "다음 스냅샷을 보고 다른 방법을 시도합니다.");
+        // 액션이 계속 실패하면 같은 접근을 고집하지 않도록 명시적으로 방향 전환을 지시
+        if (consecutiveActionFailures === 2) {
+          history.push(
+            `⚠️ 액션이 2회 연속 실패했습니다. 접근을 바꾸세요: (1) 반드시 최신 스냅샷의 ref로만 시도, (2) fill이 안 되면 click 후 press로 키보드 입력, (3) 대상 요소가 사라졌다면 이전 단계(예: 더블클릭으로 편집 모드 재진입)부터 다시 수행하세요.`
+          );
+        }
+      } else {
+        consecutiveActionFailures = 0;
       }
     }
 

@@ -56,6 +56,16 @@ async function main() {
   const bad = await executeAction(session, { action: "hover" as any, ref: "0", reasoning: "" }, []);
   check("무효 액션 → 명시적 실패", !bad.ok && (bad.error || "").includes("지원하지 않는"), bad.error);
 
+  // 4) stale ref 방어 — DOM에 없는 ref는 풀 타임아웃(8초) 대기 없이 즉시, 교정 가능한 메시지로 실패
+  const t0 = Date.now();
+  const stale = await executeAction(session, { action: "click", ref: "4242", reasoning: "" } as AgentAction, []);
+  const elapsed = Date.now() - t0;
+  check(
+    "stale ref → 즉시 명시적 실패",
+    !stale.ok && (stale.error || "").includes("현재 DOM에 없습니다") && elapsed < 4000,
+    `${elapsed}ms — ${stale.error}`
+  );
+
   await browser.close();
   console.log("\n" + results.join("\n"));
 }
