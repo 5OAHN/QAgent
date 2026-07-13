@@ -243,12 +243,18 @@ export function createBrowserSession(initialPage: Page): BrowserSession {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface AgentAction {
-  action: "click" | "fill" | "select" | "press" | "scroll" | "goto" | "wait" | "done" | "fail";
+  action: "click" | "dblclick" | "fill" | "select" | "press" | "scroll" | "goto" | "wait" | "done" | "fail";
   ref?: string;
   value?: string;
   reasoning: string;
   evidence?: string;
 }
+
+/** 모델 출력 검증용 — tool_choice로 도구 호출은 강제되지만 필드 누락이나
+    enum 밖 값은 API가 항상 막아주지 않는다(특히 소형 모델). */
+const VALID_ACTIONS = new Set<string>([
+  "click", "dblclick", "fill", "select", "press", "scroll", "goto", "wait", "done", "fail",
+]);
 
 const ACTION_TOOL = {
   name: "browser_action",
@@ -262,10 +268,10 @@ const ACTION_TOOL = {
       },
       action: {
         type: "string",
-        enum: ["click", "fill", "select", "press", "scroll", "goto", "wait", "done", "fail"],
-        description: "click=요소 클릭(자동 스크롤됨), fill=입력필드에 값 입력, select=드롭다운 옵션 선택, press=키보드 키 입력, scroll=페이지 스크롤(lazy 로딩 콘텐츠 노출용), goto=URL 직접 이동, wait=대기, done=시나리오 완료, fail=수행 불가 판정",
+        enum: ["click", "dblclick", "fill", "select", "press", "scroll", "goto", "wait", "done", "fail"],
+        description: "click=요소 클릭(자동 스크롤됨), dblclick=요소 더블클릭(인라인 편집 모드 진입 등), fill=입력필드에 값 입력, select=드롭다운 옵션 선택, press=키보드 키 입력, scroll=페이지 스크롤(lazy 로딩 콘텐츠 노출용), goto=URL 직접 이동, wait=대기, done=시나리오 완료, fail=수행 불가 판정",
       },
-      ref: { type: "string", description: "click/fill/select 대상 요소의 ref 번호. 스냅샷에 있는 ref만 사용" },
+      ref: { type: "string", description: "click/dblclick/fill/select 대상 요소의 ref 번호. 스냅샷에 있는 ref만 사용" },
       value: {
         type: "string",
         description: "fill=입력할 텍스트, select=선택할 옵션 라벨, press=키 이름(Enter/Tab/Escape), scroll=down 또는 up, goto=절대 URL, wait=밀리초(최대 5000)",
@@ -326,6 +332,10 @@ export async function executeAction(
         if (!sel) throw new Error("ref가 필요합니다.");
         await page.locator(sel).first().click({ timeout: 8000 });
         break;
+      case "dblclick":
+        if (!sel) throw new Error("ref가 필요합니다.");
+        await page.locator(sel).first().dblclick({ timeout: 8000 });
+        break;
       case "fill": {
         if (!sel) throw new Error("ref가 필요합니다.");
         const realValue = substitute(act.value || "");
@@ -355,11 +365,14 @@ export async function executeAction(
       case "wait":
         await page.waitForTimeout(Math.min(parseInt(act.value || "1000", 10) || 1000, 5000));
         break;
+      default:
+        // 알 수 없는 액션이 조용히 "성공"으로 처리되면 에이전트가 진행됐다고 착각한다
+        throw new Error(`지원하지 않는 액션입니다: ${act.action}`);
     }
 
     // 액션 후 안정화 — 새 탭 감지 → 네비게이션 대기 → URL 안정화(리다이렉트 체인 추적)
     // 탭 전환 채택은 사용자 상호작용(click/press)에서만 — goto/scroll이 늦은 팝업에 가로채이지 않도록
-    const interactive = act.action === "click" || act.action === "press";
+    const interactive = act.action === "click" || act.action === "dblclick" || act.action === "press";
     await page.waitForTimeout(interactive ? 800 : 300);
     const newTab = await session.syncActivePage(interactive);
     const after = session.getPage();
@@ -390,7 +403,7 @@ const SYSTEM_PROMPT = `당신은 실제 브라우저를 조작하는 시니어 Q
 
 ## 절대 규칙
 1. ref는 반드시 현재 스냅샷에 존재하는 번호만 사용하세요. 추측하거나 만들어내지 마세요.
-2. 클릭은 자동으로 해당 요소까지 스크롤됩니다. inView가 false여도 클릭할 수 있습니다.
+2. 클릭은 자동으로 해당 요소까지 스크롤됩니다. inView가 false여도 클릭할 수 있습니다. 인라인 편집 진입 등 더블클릭이 필요한 UI는 dblclick을 사용하세요.
 3. scroll 액션은 무한스크롤/lazy 로딩 콘텐츠를 새로 불러올 때만 사용하세요. 요소 클릭을 위해 스크롤할 필요는 없습니다.
 4. 검색: 검색 input에 fill한 다음 턴에 press Enter 하세요.
 5. {{SECRET_N}} 형태의 토큰이 과업에 있으면 fill의 value에 토큰 그대로 넣으세요. 실행 시 실제 값으로 치환됩니다.
@@ -442,6 +455,7 @@ function describeAction(act: AgentAction, secrets: SecretField[]): string {
   for (const s of secrets) v = v.split(s.token).join(s.masked);
   switch (act.action) {
     case "click": return `ref=${act.ref} 클릭`;
+    case "dblclick": return `ref=${act.ref} 더블클릭`;
     case "fill": return `ref=${act.ref} 에 "${v}" 입력`;
     case "select": return `ref=${act.ref} 에서 "${v}" 선택`;
     case "press": return `${v || "Enter"} 키 입력`;
@@ -481,6 +495,7 @@ export async function runAgentScenario(
 
   const steps: AgentStep[] = [];
   let totalTokens = 0;
+  let invalidOutputs = 0;
   // 과거 턴은 요약 텍스트로 압축해 토큰을 절약한다
   const history: string[] = [];
   const recentSigs: string[] = [];
@@ -530,6 +545,26 @@ export async function runAgentScenario(
         return { success: false, steps, totalTokens, finalPage: session.getPage(), failReason: "AI가 액션을 결정하지 못했습니다." };
       }
       const act = toolBlock.input as AgentAction;
+
+      // 모델 출력 검증 — action 누락/enum 밖 값이 그대로 흘러가면 로그 콜백
+      // (step.action.toUpperCase 등)에서 TypeError가 나 런 전체가 죽는다.
+      // 크래시 대신 교정 피드백을 히스토리에 넣고 다음 턴에서 스스로 고치게 한다.
+      if (!act.action || !VALID_ACTIONS.has(act.action)) {
+        invalidOutputs++;
+        const got = act.action ? `지원하지 않는 액션 "${act.action}"` : "action 필드 누락";
+        emit("error", `AI 출력 오류: ${got}`, "유효한 액션으로 다시 결정합니다.");
+        history.push(
+          `${i + 1}. (무효 출력: ${got}) → action에는 click/dblclick/fill/select/press/scroll/goto/wait/done/fail 중 하나만 사용하세요.`
+        );
+        if (invalidOutputs >= 3) {
+          return {
+            success: false, steps, totalTokens, finalPage: session.getPage(),
+            failReason: "AI가 유효한 액션을 3회 결정하지 못했습니다. 시나리오를 더 단순한 행동 단위로 나눠보세요.",
+          };
+        }
+        continue;
+      }
+
       const desc = describeAction(act, secrets);
       emit(act.action, desc, act.reasoning || "");
       console.log(`  [agent ${i + 1}/${maxSteps}] ${act.action} ${desc}`);

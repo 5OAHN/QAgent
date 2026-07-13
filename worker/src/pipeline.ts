@@ -284,7 +284,7 @@ export async function runNaturalLanguagePipeline(
         const loginFields = loginConfig.fields.filter((f) => f.value.trim());
         const loginResult = await executeSmartLogin(page, loginFields, (step) => {
           const icon = step.action === "done" ? "✅" : step.action === "fail" || step.action === "error" ? "❌" : `[${step.stepNum}]`;
-          run.loginSteps!.push(`${icon} ${step.action.toUpperCase()} ${step.details}\n    💭 ${step.thought}`);
+          run.loginSteps!.push(`${icon} ${String(step.action || "?").toUpperCase()} ${step.details}\n    💭 ${step.thought}`);
           saveRun(run);
         }, control);
 
@@ -432,15 +432,24 @@ export async function runNaturalLanguagePipeline(
               sync();
               await page.waitForTimeout(1500);
             }
-            agentResult = await runAgentScenario(page, stepTask, {
-              maxSteps: 12,
-              onStep: (step) => {
-                const icon = step.action === "done" ? "✅" : step.action === "fail" || step.action === "error" ? "❌" : `[${sIdx + 1}.${step.stepNum}]`;
-                liveStepLogs.push(`${icon} ${step.action.toUpperCase()} ${step.details}\n    💭 ${step.thought}`);
-                sync();
-              },
-              control,
-            });
+            try {
+              agentResult = await runAgentScenario(page, stepTask, {
+                maxSteps: 12,
+                onStep: (step) => {
+                  const icon = step.action === "done" ? "✅" : step.action === "fail" || step.action === "error" ? "❌" : `[${sIdx + 1}.${step.stepNum}]`;
+                  liveStepLogs.push(`${icon} ${String(step.action || "?").toUpperCase()} ${step.details}\n    💭 ${step.thought}`);
+                  sync();
+                },
+                control,
+              });
+            } catch (agentErr: any) {
+              // 에이전트 내부 예외도 "실패한 시도"로 취급해 재시도 대상에 포함시킨다.
+              // 여기서 throw가 새어나가면 재시도 없이 케이스 전체가 원인 불명으로 죽는다.
+              agentResult = {
+                success: false, steps: [], finalPage: page,
+                failReason: `에이전트 내부 오류: ${agentErr.message}`,
+              };
+            }
             page = agentResult.finalPage;
             totalTokens += agentResult.totalTokens || 0;
             if (agentResult.success || control.isCancelled()) break;
