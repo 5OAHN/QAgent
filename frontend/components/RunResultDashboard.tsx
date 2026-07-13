@@ -231,12 +231,16 @@ function buildDisplayCases(data: RunResult): TestCase[] {
     const existing = testId ? data.cases.find((c) => c.testId === testId) : data.cases[i];
 
     if (existing) {
-      result.push(existing);
+      // 케이스에 저장된 scenario는 백엔드에서 절단됐을 수 있다(과거 런은 80자) —
+      // 런에 보존된 작성 원문(run.scenarios)이 있으면 그것으로 복원해
+      // "전체 보기", 시나리오 수정, 재시도가 항상 원문 전체를 다루게 한다.
+      const fullText = scenarioTexts[i]?.trim();
+      result.push(fullText && fullText.length > existing.scenario.length ? { ...existing, scenario: fullText } : existing);
     } else {
       result.push({
         testId: testId || `pending-${i}`,
         feature: data.mode === "natural" ? "Vision 에이전트" : "",
-        scenario: scenarioTexts[i]?.trim().slice(0, 200) || `케이스 ${i + 1}`,
+        scenario: scenarioTexts[i]?.trim() || `케이스 ${i + 1}`,
         status: "Pending",
         failReason: "",
         videoUrl: "",
@@ -1235,6 +1239,9 @@ function TimelineCard({
         </div>
       ) : null}
 
+      {/* 작성한 시나리오 원문 — AI 해석과 나란히 비교할 수 있도록 타임라인 최상단에 배치 */}
+      {tc?.scenario && activeTab === "timeline" && <AuthoredScenarioCard scenario={tc.scenario} />}
+
       {/* AI가 선언한 해석 가정 — 투명성 */}
       {tc?.assumptions && tc.assumptions.length > 0 && activeTab === "timeline" && (
         <div className="mb-4 px-4 py-2.5 rounded-lg border border-blue-200 bg-blue-50/50 flex-shrink-0">
@@ -1346,6 +1353,91 @@ function TimelineLogEntry({ log }: { log: string }) {
           <p className="text-[11px] text-gray-400 leading-relaxed mt-0.5 whitespace-pre-line">{thought}</p>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 작성한 시나리오 카드 — 사용자가 입력한 원문을 "AI가 이해한 시나리오"와
+// 같은 시각 언어(접이식 회색 박스)로 보여줘 원문 ↔ AI 해석을 나란히 비교하게 한다.
+// 기본은 접힘(헤더 한 줄 + 첫 줄 미리보기)이라 기존 타임라인 공간을 해치지 않는다.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function AuthoredScenarioCard({ scenario }: { scenario: string }) {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const firstLine = scenario.split("\n").find((l) => l.trim()) || "";
+
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(scenario);
+    } catch {
+      const el = document.createElement("textarea");
+      el.value = scenario;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 flex-shrink-0">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between gap-3 px-4 py-2.5 text-left"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide flex-shrink-0">작성한 시나리오</p>
+          {!open && <p className="text-xs text-gray-400 truncate">{firstLine}</p>}
+        </div>
+        <svg
+          width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
+          className={`text-gray-400 flex-shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+        >
+          <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="px-4 pb-3 border-t border-gray-200/70 pt-2.5">
+          <div className="flex justify-end mb-1.5">
+            <button
+              onClick={handleCopy}
+              disabled={copied}
+              className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-md border transition-all duration-200 active:scale-95 ${
+                copied
+                  ? "border-green-300 text-green-600 bg-green-50"
+                  : "border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700 bg-white"
+              }`}
+            >
+              {copied ? (
+                <>
+                  <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                    <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  복사 완료
+                </>
+              ) : (
+                <>
+                  <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                    />
+                  </svg>
+                  복사
+                </>
+              )}
+            </button>
+          </div>
+          <p className="text-sm text-gray-700 whitespace-pre-line leading-6 max-h-44 overflow-y-auto">{scenario}</p>
+        </div>
+      )}
     </div>
   );
 }

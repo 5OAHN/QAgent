@@ -338,7 +338,8 @@ export async function runNaturalLanguagePipeline(
       const result: TestResult = {
         testId,
         feature: "AI 에이전트",
-        scenario: naturalText.slice(0, 80),
+        // 작성 원문 전체를 보존 — UI의 "작성한 시나리오" 확인, 수정, 재시도가 원문을 다룬다
+        scenario: naturalText,
         status: "Pending",
         failReason: "",
         videoUrl: "",
@@ -546,7 +547,7 @@ export async function runNaturalLanguagePipeline(
     run.cases.push({
       testId,
       feature: "AI 에이전트",
-      scenario: scenarioList[i].slice(0, 80),
+      scenario: scenarioList[i],
       status: "Fail",
       failReason: wasCancelled ? "실행이 중지되어 처리되지 않음" : "실행이 중단되어 처리되지 않음",
       videoUrl: "",
@@ -588,7 +589,8 @@ export async function runNaturalLanguagePipeline(
     blocked: blockedCount,
     total: run.total,
     dashboardBaseUrl: opts?.dashboardBaseUrl,
-    newFailures: newFailures.map((c) => ({ testId: c.testId, scenario: c.scenario })),
+    // 알림 메시지는 간결해야 하므로 시나리오는 요약본만 전달
+    newFailures: newFailures.map((c) => ({ testId: c.testId, scenario: c.scenario.slice(0, 80) })),
     fixedCount: fixedCases.length,
     triggeredBySchedule: opts?.triggeredBySchedule,
   });
