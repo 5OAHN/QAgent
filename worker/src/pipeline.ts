@@ -419,6 +419,7 @@ export async function runNaturalLanguagePipeline(
             "",
             "이 단계 하나만 수행하세요. 완료 조건이 화면에서 확인되면 done, 확인되지 않거나 진행 불가면 fail 하세요.",
             "단계에 조건('~라면')이 있으면 현재 화면을 보고 조건 충족 여부를 먼저 판단하세요. 조건이 해당되지 않으면 그 사실을 evidence에 적고 done 하세요.",
+            "액션의 대상 요소가 화면에 없다면: 완료 조건이 이미 충족된 상태인지 먼저 확인하세요(예: 삭제 단계인데 항목이 이미 없음 = 이미 삭제됨). 충족되어 있으면 액션 없이 그 근거로 done 하세요.",
           ].join("\n");
 
           // 일시적 오류(네트워크 지연, 렌더링 타이밍 등) 필터링 — 실패 시 한 번 더 시도한 뒤에만
@@ -426,14 +427,31 @@ export async function runNaturalLanguagePipeline(
           const MAX_STEP_ATTEMPTS = 2;
           let agentResult: Awaited<ReturnType<typeof runAgentScenario>> | undefined;
           for (let attempt = 1; attempt <= MAX_STEP_ATTEMPTS; attempt++) {
+            let attemptTask = stepTask;
             if (attempt > 1) {
               result.retryCount = (result.retryCount || 0) + 1;
               liveStepLogs.push(`🔁 RETRY 단계 ${sIdx + 1} 재시도 (${attempt}/${MAX_STEP_ATTEMPTS})\n    💭 일시적 오류일 수 있어 한 번 더 시도합니다: ${agentResult?.failReason}`);
               sync();
               await page.waitForTimeout(1500);
+
+              // 재시도 에이전트는 새 실행이라 직전 시도의 기억이 없다 — 직전 시도가 이미
+              // 페이지 상태를 바꿔놨을 수 있음(예: 삭제 완료 후 검증만 실패)을 반드시 알려야
+              // "대상이 안 보인다"며 배회하는 대신 현재 상태부터 판정한다.
+              const prevActions = (agentResult?.steps || [])
+                .filter((s) => s.action !== "error")
+                .slice(-6)
+                .map((s) => `- ${s.action}: ${s.details}`)
+                .join("\n");
+              attemptTask = [
+                stepTask,
+                "",
+                `⚠️ 이 단계는 재시도입니다. 직전 시도가 아래 액션들을 이미 실행해 페이지 상태가 바뀌어 있을 수 있습니다:`,
+                prevActions || "(기록 없음)",
+                `먼저 현재 화면에서 완료 조건이 이미 충족되었는지 확인하고, 충족이면 즉시 done 하세요. 직전 시도가 한 액션을 무의미하게 반복하지 마세요.`,
+              ].join("\n");
             }
             try {
-              agentResult = await runAgentScenario(page, stepTask, {
+              agentResult = await runAgentScenario(page, attemptTask, {
                 maxSteps: 12,
                 onStep: (step) => {
                   const icon = step.action === "done" ? "✅" : step.action === "fail" || step.action === "error" ? "❌" : `[${sIdx + 1}.${step.stepNum}]`;

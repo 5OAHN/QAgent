@@ -243,7 +243,7 @@ export function createBrowserSession(initialPage: Page): BrowserSession {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface AgentAction {
-  action: "click" | "dblclick" | "fill" | "select" | "press" | "scroll" | "goto" | "wait" | "done" | "fail";
+  action: "click" | "dblclick" | "hover" | "fill" | "select" | "press" | "scroll" | "goto" | "wait" | "done" | "fail";
   ref?: string;
   value?: string;
   reasoning: string;
@@ -253,7 +253,7 @@ export interface AgentAction {
 /** 모델 출력 검증용 — tool_choice로 도구 호출은 강제되지만 필드 누락이나
     enum 밖 값은 API가 항상 막아주지 않는다(특히 소형 모델). */
 const VALID_ACTIONS = new Set<string>([
-  "click", "dblclick", "fill", "select", "press", "scroll", "goto", "wait", "done", "fail",
+  "click", "dblclick", "hover", "fill", "select", "press", "scroll", "goto", "wait", "done", "fail",
 ]);
 
 const ACTION_TOOL = {
@@ -268,10 +268,10 @@ const ACTION_TOOL = {
       },
       action: {
         type: "string",
-        enum: ["click", "dblclick", "fill", "select", "press", "scroll", "goto", "wait", "done", "fail"],
-        description: "click=요소 클릭(자동 스크롤됨), dblclick=요소 더블클릭(인라인 편집 모드 진입 등), fill=입력필드에 값 입력(기존 값은 자동으로 대체됨 — 미리 지울 필요 없음), select=드롭다운 옵션 선택, press=키보드 키 입력, scroll=페이지 스크롤(lazy 로딩 콘텐츠 노출용), goto=URL 직접 이동, wait=대기, done=시나리오 완료, fail=수행 불가 판정",
+        enum: ["click", "dblclick", "hover", "fill", "select", "press", "scroll", "goto", "wait", "done", "fail"],
+        description: "click=요소 클릭(자동 스크롤됨), dblclick=요소 더블클릭(인라인 편집 모드 진입 등), hover=요소에 마우스 올리기(hover해야 나타나는 버튼·메뉴 표시용), fill=입력필드에 값 입력(기존 값은 자동으로 대체됨 — 미리 지울 필요 없음), select=드롭다운 옵션 선택, press=키보드 키 입력, scroll=페이지 스크롤(lazy 로딩 콘텐츠 노출용), goto=URL 직접 이동, wait=대기, done=시나리오 완료, fail=수행 불가 판정",
       },
-      ref: { type: "string", description: "click/dblclick/fill/select 대상 요소의 ref 번호. 스냅샷에 있는 ref만 사용" },
+      ref: { type: "string", description: "click/dblclick/hover/fill/select 대상 요소의 ref 번호. 스냅샷에 있는 ref만 사용" },
       value: {
         type: "string",
         description: "fill=입력할 텍스트, select=선택할 옵션 라벨, press=키 이름(Enter/Tab/Escape), scroll=down 또는 up, goto=절대 URL, wait=밀리초(최대 5000)",
@@ -360,11 +360,40 @@ export async function executeAction(
 
   try {
     switch (act.action) {
-      case "click":
-        await (await requireTarget()).click({ timeout: 8000 });
+      case "click": {
+        const target = await requireTarget();
+        const visible = await target.isVisible().catch(() => false);
+        if (!visible) {
+          // hover해야 나타나는 컨트롤(행 hover 시 표시되는 삭제 버튼 등) —
+          // 풀 타임아웃을 낭비하지 않고 소속 행에 실제 마우스를 올려 표시시킨 뒤 클릭한다.
+          const box = await page.evaluate((s) => {
+            const el = document.querySelector(s) as HTMLElement | null;
+            const row = (el?.closest("li, tr, [role='row'], [role='listitem']") || el?.parentElement) as HTMLElement | null;
+            row?.scrollIntoView({ block: "center" });
+            const r = row?.getBoundingClientRect();
+            return r && r.width > 0 ? { x: r.x + r.width / 2, y: r.y + r.height / 2 } : null;
+          }, sel);
+          if (box) {
+            await page.mouse.move(box.x, box.y);
+            await page.waitForTimeout(250);
+          }
+          try {
+            await target.click({ timeout: 3000 });
+          } catch {
+            // 그래도 클릭 불가면 DOM 이벤트로 직접 클릭 (마지막 수단)
+            await target.evaluate((el) => (el as HTMLElement).click());
+          }
+        } else {
+          await target.click({ timeout: 8000 });
+        }
         break;
+      }
       case "dblclick":
         await (await requireTarget()).dblclick({ timeout: 8000 });
+        break;
+      case "hover":
+        await (await requireTarget()).hover({ timeout: 5000 });
+        await page.waitForTimeout(300); // hover로 트리거되는 UI(메뉴·버튼)가 나타날 시간
         break;
       case "fill": {
         const target = await requireTarget();
@@ -443,10 +472,14 @@ const SYSTEM_PROMPT = `당신은 실제 브라우저를 조작하는 시니어 Q
 3. dblclick: 요소를 빠르게 두 번 클릭. 인라인 편집, 이름 변경 UI에서 사용.
    예: TodoMVC 목록 항목의 레이블을 dblclick하면 편집 input이 나타남.
 4. fill: 입력필드의 **기존 값을 자동으로 지우고 대체**합니다. Control+A나 Delete로 미리 지우는 턴을 낭비하지 마세요. 값 교체는 fill 한 번이면 됩니다.
-5. scroll 액션은 무한스크롤/lazy 로딩 콘텐츠를 새로 불러올 때만 사용하세요. 요소 클릭을 위해 스크롤할 필요는 없습니다.
-6. 검색: 검색 input에 fill한 다음 턴에 press Enter 하세요.
-7. {{SECRET_N}} 형태의 토큰이 과업에 있으면 fill의 value에 토큰 그대로 넣으세요. 실행 시 실제 값으로 치환됩니다.
-8. reasoning은 1-2문장으로 짧게. 장문 reasoning은 응답이 토큰 한도에서 잘려 그 턴이 무효 처리됩니다.
+5. 스냅샷은 **스크롤 위치와 무관하게 페이지 전체의 요소**를 담습니다(화면 밖 요소는 "(화면밖)" 표시).
+   따라서 스냅샷에 없는 요소는 스크롤해도 나타나지 않습니다. scroll은 무한스크롤/lazy 로딩 콘텐츠를 새로 불러올 때만 쓰세요.
+6. **과업의 대상 요소가 스냅샷에 없으면** 요소를 찾아 헤매지 말고, 과업의 완료 조건이 이미 충족된 상태인지 "화면에 보이는 텍스트"에서 먼저 확인하세요.
+   이전 시도나 앞 단계에서 이미 수행되어 대상이 사라진 것일 수 있습니다(예: 삭제 과업인데 항목이 이미 없음 = 이미 삭제됨). 충족이 확인되면 그 근거로 done 하세요.
+7. 마우스를 올려야 나타나는 컨트롤(행 hover 시 표시되는 버튼·서브메뉴 등)이 의심되면 hover 액션으로 해당 행에 마우스를 올린 뒤 다음 턴 스냅샷을 확인하세요.
+8. 검색: 검색 input에 fill한 다음 턴에 press Enter 하세요.
+9. {{SECRET_N}} 형태의 토큰이 과업에 있으면 fill의 value에 토큰 그대로 넣으세요. 실행 시 실제 값으로 치환됩니다.
+10. reasoning은 1-2문장으로 짧게. 장문 reasoning은 응답이 토큰 한도에서 잘려 그 턴이 무효 처리됩니다.
 
 ## 판단 규칙
 - 같은 액션이 2번 연속 실패하면 다른 요소나 다른 방법을 시도하세요.
@@ -496,6 +529,7 @@ function describeAction(act: AgentAction, secrets: SecretField[]): string {
   switch (act.action) {
     case "click": return `ref=${act.ref} 클릭`;
     case "dblclick": return `ref=${act.ref} 더블클릭`;
+    case "hover": return `ref=${act.ref} 에 마우스 올림`;
     case "fill": return `ref=${act.ref} 에 "${v}" 입력`;
     case "select": return `ref=${act.ref} 에서 "${v}" 선택`;
     case "press": return `${v || "Enter"} 키 입력`;
@@ -563,11 +597,17 @@ export async function runAgentScenario(
       const page = session.getPage();
       const snap = await snapshotPage(page);
 
+      // 스텝 예산이 거의 소진되면 탐색을 멈추고 판정을 강제 — "12스텝 소진" 류의
+      // 결론 없는 실패 대신 현재 화면 기준으로 done/fail을 내리게 한다.
+      const budgetWarning = i >= maxSteps - 2
+        ? `⚠️ 남은 스텝이 ${maxSteps - i}개뿐입니다. 더 이상 탐색하지 말고, 현재 화면 텍스트를 근거로 완료 조건 충족 여부를 판정해 done 또는 fail을 결정하세요.`
+        : "";
+
       const userMessage = [
         `## 과업\n${task}`,
         history.length ? `## 지금까지의 진행\n${history.join("\n")}` : "",
         `## 현재 페이지 스냅샷\n${formatSnapshot(snap)}`,
-        `다음 액션 하나를 결정하세요. (${i + 1}/${maxSteps} 스텝)`,
+        [`다음 액션 하나를 결정하세요. (${i + 1}/${maxSteps} 스텝)`, budgetWarning].filter(Boolean).join("\n"),
       ].filter(Boolean).join("\n\n");
 
       const response = await createWithRetry(client, {
@@ -637,12 +677,22 @@ export async function runAgentScenario(
         : `실패: ${outcome.error}`;
       history.push(`${i + 1}. ${act.action} ${desc} → ${resultNote}`);
 
-      // 루프 감지 — 같은 액션이 3회 반복되면 경고를 히스토리에 주입해 방향 전환을 유도
+      // 루프 감지 — 진전 없는 반복 패턴을 잡아 방향 전환을 강제한다.
+      // (1) 같은 액션 3회 연속  (2) up/down을 번갈아 하는 스크롤 배회
+      //     — 스크롤은 방향이 바뀌면 시그니처가 달라져 (1)로는 잡히지 않는다 (실제 라이브 실패 사례)
       const sig = `${act.action}|${act.ref}|${act.value}`;
       recentSigs.push(sig);
-      if (recentSigs.length > 3) recentSigs.shift();
-      if (recentSigs.length === 3 && recentSigs.every((s) => s === sig)) {
+      if (recentSigs.length > 4) recentSigs.shift();
+      const identicalLoop = recentSigs.length >= 3 && recentSigs.slice(-3).every((s) => s === sig);
+      const scrollLoop = recentSigs.length === 4 && recentSigs.every((s) => s.startsWith("scroll|"));
+      if (identicalLoop) {
         history.push(`⚠️ 경고: 같은 액션을 3회 반복했습니다. 이 방법은 효과가 없습니다. 화면 텍스트를 다시 읽고 완전히 다른 접근을 하거나, 과업 달성이 불가능하다고 판단되면 fail로 보고하세요.`);
+        recentSigs.length = 0;
+      } else if (scrollLoop) {
+        history.push(
+          `⚠️ 경고: 스크롤만 4회 반복했습니다. 스냅샷은 스크롤 위치와 무관하게 페이지 전체 요소를 포함하므로, 스냅샷에 없는 요소는 스크롤해도 나타나지 않습니다. 지금 즉시: (1) 과업의 완료 조건이 이미 충족됐는지 "화면에 보이는 텍스트"에서 확인 → 충족이면 done, (2) 아니면 스크롤이 아닌 다른 액션으로 과업을 달성하거나 fail로 보고하세요.`
+        );
+        recentSigs.length = 0;
       }
 
       if (!outcome.ok) {

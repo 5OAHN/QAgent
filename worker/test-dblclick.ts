@@ -53,7 +53,7 @@ async function main() {
   check("UPDATE: '테스트1-수정됨' 반영", snap.pageText.includes("테스트1-수정됨"));
 
   // 3) 무효 액션 방어 — 미지의 액션은 ok:false + 명시적 에러여야 한다
-  const bad = await executeAction(session, { action: "hover" as any, ref: "0", reasoning: "" }, []);
+  const bad = await executeAction(session, { action: "zoom" as any, ref: "0", reasoning: "" }, []);
   check("무효 액션 → 명시적 실패", !bad.ok && (bad.error || "").includes("지원하지 않는"), bad.error);
 
   // 4) stale ref 방어 — DOM에 없는 ref는 풀 타임아웃(8초) 대기 없이 즉시, 교정 가능한 메시지로 실패
