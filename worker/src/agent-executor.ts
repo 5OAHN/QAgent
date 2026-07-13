@@ -76,7 +76,7 @@ export async function snapshotPage(page: Page): Promise<PageSnapshot> {
 
   const raw = await page.evaluate((maxElements) => {
     const selector = [
-      "a[href]", "button", "input", "select", "textarea", "summary",
+      "a[href]", "button", "input", "select", "textarea", "summary", "label",
       '[role="button"]', '[role="link"]', '[role="checkbox"]', '[role="radio"]',
       '[role="tab"]', '[role="menuitem"]', '[role="option"]', '[role="combobox"]',
       '[role="searchbox"]', '[role="textbox"]', '[role="switch"]',
@@ -403,8 +403,10 @@ const SYSTEM_PROMPT = `당신은 실제 브라우저를 조작하는 시니어 Q
 
 ## 절대 규칙
 1. ref는 반드시 현재 스냅샷에 존재하는 번호만 사용하세요. 추측하거나 만들어내지 마세요.
-2. 클릭은 자동으로 해당 요소까지 스크롤됩니다. inView가 false여도 클릭할 수 있습니다. 인라인 편집 진입 등 더블클릭이 필요한 UI는 dblclick을 사용하세요.
-3. scroll 액션은 무한스크롤/lazy 로딩 콘텐츠를 새로 불러올 때만 사용하세요. 요소 클릭을 위해 스크롤할 필요는 없습니다.
+2. click: 요소를 한 번 클릭. 자동으로 스크롤됨. inView=false여도 가능.
+3. dblclick: 요소를 빠르게 두 번 클릭. 인라인 편집, 이름 변경 UI에서 사용.
+   예: TodoMVC 목록 항목의 레이블을 dblclick하면 편집 input이 나타남.
+4. scroll 액션은 무한스크롤/lazy 로딩 콘텐츠를 새로 불러올 때만 사용하세요. 요소 클릭을 위해 스크롤할 필요는 없습니다.
 4. 검색: 검색 input에 fill한 다음 턴에 press Enter 하세요.
 5. {{SECRET_N}} 형태의 토큰이 과업에 있으면 fill의 value에 토큰 그대로 넣으세요. 실행 시 실제 값으로 치환됩니다.
 
