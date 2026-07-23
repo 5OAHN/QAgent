@@ -2,9 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { Page, BrowserContext } from "playwright";
 import { resolveAnthropicKey } from "./api-keys";
 
-// Haiku는 스텝 실패→재시도가 잦아 명목가보다 실질 비용이 높고 신뢰도가 낮았음(라이브 테스트로 확인).
-// Sonnet 5는 입력 3배/출력 3배 비싸지만 첫 시도 성공률이 훨씬 높아 재시도 비용까지 고려하면 순비용은 비슷하거나 더 낮다.
-const AGENT_MODEL = "claude-sonnet-5";
+const AGENT_MODEL = "claude-haiku-4-5";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 공용 타입 — 프론트엔드 타임라인 포맷과 호환
@@ -615,15 +613,11 @@ export async function runAgentScenario(
       const response = await createWithRetry(client, {
         model: AGENT_MODEL,
         max_tokens: 1024,
-        // tool_choice로 특정 도구를 강제하는 요청은 thinking과 함께 쓸 수 없다(400) —
-        // Sonnet 5는 thinking을 생략하면 기본 adaptive라서 명시적으로 꺼야 한다.
-        // 설치된 SDK(0.30.1)가 thinking 필드 타입을 아직 몰라 any로 우회 — API는 그대로 받는다.
-        thinking: { type: "disabled" },
         system: SYSTEM_PROMPT,
         tools: [ACTION_TOOL],
         tool_choice: { type: "tool", name: "browser_action" },
         messages: [{ role: "user", content: userMessage }],
-      } as any);
+      });
 
       totalTokens += (response.usage?.input_tokens || 0) + (response.usage?.output_tokens || 0);
 
