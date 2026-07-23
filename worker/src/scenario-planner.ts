@@ -1,7 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { resolveAnthropicKey } from "./api-keys";
 
-const PLAN_MODEL = "claude-haiku-4-5";
+// 시나리오 분해 오류는 이후 모든 단계 실행에 전파되므로 Haiku보다 신뢰도가 높은 모델을 사용한다.
+const PLAN_MODEL = "claude-sonnet-5";
 
 export interface PlannedStep {
   /** 수행할 사용자 행동 하나 (예: 할일 입력창에 "테스트 항목"을 입력하고 Enter) */
@@ -109,11 +110,14 @@ export async function planScenario(
   const res = await client.messages.create({
     model: PLAN_MODEL,
     max_tokens: 2000,
+    // forced tool_choice는 thinking과 함께 쓸 수 없다(400) — Sonnet 5는 생략 시 기본 adaptive라서 명시적으로 꺼야 한다.
+    // 설치된 SDK(0.30.1)가 thinking 필드 타입을 아직 몰라 any로 우회 — API는 그대로 받는다.
+    thinking: { type: "disabled" },
     system: SYSTEM_PROMPT,
     tools: [PLAN_TOOL],
     tool_choice: { type: "tool", name: "plan_scenario" },
     messages: [{ role: "user", content: userMessage }],
-  });
+  } as any);
 
   const tokens = (res.usage?.input_tokens || 0) + (res.usage?.output_tokens || 0);
   const toolBlock = res.content.find((b) => b.type === "tool_use");
