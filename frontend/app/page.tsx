@@ -53,14 +53,11 @@ function filterByPeriod(runs: RunSummary[], period: Period): RunSummary[] {
 export default function HomePage() {
   const [period, setPeriod] = useState<Period>("all");
 
-  const { data, isLoading } = useSWR<RunSummary[]>(
+  const { data: runs = [], isLoading } = useSWR<RunSummary[]>(
     "/api/history",
     fetcher,
     { refreshInterval: 5000 }
   );
-  // API 라우트가 계약을 지키지 못하는 응답(에러 객체 등)을 돌려줘도 렌더링이
-  // 죽지 않도록 항상 배열로 강제한다 — 배열이 아니면 .filter()/.length에서 크래시.
-  const runs = Array.isArray(data) ? data : [];
 
   // Apply period filter only
   const filteredRuns = filterByPeriod(runs, period);
